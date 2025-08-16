@@ -1,5 +1,4 @@
 // File: pages/dashboard.js
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../services/supabase'
@@ -13,6 +12,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [newItemName, setNewItemName] = useState('')
   const [newItemPrice, setNewItemPrice] = useState('')
+  const [upiId, setUpiId] = useState('')
+  const [taxRate, setTaxRate] = useState('')
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
 
@@ -25,9 +26,10 @@ export default function DashboardPage() {
         router.push('/login')
       }
     })
-
     ;(async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser()
       if (currentUser) {
         setUser(currentUser)
         initializeRestaurant(currentUser)
@@ -35,11 +37,10 @@ export default function DashboardPage() {
         router.push('/login')
       }
     })()
-
     return () => {
       listener.subscription.unsubscribe()
     }
-  }, [])
+  }, [router])
 
   const initializeRestaurant = async (currentUser) => {
     setLoading(true)
@@ -48,13 +49,11 @@ export default function DashboardPage() {
       .select('*')
       .eq('owner_email', currentUser.email)
       .single()
-
     if (fetchError && fetchError.code !== 'PGRST116') {
       console.error('Error fetching restaurant:', fetchError)
       setLoading(false)
       return
     }
-
     let targetRestaurant = existingRestaurant
     if (!existingRestaurant) {
       const { data: newRestaurant, error: insertError } = await supabase
@@ -69,30 +68,20 @@ export default function DashboardPage() {
       }
       targetRestaurant = newRestaurant
     }
-
     setRestaurant(targetRestaurant)
-    await Promise.all([
-      loadMenuItems(targetRestaurant.id),
-      loadOrders(targetRestaurant.id)
-    ])
+    setUpiId(targetRestaurant.upi_id || '')
+    setTaxRate(targetRestaurant.tax_rate ?? '')
+    await Promise.all([loadMenuItems(targetRestaurant.id), loadOrders(targetRestaurant.id)])
     setLoading(false)
   }
 
   const loadMenuItems = async (restaurantId) => {
-    const { data } = await supabase
-      .from('menu_items')
-      .select('*')
-      .eq('restaurant_id', restaurantId)
-      .order('created_at')
+    const { data } = await supabase.from('menu_items').select('*').eq('restaurant_id', restaurantId).order('created_at')
     setMenuItems(data || [])
   }
 
   const loadOrders = async (restaurantId) => {
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('restaurant_id', restaurantId)
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('orders').select('*').eq('restaurant_id', restaurantId).order('created_at', { ascending: false })
     setOrders(data || [])
   }
 
@@ -108,11 +97,13 @@ export default function DashboardPage() {
   }
 
   const toggleItemAvailability = async (item) => {
-    await supabase
-      .from('menu_items')
-      .update({ available: !item.available })
-      .eq('id', item.id)
+    await supabase.from('menu_items').update({ available: !item.available }).eq('id', item.id)
     loadMenuItems(restaurant.id)
+  }
+
+  const markCashCollected = async (orderId) => {
+    await supabase.from('orders').update({ payment_status: 'completed' }).eq('id', orderId)
+    loadOrders(restaurant.id)
   }
 
   const logout = async () => {
@@ -120,26 +111,53 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
-  const markCashCollected = async (orderId) => {
-    await supabase
-      .from('orders')
-      .update({ payment_status: 'completed' })
-      .eq('id', orderId)
-    loadOrders(restaurant.id)
+  const saveRestaurantSettings = async () => {
+    setLoading(true)
+    const updates = {
+      upi_id: upiId,
+      tax_rate: parseFloat(taxRate) || 0,
+    }
+    const { error } = await supabase.from('restaurants').update(updates).eq('id', restaurant.id)
+    setLoading(false)
+    if (error) {
+      alert('Error saving settings: ' + error.message)
+    } else {
+      alert('Settings updated!')
+      const { data, error: fetchError } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('id', restaurant.id)
+        .single()
+      if (!fetchError) {
+        setRestaurant(data)
+        setUpiId(data.upi_id || '')
+        setTaxRate(data.tax_rate ?? '')
+      }
+    }
   }
 
   if (loading) {
     return <div style={{ padding: 20 }}>Loading...</div>
   }
+
   if (!restaurant) {
     return <div style={{ padding: 20 }}>No restaurant data available.</div>
   }
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: 20 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+        }}
+      >
         <h1>{restaurant.name} - Dashboard</h1>
-        <button onClick={logout} style={{ padding: '5px 10px' }}>Logout</button>
+        <button onClick={logout} style={{ padding: '5px 10px' }}>
+          Logout
+        </button>
       </header>
 
       <section style={{ marginBottom: 30 }}>
@@ -147,7 +165,49 @@ export default function DashboardPage() {
         <code style={{ background: '#f0f0f0', padding: 10, display: 'block' }}>
           {`${baseUrl}/restaurants/${restaurant.id}?table=1`}
         </code>
-        <p><small>Change <code>table=1</code> for each table number.</small></p>
+        <p>
+          <small>
+            Change <code>table=1</code> for each table number.
+          </small>
+        </p>
+      </section>
+
+      {/* Restaurant Settings */}
+      <section style={{ marginBottom: 30 }}>
+        <h2>Restaurant Settings</h2>
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          UPI ID:
+          <input
+            type="text"
+            value={upiId}
+            onChange={(e) => setUpiId(e.target.value)}
+            placeholder="merchant@bank"
+            style={{ marginLeft: 10, padding: 6, width: '60%' }}
+          />
+        </label>
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          Tax Rate (%):
+          <input
+            type="number"
+            value={taxRate}
+            onChange={(e) => setTaxRate(e.target.value)}
+            placeholder="5.00"
+            style={{ marginLeft: 10, padding: 6, width: '20%' }}
+          />
+        </label>
+        <button
+          onClick={saveRestaurantSettings}
+          disabled={loading}
+          style={{
+            background: '#0070f3',
+            color: '#fff',
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: 4,
+          }}
+        >
+          {loading ? 'Saving…' : 'Save Settings'}
+        </button>
       </section>
 
       <section style={{ marginBottom: 30 }}>
@@ -168,13 +228,15 @@ export default function DashboardPage() {
             onChange={(e) => setNewItemPrice(e.target.value)}
             style={{ padding: 8, width: 100 }}
           />
-          <button type="submit" style={{ padding: '8px 16px' }}>Add Item</button>
+          <button type="submit" style={{ padding: '8px 16px' }}>
+            Add Item
+          </button>
         </form>
       </section>
 
       <section style={{ marginBottom: 30 }}>
         <h2>Menu Items ({menuItems.length})</h2>
-        {menuItems.map(item => (
+        {menuItems.map((item) => (
           <div
             key={item.id}
             style={{
@@ -183,7 +245,7 @@ export default function DashboardPage() {
               alignItems: 'center',
               padding: 10,
               border: '1px solid #ddd',
-              marginBottom: 10
+              marginBottom: 10,
             }}
           >
             <div>
@@ -199,7 +261,7 @@ export default function DashboardPage() {
                 background: item.available ? '#ff4444' : '#44aa44',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 4
+                borderRadius: 4,
               }}
             >
               {item.available ? 'Mark Out of Stock' : 'Mark Available'}
@@ -222,7 +284,7 @@ export default function DashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {orders.map(order => (
+            {orders.map((order) => (
               <tr key={order.id}>
                 <td style={{ borderBottom: '1px solid #eee', padding: 8 }}>{order.table_number}</td>
                 <td style={{ borderBottom: '1px solid #eee', padding: 8 }}>{order.items.length}</td>
@@ -230,11 +292,9 @@ export default function DashboardPage() {
                 <td style={{ borderBottom: '1px solid #eee', padding: 8 }}>{order.payment_method.toUpperCase()}</td>
                 <td style={{ borderBottom: '1px solid #eee', padding: 8 }}>{order.payment_status}</td>
                 <td style={{ borderBottom: '1px solid #eee', padding: 8 }}>
+                  {/* Fix condition: use === instead of = */}
                   {order.payment_method === 'cash' && order.payment_status === 'pending' && (
-                    <button
-                      onClick={() => markCashCollected(order.id)}
-                      style={{ padding: '4px 8px' }}
-                    >
+                    <button onClick={() => markCashCollected(order.id)} style={{ padding: '4px 8px' }}>
                       Mark Paid
                     </button>
                   )}
