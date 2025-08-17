@@ -1,5 +1,12 @@
-import "@/styles/globals.css";
+import '../styles/globals.css'  // your global CSS or Tailwind import
+import Layout from '../components/Layout'
 
-export default function App({ Component, pageProps }) {
-  return <Component {...pageProps} />;
+function MyApp({ Component, pageProps }) {
+  return (
+    <Layout title={pageProps.title}>
+      <Component {...pageProps} />
+    </Layout>
+  )
 }
+
+export default MyApp

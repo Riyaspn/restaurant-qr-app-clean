@@ -1,42 +1,207 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
+/* 1. CSS Reset (modernNormalize or a simple reset) */
+*,
+*::before,
+*::after {
   margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 2. Root Theme Variables */
+:root {
+  /* Colors */
+  --color-primary: #e67e22;       /* Accent / buttons */
+  --color-secondary: #3498db;     /* Links / secondary buttons */
+  --color-dark: #2c3e50;          /* Headings */
+  --color-body: #34495e;          /* Body text */
+  --color-light: #7f8c8d;         /* Subtext */
+  --color-bg: #f6f8fc;            /* Page background */
+  --color-white: #ffffff;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Typography */
+  --font-base: "Inter", sans-serif;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+}
+
+/* 3. Base Styles */
+html {
+  font-family: var(--font-base);
+  font-size: var(--font-size-base);
+  background-color: var(--color-bg);
+  color: var(--color-body);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  line-height: 1.6;
 }
 
 a {
-  color: inherit;
+  color: var(--color-secondary);
   text-decoration: none;
 }
+a:hover {
+  text-decoration: underline;
+}
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* 4. Headings */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-dark);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+}
+h1 { font-size: 2.5rem; margin-bottom: var(--space-md); }
+h2 { font-size: 2rem; margin-bottom: var(--space-md); }
+h3 { font-size: 1.75rem; margin-bottom: var(--space-sm); }
+
+/* 5. Buttons */
+button {
+  font-family: var(--font-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-lg);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+button:focus { outline: none; }
+
+
+/* 6. Utility Classes */
+.mt-sm { margin-top: var(--space-sm); }
+.mt-md { margin-top: var(--space-md); }
+.mb-sm { margin-bottom: var(--space-sm); }
+.mb-md { margin-bottom: var(--space-md); }
+.p-sm  { padding: var(--space-sm); }
+.p-md  { padding: var(--space-md); }
+.text-center { text-align: center; }
+.flex { display: flex; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+
+/* 7. Layout Helpers */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+
+/* 8. Form Elements */
+input, select, textarea {
+  font-family: var(--font-base);
+  font-size: var(--font-size-base);
+  padding: var(--space-sm);
+  border: 1px solid #ccc;
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* 9. Responsive Media Queries */
+@media (max-width: 768px) {
+  html { font-size: 14px; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.75rem; }
+}
+
+/* 10. CTA & Button Classes */
+.btn {
+  font-family: var(--font-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  padding: 12px 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+  display: inline-block;
+  text-align: center;
+}
+
+/* Raised Button Animation */
+.btn-raise:hover,
+.btn-raise:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+/* Primary */
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: none;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+  background: #d35400;
+}
+
+/* Secondary */
+.btn-secondary {
+  background: var(--color-secondary);
+  color: var(--color-white);
+  border: none;
+}
+.btn-secondary:hover,
+.btn-secondary:focus {
+  background: #217cb7;
+}
+
+/* Outlined styles */
+.btn-outline-primary {
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+  background: transparent;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+.btn-outline-secondary {
+  color: var(--color-secondary);
+  border: 2px solid var(--color-secondary);
+  background: transparent;
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+  background: var(--color-secondary);
+  color: var(--color-white);
+}
+
+.btn-outline-success {
+  color: #27ae60;
+  border: 2px solid #27ae60;
+  background: transparent;
+}
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+  background: #27ae60;
+  color: var(--color-white);
 }
