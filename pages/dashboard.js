@@ -1,5 +1,5 @@
 // File: pages/dashboard.js
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../services/supabase'
 
@@ -14,8 +14,44 @@ export default function DashboardPage() {
   const [newItemPrice, setNewItemPrice] = useState('')
   const [upiId, setUpiId] = useState('')
   const [taxRate, setTaxRate] = useState('')
-
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+
+  // Move and wrap with useCallback!
+  const initializeRestaurant = useCallback(
+    async (currentUser) => {
+      setLoading(true)
+      const { data: existingRestaurant, error: fetchError } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('owner_email', currentUser.email)
+        .single()
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching restaurant:', fetchError)
+        setLoading(false)
+        return
+      }
+      let targetRestaurant = existingRestaurant
+      if (!existingRestaurant) {
+        const { data: newRestaurant, error: insertError } = await supabase
+          .from('restaurants')
+          .insert([{ owner_email: currentUser.email, name: 'My New Restaurant' }])
+          .select()
+          .single()
+        if (insertError) {
+          console.error('Error creating restaurant:', insertError)
+          setLoading(false)
+          return
+        }
+        targetRestaurant = newRestaurant
+      }
+      setRestaurant(targetRestaurant)
+      setUpiId(targetRestaurant.upi_id || '')
+      setTaxRate(targetRestaurant.tax_rate ?? '')
+      await Promise.all([loadMenuItems(targetRestaurant.id), loadOrders(targetRestaurant.id)])
+      setLoading(false)
+    },
+    [] // You can add [supabase] here if supabase changes (rare in client apps)
+  )
 
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -40,51 +76,18 @@ export default function DashboardPage() {
     return () => {
       listener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, initializeRestaurant]) // <--- include the callback
 
-  const initializeRestaurant = async (currentUser) => {
-    setLoading(true)
-    const { data: existingRestaurant, error: fetchError } = await supabase
-      .from('restaurants')
-      .select('*')
-      .eq('owner_email', currentUser.email)
-      .single()
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('Error fetching restaurant:', fetchError)
-      setLoading(false)
-      return
-    }
-    let targetRestaurant = existingRestaurant
-    if (!existingRestaurant) {
-      const { data: newRestaurant, error: insertError } = await supabase
-        .from('restaurants')
-        .insert([{ owner_email: currentUser.email, name: 'My New Restaurant' }])
-        .select()
-        .single()
-      if (insertError) {
-        console.error('Error creating restaurant:', insertError)
-        setLoading(false)
-        return
-      }
-      targetRestaurant = newRestaurant
-    }
-    setRestaurant(targetRestaurant)
-    setUpiId(targetRestaurant.upi_id || '')
-    setTaxRate(targetRestaurant.tax_rate ?? '')
-    await Promise.all([loadMenuItems(targetRestaurant.id), loadOrders(targetRestaurant.id)])
-    setLoading(false)
-  }
+  // ...rest unchanged
 
   const loadMenuItems = async (restaurantId) => {
     const { data } = await supabase.from('menu_items').select('*').eq('restaurant_id', restaurantId).order('created_at')
     setMenuItems(data || [])
   }
-
   const loadOrders = async (restaurantId) => {
     const { data } = await supabase.from('orders').select('*').eq('restaurant_id', restaurantId).order('created_at', { ascending: false })
     setOrders(data || [])
   }
-
   const addMenuItem = async (e) => {
     e.preventDefault()
     if (!newItemName.trim() || isNaN(parseFloat(newItemPrice))) return
@@ -95,22 +98,18 @@ export default function DashboardPage() {
     setNewItemPrice('')
     loadMenuItems(restaurant.id)
   }
-
   const toggleItemAvailability = async (item) => {
     await supabase.from('menu_items').update({ available: !item.available }).eq('id', item.id)
     loadMenuItems(restaurant.id)
   }
-
   const markCashCollected = async (orderId) => {
     await supabase.from('orders').update({ payment_status: 'completed' }).eq('id', orderId)
     loadOrders(restaurant.id)
   }
-
   const logout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
   }
-
   const saveRestaurantSettings = async () => {
     setLoading(true)
     const updates = {
@@ -139,11 +138,9 @@ export default function DashboardPage() {
   if (loading) {
     return <div style={{ padding: 20 }}>Loading...</div>
   }
-
   if (!restaurant) {
     return <div style={{ padding: 20 }}>No restaurant data available.</div>
   }
-
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: 20 }}>
       <header
@@ -159,7 +156,6 @@ export default function DashboardPage() {
           Logout
         </button>
       </header>
-
       <section style={{ marginBottom: 30 }}>
         <h2>Your QR Code URL:</h2>
         <code style={{ background: '#f0f0f0', padding: 10, display: 'block' }}>
@@ -171,7 +167,6 @@ export default function DashboardPage() {
           </small>
         </p>
       </section>
-
       {/* Restaurant Settings */}
       <section style={{ marginBottom: 30 }}>
         <h2>Restaurant Settings</h2>
@@ -209,7 +204,6 @@ export default function DashboardPage() {
           {loading ? 'Saving…' : 'Save Settings'}
         </button>
       </section>
-
       <section style={{ marginBottom: 30 }}>
         <h2>Add Menu Item</h2>
         <form onSubmit={addMenuItem} style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
@@ -233,7 +227,6 @@ export default function DashboardPage() {
           </button>
         </form>
       </section>
-
       <section style={{ marginBottom: 30 }}>
         <h2>Menu Items ({menuItems.length})</h2>
         {menuItems.map((item) => (
@@ -269,7 +262,6 @@ export default function DashboardPage() {
           </div>
         ))}
       </section>
-
       <section>
         <h2>Recent Orders ({orders.length})</h2>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

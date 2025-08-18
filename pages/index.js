@@ -7,10 +7,12 @@ export default function Home() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://restaurant-qr-app-clean-jippa8oyp-riyas-p-ns-projects.vercel.app/dashboard',
+        redirectTo:
+          'https://restaurant-qr-app-clean-jippa8oyp-riyas-p-ns-projects.vercel.app/dashboard',
       },
     });
   };
+
   return (
     <div
       style={{
@@ -32,9 +34,9 @@ export default function Home() {
             <h1 style={{ fontWeight: 800, fontSize: 48, margin: 0, color: '#2c3e50' }}>
               Cafe QR
             </h1>
-            
           </div>
         </div>
+
         {/* Tagline */}
         <div style={{ textAlign: 'center', marginBottom: 50, maxWidth: 600 }}>
           <h2 style={{
@@ -49,14 +51,22 @@ export default function Home() {
             </strong>
           </p>
         </div>
+
         {/* CTA Buttons */}
-        <div style={{
-          display: 'flex', gap: 20, marginBottom: 30,
-          flexWrap: 'wrap', justifyContent: 'center'
-        }}>
-          <a href="/signup" className="btn btn-primary btn-raise">🚀 Start Free Trial</a>
-          <a href="/login" className="btn btn-secondary btn-raise">Login</a>
+        <div
+          style={{
+            display: 'flex', gap: 20, marginBottom: 30,
+            flexWrap: 'wrap', justifyContent: 'center'
+          }}
+        >
+          <Link href="/signup" className="btn btn-primary btn-raise">
+            🚀 Start Free Trial
+          </Link>
+          <Link href="/login" className="btn btn-secondary btn-raise">
+            Login
+          </Link>
         </div>
+
         {/* Google Login */}
         <button
           onClick={handleGoogleLogin}
@@ -66,22 +76,31 @@ export default function Home() {
           <img src="/google-logo.svg" alt="Google" style={{ height: 20 }} />
           Continue with Google
         </button>
+
         {/* Demo Link */}
-        <a href="/restaurants/demo?table=1" className="btn btn-outline-primary btn-raise" style={{ marginBottom: 40 }}>
+        <Link
+          href="/restaurants/demo?table=1"
+          className="btn btn-outline-primary btn-raise"
+          style={{ marginBottom: 40 }}
+        >
           🎯 Try Live Demo
-        </a>
+        </Link>
+
         {/* Benefits Section */}
-        <section style={{
-          background: '#fff', borderRadius: 20,
-          boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
-          padding: '40px 30px', maxWidth: 500, textAlign: 'center',
-          border: '1px solid #ecf0f1'
-        }}>
+        <section
+          style={{
+            background: '#fff', borderRadius: 20,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+            padding: '40px 30px', maxWidth: 500, textAlign: 'center',
+            border: '1px solid #ecf0f1'
+          }}
+        >
           <h2 style={{
             fontWeight: 800, fontSize: 28, color: '#2c3e50', marginBottom: 30
           }}>
             Why Choose Cafe QR?
           </h2>
+
           <div style={{ textAlign: 'left', color: '#34495e', fontSize: 16, lineHeight: 2 }}>
             <div style={{ marginBottom: 15, display: 'flex', alignItems: 'center' }}>
               <span style={{ fontSize: 24, marginRight: 15 }}>🏪</span>
@@ -100,11 +119,14 @@ export default function Home() {
               <span><strong>Zero Downloads:</strong> Works on any smartphone</span>
             </div>
           </div>
+
           {/* Stats */}
-          <div style={{
-            marginTop: 30, padding: '20px', background: '#f8f9fa',
-            borderRadius: 12, display: 'flex', justifyContent: 'space-around'
-          }}>
+          <div
+            style={{
+              marginTop: 30, padding: '20px', background: '#f8f9fa',
+              borderRadius: 12, display: 'flex', justifyContent: 'space-around'
+            }}
+          >
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 24, fontWeight: 800, color: '#e67e22' }}>5min</div>
               <div style={{ fontSize: 12, color: '#7f8c8d' }}>Setup Time</div>
@@ -119,37 +141,37 @@ export default function Home() {
             </div>
           </div>
         </section>
+
         {/* Contact/Support Section */}
-        <section style={{
-          padding: '40px 20px', textAlign: 'center', marginTop: 40
-        }}>
+        <section
+          style={{
+            padding: '40px 20px', textAlign: 'center', marginTop: 40
+          }}
+        >
           <h3 style={{ color: '#2c3e50', marginBottom: 20, fontSize: 24 }}>
             Need Help Getting Started?
           </h3>
           <p style={{ color: '#7f8c8d', marginBottom: 30, fontSize: 16 }}>
             Our team is here to help you set up your restaurant in minutes.
           </p>
-          <div style={{
-            display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 30
-          }}>
-            <a
-              href="mailto:support@theonlinewala.com"
-              className="btn btn-outline-secondary btn-raise"
-            >
+
+          <div
+            style={{
+              display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 30
+            }}
+          >
+            {/* External protocols remain anchors */}
+            <a href="mailto:pnriyas50@gmail.com" className="btn btn-outline-secondary btn-raise">
               📧 Email Support
             </a>
-            <a
-              href="tel:+919876543210"
-              className="btn btn-outline-success btn-raise"
-            >
+            <a href="tel:+917012120844" className="btn btn-outline-success btn-raise">
               📞 Call Us
             </a>
           </div>
+
           <div style={{ marginTop: 30 }}>
-            <Link href="/faq" legacyBehavior>
-              <a className="btn btn-outline-primary btn-raise">
-                ❓ Frequently Asked Questions
-              </a>
+            <Link href="/faq" className="btn btn-outline-primary btn-raise">
+              ❓ Frequently Asked Questions
             </Link>
           </div>
         </section>
