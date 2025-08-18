@@ -1,12 +1,14 @@
-import '../styles/globals.css'  // your global CSS or Tailwind import
+import '../styles/globals.css'
 import Layout from '../components/Layout'
+import { RestaurantProvider } from '../context/RestaurantContext'
 
 function MyApp({ Component, pageProps }) {
   return (
-    <Layout title={pageProps.title}>
-      <Component {...pageProps} />
-    </Layout>
+    <RestaurantProvider>
+      <Layout title={pageProps.title}>
+        <Component {...pageProps} />
+      </Layout>
+    </RestaurantProvider>
   )
 }
-
 export default MyApp
