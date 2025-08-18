@@ -114,7 +114,8 @@ export default function MenuPage() {
     if (error) setError(error.message)
   }
 
-  if (checking || loadingRestaurant) {
+  if (checking || loadingRestaurant || !restaurant?.id) {
+
     return (
       <Shell>
         <p>Loading…</p>
