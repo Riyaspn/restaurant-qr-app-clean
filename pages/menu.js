@@ -6,11 +6,11 @@ import { useRestaurant } from '../context/RestaurantContext'
 import Shell from '../components/Shell'
 import Alert from '../components/Alert'
 import ItemEditor from '../components/ItemEditor'
+import LibraryPicker from '../components/LibraryPicker'
 
 export default function MenuPage() {
   const { checking } = useRequireAuth()
   const { restaurant, loading: loadingRestaurant } = useRestaurant()
-
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -18,6 +18,7 @@ export default function MenuPage() {
   const [selected, setSelected] = useState(new Set())
   const [snackbar, setSnackbar] = useState(null)
   const [editorItem, setEditorItem] = useState(null)
+  const [showLib, setShowLib] = useState(false)
 
   // Fetch menu items when restaurant is known
   useEffect(() => {
@@ -90,7 +91,6 @@ export default function MenuPage() {
       return next
     })
   }
-
   const allSelected = visible.length > 0 && selected.size === visible.length
   const toggleSelectAll = () => {
     if (allSelected) setSelected(new Set())
@@ -125,9 +125,7 @@ export default function MenuPage() {
   return (
     <Shell>
       <h1>Menu Management</h1>
-
       {error && <Alert type="error">{error}</Alert>}
-
       {snackbar && (
         <div
           className="snackbar"
@@ -159,7 +157,6 @@ export default function MenuPage() {
           )}
         </div>
       )}
-
       {/* Responsive actions bar */}
       <div className="actions-bar" style={{ marginBottom: 16, alignItems: 'center' }}>
         <input
@@ -170,10 +167,10 @@ export default function MenuPage() {
           style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 4, minWidth: 160 }}
         />
         <button onClick={() => setEditorItem({})}>Add New Item</button>
+        <button onClick={() => setShowLib(true)}>Add from Library</button>
         <button onClick={() => applyBulk('available')}>Mark Available</button>
         <button onClick={() => applyBulk('out_of_stock')}>Mark Out of Stock</button>
       </div>
-
       {/* Responsive table wrapper */}
       <div className="table-wrap">
         <table className="table">
@@ -209,7 +206,6 @@ export default function MenuPage() {
                 const badgeBg = isAvailable ? '#e6ffe6' : isOut ? '#ffe6e6' : '#fff5cc'
                 const badgeColor = isAvailable ? '#0a8a0a' : isOut ? '#a00' : '#8a6d00'
                 const statusLabel = (item.status || '').replaceAll('_', ' ')
-
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
                     <td style={td}>
@@ -239,15 +235,17 @@ export default function MenuPage() {
                       </span>
                     </td>
                     <td style={td}>
-                      <button onClick={() => toggleStatus(item.id, item.status)}>
-                        {isAvailable ? 'Mark Out of Stock' : 'Mark Available'}
-                      </button>
-                      <button style={{ marginLeft: 8 }} onClick={() => setEditorItem(item)}>
-                        Edit
-                      </button>
-                      <button style={{ marginLeft: 8, color: '#a00' }} onClick={() => onDelete(item.id)}>
-                        Delete
-                      </button>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button onClick={() => toggleStatus(item.id, item.status)} style={{ padding: '6px 10px' }}>
+                          {isAvailable ? 'Mark Out of Stock' : 'Mark Available'}
+                        </button>
+                        <button style={{ padding: '6px 10px' }} onClick={() => setEditorItem(item)}>
+                          Edit
+                        </button>
+                        <button style={{ padding: '6px 10px', color: '#a00' }} onClick={() => onDelete(item.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -256,7 +254,6 @@ export default function MenuPage() {
           </tbody>
         </table>
       </div>
-
       {/* Item editor modal */}
       <ItemEditor
         open={!!editorItem}
@@ -273,6 +270,16 @@ export default function MenuPage() {
           })
         }}
         onError={(msg) => setError(msg)}
+      />
+      {/* Library picker modal */}
+      <LibraryPicker
+        open={showLib}
+        onClose={() => setShowLib(false)}
+        restaurantId={restaurant.id}
+        onAdded={(rows) => {
+          if (!rows || rows.length === 0) return
+          setItems(prev => [...rows, ...prev])
+        }}
       />
     </Shell>
   )
