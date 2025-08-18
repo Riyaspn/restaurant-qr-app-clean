@@ -51,10 +51,11 @@ export default function OrdersPage() {
     <Shell>
       <h1>Orders</h1>
       {error && <Alert type="error">{error}</Alert>}
+
       {loading ? (
         <p>Loading orders…</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLUMNS.length}, 1fr)`, gap: 12 }}>
+        <div className="order-columns">
           {COLUMNS.map(col => (
             <Column
               key={col}
@@ -73,6 +74,7 @@ function Column({ title, items, onMove }) {
   return (
     <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, minHeight: 220 }}>
       <h3 style={{ marginTop: 0, textTransform: 'capitalize' }}>{title}</h3>
+
       {items.length === 0 ? (
         <p style={{ color: '#666' }}>No orders</p>
       ) : (
@@ -80,11 +82,20 @@ function Column({ title, items, onMove }) {
           <div key={o.id} style={{ border: '1px solid #eee', borderRadius: 6, padding: 10, marginBottom: 8 }}>
             <div><strong>Table:</strong> {o.table_number}</div>
             <div><strong>Total:</strong> ₹{Number(o.total || 0).toFixed(2)}</div>
+
             <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {title !== 'in progress' && <button onClick={() => onMove(o.id, 'in_progress')}>Start</button>}
-              {title !== 'ready' && <button onClick={() => onMove(o.id, 'ready')}>Ready</button>}
-              {title !== 'completed' && <button onClick={() => onMove(o.id, 'completed')}>Complete</button>}
-              {title !== 'cancelled' && <button onClick={() => onMove(o.id, 'cancelled')}>Cancel</button>}
+              {title !== 'in progress' && (
+                <button onClick={() => onMove(o.id, 'in_progress')}>Start</button>
+              )}
+              {title !== 'ready' && (
+                <button onClick={() => onMove(o.id, 'ready')}>Ready</button>
+              )}
+              {title !== 'completed' && (
+                <button onClick={() => onMove(o.id, 'completed')}>Complete</button>
+              )}
+              {title !== 'cancelled' && (
+                <button onClick={() => onMove(o.id, 'cancelled')}>Cancel</button>
+              )}
             </div>
           </div>
         ))

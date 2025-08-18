@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 
 export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
+  if (!open) return null
+
   const isEdit = !!item?.id
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
@@ -17,13 +19,12 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     setStatus(item?.status || 'available')
   }, [item])
 
-  if (!open) return null
-
   const save = async (e) => {
     e.preventDefault()
     if (!name.trim()) return onError?.('Name is required')
     const numericPrice = Number(price)
     if (Number.isNaN(numericPrice) || numericPrice < 0) return onError?.('Price must be a positive number')
+
     setSaving(true)
 
     if (isEdit) {
@@ -32,8 +33,10 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
         .update({ name: name.trim(), price: numericPrice, category: category.trim(), status })
         .eq('id', item.id)
         .eq('restaurant_id', restaurantId)
+
       setSaving(false)
       if (error) return onError?.(error.message)
+
       onSaved?.({ ...item, name: name.trim(), price: numericPrice, category: category.trim(), status })
       onClose()
     } else {
@@ -42,16 +45,31 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
         .insert([{ restaurant_id: restaurantId, name: name.trim(), price: numericPrice, category: category.trim(), status }])
         .select('id,name,price,category,status')
         .single()
+
       setSaving(false)
       if (error) return onError?.(error.message)
+
       onSaved?.(data)
       onClose()
     }
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <form onSubmit={save} style={{ background: '#fff', width: 420, padding: 16, borderRadius: 8 }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+      // Prevent background scroll on iOS when modal open
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
+      <form onSubmit={save} className="modal-card" style={{ background: '#fff', width: 420, padding: 16, borderRadius: 8 }}>
         <h3 style={{ marginTop: 0 }}>{isEdit ? 'Edit Item' : 'Add Item'}</h3>
 
         <label style={{ display: 'block', marginBottom: 8 }}>
@@ -61,7 +79,15 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
         <label style={{ display: 'block', marginBottom: 8 }}>
           <div style={{ fontSize: 12, color: '#555' }}>Price</div>
-          <input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} required style={input} />
+          <input
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+            required
+            style={input}
+          />
         </label>
 
         <label style={{ display: 'block', marginBottom: 8 }}>

@@ -166,21 +166,23 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+      {/* Responsive actions bar */}
+      <div className="actions-bar" style={{ marginBottom: 16, alignItems: 'center' }}>
         <input
           type="text"
           placeholder="Search items..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 4 }}
+          style={{ flex: 1, padding: 8, border: '1px solid #ddd', borderRadius: 4, minWidth: 160 }}
         />
         <button onClick={() => setEditorItem({})}>Add New Item</button>
         <button onClick={() => applyBulk('available')}>Mark Available</button>
         <button onClick={() => applyBulk('out_of_stock')}>Mark Out of Stock</button>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      {/* Responsive table wrapper */}
+      <div className="table-wrap">
+        <table className="table">
           <thead>
             <tr style={{ background: '#f6f6f6' }}>
               <th style={th}>
@@ -223,8 +225,8 @@ export default function MenuPage() {
                         onChange={() => toggleSelect(item.id)}
                       />
                     </td>
-                    <td style={td}>{item.name}</td>
-                    <td style={td}>{item.category || '—'}</td>
+                    <td style={td}><span className="truncate">{item.name}</span></td>
+                    <td style={td}><span className="truncate">{item.category || '—'}</span></td>
                     <td style={td}>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td style={td}>
                       <span

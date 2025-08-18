@@ -1,3 +1,5 @@
+
+import '../styles/responsive.css'
 import '../styles/globals.css'
 import Layout from '../components/Layout'
 import { RestaurantProvider } from '../context/RestaurantContext'

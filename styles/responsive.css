@@ -1,0 +1,123 @@
+/* Base improvements */
+:root {
+  --pad: 16px;
+  --pad-sm: 12px;
+  --gap: 12px;
+  --gap-sm: 8px;
+}
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Shell layout: make sidebar collapsible on small screens */
+@media (max-width: 768px) {
+  .shell {
+    flex-direction: column;
+  }
+  .shell-aside {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid #eee !important;
+    padding: var(--pad-sm) !important;
+  }
+  .shell-main {
+    padding: var(--pad-sm) !important;
+  }
+}
+
+/* KPI grid on dashboard: 1 per row on phones, 2 per row on small tablets */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap);
+}
+@media (max-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+}
+
+/* Two-column content rows → single column on mobile */
+.two-col {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--gap);
+}
+@media (max-width: 900px) {
+  .two-col { grid-template-columns: 1fr; }
+}
+
+/* Tables: enable horizontal scroll on small screens */
+.table-wrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th, .table td {
+  padding: 10px;
+}
+@media (max-width: 480px) {
+  .table th, .table td {
+    padding: 8px 6px;
+    font-size: 14px;
+    white-space: nowrap; /* prevent cramped wrapping */
+  }
+}
+
+/* Orders board columns: stack on mobile */
+.order-columns {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--gap);
+}
+@media (max-width: 1200px) {
+  .order-columns { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 800px) {
+  .order-columns { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .order-columns { grid-template-columns: 1fr; }
+}
+
+/* Buttons bar wrapping */
+.actions-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.actions-bar button,
+.actions-bar input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+@media (max-width: 480px) {
+  .actions-bar button { width: 100%; }
+}
+
+/* Inputs full width on mobile */
+@media (max-width: 600px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="time"],
+  input[type="datetime-local"],
+  select {
+    width: 100% !important;
+  }
+}
+
+/* Modal: use full width on phones */
+.modal-card {
+  width: 420px;
+}
+@media (max-width: 480px) {
+  .modal-card {
+    width: calc(100% - 24px);
+    margin: 0 12px;
+  }
+}

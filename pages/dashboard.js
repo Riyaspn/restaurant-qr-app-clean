@@ -4,7 +4,7 @@ import Shell from '../components/Shell'
 
 export default function Dashboard() {
   const { checking } = useRequireAuth()
-  
+
   if (checking) {
     return (
       <Shell>
@@ -17,19 +17,22 @@ export default function Dashboard() {
   return (
     <Shell>
       <h1>Dashboard Overview</h1>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+
+      {/* KPI cards: responsive grid via .kpi-grid */}
+      <div className="kpi-grid" style={{ gap: 16, marginBottom: 24 }}>
         <KpiCard label="Live Orders" value="—" />
         <KpiCard label="Revenue Today" value="—" />
         <KpiCard label="Avg Order" value="—" />
         <KpiCard label="Out of Stock" value="—" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+      {/* Lower row: collapses to single column via .two-col */}
+      <div className="two-col" style={{ gap: 16 }}>
         <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 16 }}>
           <h3 style={{ marginTop: 0 }}>Recent Orders</h3>
           <p style={{ color: '#666' }}>No orders yet. Share your QR code to start receiving orders.</p>
         </div>
+
         <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 16 }}>
           <h3 style={{ marginTop: 0 }}>Quick Actions</h3>
           <button style={{ display: 'block', width: '100%', marginBottom: 8, padding: 8 }}>
