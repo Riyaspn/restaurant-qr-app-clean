@@ -1,5 +1,5 @@
 // components/Shell.js
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { supabase } from '../services/supabase'
@@ -8,12 +8,28 @@ export default function Shell({ children }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
 
+  // Lock body scroll when the mobile menu is open (helps iOS layout/safe areas)
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (menuOpen) {
+      document.body.style.overflow = 'hidden'
+      document.body.style.touchAction = 'none'
+    } else {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+    }
+  }, [menuOpen])
+
   const signOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
-  // Close menu when route changes (basic UX)
+  // Close menu when a nav link is clicked (basic UX)
   const onNavClick = () => setMenuOpen(false)
 
   return (
@@ -63,7 +79,6 @@ export default function Shell({ children }) {
           height: '100vh',
           overflowY: 'auto',
         }}
-        // Inline responsive behavior: hide on small screens unless menuOpen
       >
         <div className="shell-aside-inner" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
           <h3 className="shell-title" style={{ marginTop: 0, marginBottom: 24 }}>Owner Panel</h3>
@@ -109,7 +124,7 @@ export default function Shell({ children }) {
       )}
 
       <main className="shell-main" style={{ flex: 1, padding: 24, backgroundColor: '#fff' }}>
-        {/* Mobile-only menu drawer (CSS controls visibility) */}
+        {/* Mobile-only quick toggle (visibility controlled by CSS) */}
         <div
           className="shell-mobile-drawer"
           style={{
@@ -174,7 +189,6 @@ export default function Shell({ children }) {
 function NavItem({ href, label, onClick }) {
   const router = useRouter()
   const isActive = router.pathname === href
-
   return (
     <div style={{ marginBottom: 8 }}>
       <Link

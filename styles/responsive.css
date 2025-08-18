@@ -121,3 +121,56 @@ html, body {
     margin: 0 12px;
   }
 }
+/* iOS safe areas and scrolling tweaks */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  background: #fff;
+}
+
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+}
+
+/* Ensure main area never collides with iOS home bar */
+.shell-main {
+  padding-bottom: calc(24px + var(--safe-bottom)) !important;
+}
+
+/* Mobile header spacing on iOS notch */
+.shell-header {
+  padding-top: var(--safe-top);
+}
+
+/* Fixed bottom elements (snackbar, banners) respect safe area */
+.snackbar,
+.fixed-bottom {
+  bottom: calc(20px + var(--safe-bottom)) !important;
+}
+
+/* Tables scroll inside wrapper, not page; momentum scroll on iOS */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Truncate long text in narrow table cells */
+.table .truncate {
+  display: inline-block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .table th, .table td {
+    padding: 8px 6px;
+    font-size: 14px;
+  }
+}
+

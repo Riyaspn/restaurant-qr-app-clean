@@ -29,7 +29,6 @@ export default function MenuPage() {
         .select('id,name,price,category,status,available')
         .eq('restaurant_id', restaurant.id)
         .order('category', { ascending: true })
-
       setLoading(false)
       if (error) setError(error.message)
       else setItems(data || [])
@@ -49,7 +48,6 @@ export default function MenuPage() {
   // Toggle status between 'available' and 'out_of_stock'
   const toggleStatus = async (id, current) => {
     const newStatus = current === 'available' ? 'out_of_stock' : 'available'
-
     // Optimistic update
     setItems(prev => prev.map(i => (i.id === id ? { ...i, status: newStatus } : i)))
     setSnackbar({
@@ -59,14 +57,12 @@ export default function MenuPage() {
         setItems(prev => prev.map(i => (i.id === id ? { ...i, status: current } : i)))
       }
     })
-
     // Persist
     const { error } = await supabase
       .from('menu_items')
       .update({ status: newStatus })
       .eq('id', id)
       .eq('restaurant_id', restaurant.id)
-
     if (error) setError(error.message)
   }
 
@@ -105,19 +101,16 @@ export default function MenuPage() {
   const applyBulk = async (status) => {
     const ids = Array.from(selected)
     if (ids.length === 0) return
-
     // Optimistic
     setItems(prev => prev.map(i => (ids.includes(i.id) ? { ...i, status } : i)))
     setSelected(new Set())
     setSnackbar({ message: `Bulk updated to ${status.replace('_', ' ')}` })
-
     // Persist
     const { error } = await supabase
       .from('menu_items')
       .update({ status })
       .in('id', ids)
       .eq('restaurant_id', restaurant.id)
-
     if (error) setError(error.message)
   }
 
@@ -137,15 +130,16 @@ export default function MenuPage() {
 
       {snackbar && (
         <div
+          className="snackbar"
           style={{
             position: 'fixed',
-            bottom: 20,
             left: '50%',
             transform: 'translateX(-50%)',
             background: '#333',
             color: '#fff',
             padding: 12,
-            borderRadius: 4
+            borderRadius: 4,
+            zIndex: 60
           }}
         >
           {snackbar.message}
@@ -230,13 +224,15 @@ export default function MenuPage() {
                     <td style={td}>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td style={td}>
                       <span
+                        className="status-chip"
                         style={{
                           padding: '2px 8px',
                           borderRadius: 12,
                           fontSize: 12,
                           background: badgeBg,
                           color: badgeColor,
-                          textTransform: 'capitalize'
+                          textTransform: 'capitalize',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         {statusLabel}
