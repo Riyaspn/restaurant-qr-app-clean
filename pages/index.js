@@ -1,6 +1,7 @@
 // pages/index.js
 import { supabase } from '../services/supabase'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function Home() {
   const handleGoogleLogin = async () => {
@@ -29,7 +30,7 @@ export default function Home() {
       >
         {/* Logo and Brand */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-          <img src="/cafeqr-logo.svg" alt="Cafe QR Logo" height={64} style={{ marginRight: 16 }} />
+          <Image src="/cafeqr-logo.svg" alt="Cafe QR Logo" width={64} height={64} style={{ marginRight: 16, height: "auto" }} priority />
           <div>
             <h1 style={{ fontWeight: 800, fontSize: 48, margin: 0, color: '#2c3e50' }}>
               Cafe QR
@@ -73,7 +74,7 @@ export default function Home() {
           className="btn btn-outline-secondary"
           style={{ marginBottom: 30, display: 'flex', alignItems: 'center', gap: 12 }}
         >
-          <img src="/google-logo.svg" alt="Google" style={{ height: 20 }} />
+          <Image src="/google-logo.svg" alt="Google" width={20} height={20} style={{ height: 20 }} />
           Continue with Google
         </button>
 
