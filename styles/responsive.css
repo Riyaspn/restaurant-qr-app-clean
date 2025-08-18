@@ -174,3 +174,9 @@ html, body {
   }
 }
 
+/* Owner app pages (no marketing chrome): let main be full-bleed */
+.app-main.app-main--plain {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
