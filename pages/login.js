@@ -9,11 +9,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [showForgot, setShowForgot] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+    setShowForgot(false)
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -23,19 +25,27 @@ export default function LoginPage() {
     setLoading(false)
 
     if (error) {
-      if (error.message.includes('Email not confirmed')) {
+      const msg = error.message.toLowerCase()
+
+      if (msg.includes('email not confirmed')) {
         setMessage('Please check your email and click the confirmation link first.')
+      } else if (msg.includes('invalid login credentials')) {
+        setMessage('Incorrect email or password. Please try again.')
+        setShowForgot(true) // only show forgot password on wrong creds
       } else {
         setMessage('Error: ' + error.message)
       }
-    } else {
-      router.push('/dashboard')
+
+      return
     }
+
+    router.push('/dashboard')
   }
 
   return (
     <div style={{ maxWidth: 400, margin: '0 auto', padding: 20 }}>
       <h1>Restaurant Owner Login</h1>
+
       <form onSubmit={handleLogin}>
         <input
           type="email"
@@ -61,20 +71,35 @@ export default function LoginPage() {
           {loading ? 'Logging in...' : 'Login'}
         </button>
       </form>
-      
+
       {message && (
-        <div style={{ 
-          padding: 10, 
-          backgroundColor: '#ffe6e6',
-          border: '1px solid #ff0000',
-          borderRadius: 4,
-          marginBottom: 10
-        }}>
+        <div
+          style={{
+            padding: 10,
+            backgroundColor: '#ffe6e6',
+            border: '1px solid #ff0000',
+            borderRadius: 4,
+            marginBottom: 10
+          }}
+        >
           {message}
         </div>
       )}
-      
-      <p>Don&apos;t have an account? <Link href="/signup">Sign up here</Link></p>
+
+      {showForgot && (
+        <div style={{ marginBottom: 10 }}>
+          <Link href="/forgot-password" style={{ color: '#0070f3', textDecoration: 'underline' }}>
+            Forgot password?
+          </Link>
+        </div>
+      )}
+
+      <p>
+        Don&apos;t have an account?{' '}
+        <Link href="/signup" style={{ color: '#0070f3', textDecoration: 'underline' }}>
+          Sign up here
+        </Link>
+      </p>
     </div>
   )
 }
