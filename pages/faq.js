@@ -1,4 +1,5 @@
 // pages/faq.js
+import Image from 'next/image'
 import Link from 'next/link'
 
 export default function FAQPage() {
@@ -25,7 +26,14 @@ export default function FAQPage() {
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-          <img src="/cafeqr-logo.svg" alt="Cafe QR Logo" height={48} style={{ marginRight: 16 }} />
+          <Image
+            src="/cafeqr-logo.svg"
+            alt="Cafe QR Logo"
+            width={48}
+            height={48}
+            style={{ marginRight: 16, height: "auto" }}
+            priority
+          />
           <h1 style={{ fontWeight: 800, fontSize: 32, margin: 0, color: '#2c3e50' }}>
             Cafe QR
           </h1>
