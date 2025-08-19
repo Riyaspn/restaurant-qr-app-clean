@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../services/supabase'
+import Link from 'next/link'
 
 export default function ResetPassword() {
   const router = useRouter()
