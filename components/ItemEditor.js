@@ -3,16 +3,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 
 export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
-  // All hooks must be declared at top level **before** any returns or conditional logic
+  // Hooks at top level
   const isEdit = !!item?.id
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
   const [category, setCategory] = useState(item?.category || 'main')
   const [status, setStatus] = useState(item?.status || 'available')
   const [saving, setSaving] = useState(false)
-
-  // Early return only after all hooks
-  if (!open) return null
 
   useEffect(() => {
     setName(item?.name || '')
@@ -21,13 +18,17 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     setStatus(item?.status || 'available')
   }, [item])
 
+  // Early return after hooks
+  if (!open) return null
+
   const save = async (e) => {
     e.preventDefault()
     if (!name.trim()) return onError?.('Name is required')
     const numericPrice = Number(price)
-    if (Number.isNaN(numericPrice) || numericPrice < 0) return onError?.('Price must be a positive number')
-    setSaving(true)
+    if (Number.isNaN(numericPrice) || numericPrice < 0)
+      return onError?.('Price must be a positive number')
 
+    setSaving(true)
     if (isEdit) {
       const { error } = await supabase
         .from('menu_items')
@@ -65,11 +66,15 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
       onWheel={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
-      <form onSubmit={save} className="modal-card" style={{ background: '#fff', width: 420, padding: 16, borderRadius: 8 }}>
+      <form
+        onSubmit={save}
+        className="modal-card"
+        style={{ background: '#fff', width: 420, padding: 16, borderRadius: 8 }}
+      >
         <h3 style={{ marginTop: 0 }}>{isEdit ? 'Edit Item' : 'Add Item'}</h3>
         <label style={{ display: 'block', marginBottom: 8 }}>
           <div style={{ fontSize: 12, color: '#555' }}>Name</div>
-          <input value={name} onChange={e => setName(e.target.value)} required style={input} />
+          <input value={name} onChange={(e) => setName(e.target.value)} required style={input} />
         </label>
         <label style={{ display: 'block', marginBottom: 8 }}>
           <div style={{ fontSize: 12, color: '#555' }}>Price</div>
@@ -78,26 +83,30 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
             step="0.01"
             inputMode="decimal"
             value={price}
-            onChange={e => setPrice(e.target.value)}
+            onChange={(e) => setPrice(e.target.value)}
             required
             style={input}
           />
         </label>
         <label style={{ display: 'block', marginBottom: 8 }}>
           <div style={{ fontSize: 12, color: '#555' }}>Category</div>
-          <input value={category} onChange={e => setCategory(e.target.value)} style={input} />
+          <input value={category} onChange={(e) => setCategory(e.target.value)} style={input} />
         </label>
         <label style={{ display: 'block', marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: '#555' }}>Status</div>
-          <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...input, height: 36 }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...input, height: 36 }}>
             <option value="available">available</option>
             <option value="out_of_stock">out_of_stock</option>
             <option value="paused">paused</option>
           </select>
         </label>
         <div style={{ textAlign: 'right' }}>
-          <button type="button" onClick={onClose} style={{ marginRight: 8 }} disabled={saving}>Cancel</button>
-          <button type="submit" disabled={saving}>{saving ? 'Saving…' : (isEdit ? 'Save' : 'Add')}</button>
+          <button type="button" onClick={onClose} style={{ marginRight: 8 }} disabled={saving}>
+            Cancel
+          </button>
+          <button type="submit" disabled={saving}>
+            {saving ? 'Saving…' : isEdit ? 'Save' : 'Add'}
+          </button>
         </div>
       </form>
     </div>
