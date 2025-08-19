@@ -1,9 +1,8 @@
-// components/ItemEditor.js
 import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 
 export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
-  // Move hooks to the top level before any returns
+  // Hooks must be always called regardless of open
   const isEdit = !!item?.id
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
@@ -11,8 +10,10 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
   const [status, setStatus] = useState(item?.status || 'available')
   const [saving, setSaving] = useState(false)
 
-  // Early return should be after hook declarations
-  if (!open) return null
+  // Early return inside the function body, after all hooks
+  if (!open) {
+    return null
+  }
 
   useEffect(() => {
     setName(item?.name || '')
@@ -21,12 +22,14 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     setStatus(item?.status || 'available')
   }, [item])
 
+  // Save handler
   const save = async (e) => {
     e.preventDefault()
     if (!name.trim()) return onError?.('Name is required')
     const numericPrice = Number(price)
     if (Number.isNaN(numericPrice) || numericPrice < 0) return onError?.('Price must be a positive number')
     setSaving(true)
+
     if (isEdit) {
       const { error } = await supabase
         .from('menu_items')
@@ -61,7 +64,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
         justifyContent: 'center',
         zIndex: 1000,
       }}
-      // Prevent background scroll on iOS when modal open
       onWheel={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
     >
@@ -103,5 +105,4 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     </div>
   )
 }
-
 const input = { width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 4 }
