@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 
 export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
-  // ALL hooks must be declared at top level before any returns or conditional logic
+  // All hooks must be declared at top level **before** any returns or conditional logic
   const isEdit = !!item?.id
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
@@ -11,16 +11,15 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
   const [status, setStatus] = useState(item?.status || 'available')
   const [saving, setSaving] = useState(false)
 
-  // useEffect MUST be before any early returns
+  // Early return only after all hooks
+  if (!open) return null
+
   useEffect(() => {
     setName(item?.name || '')
     setPrice(item?.price ?? 0)
     setCategory(item?.category || 'main')
     setStatus(item?.status || 'available')
   }, [item])
-
-  // Early return ONLY after ALL hooks
-  if (!open) return null
 
   const save = async (e) => {
     e.preventDefault()
