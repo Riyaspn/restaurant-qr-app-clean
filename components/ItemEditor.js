@@ -1,8 +1,9 @@
+// components/ItemEditor.js
 import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 
 export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
-  // Hooks must be always called regardless of open
+  // All hooks must be declared at top level **before** any returns or conditional logic
   const isEdit = !!item?.id
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
@@ -10,10 +11,8 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
   const [status, setStatus] = useState(item?.status || 'available')
   const [saving, setSaving] = useState(false)
 
-  // Early return inside the function body, after all hooks
-  if (!open) {
-    return null
-  }
+  // Early return only after all hooks
+  if (!open) return null
 
   useEffect(() => {
     setName(item?.name || '')
@@ -22,7 +21,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     setStatus(item?.status || 'available')
   }, [item])
 
-  // Save handler
   const save = async (e) => {
     e.preventDefault()
     if (!name.trim()) return onError?.('Name is required')
@@ -105,4 +103,5 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     </div>
   )
 }
+
 const input = { width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 4 }
