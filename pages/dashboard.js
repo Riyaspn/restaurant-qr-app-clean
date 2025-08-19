@@ -4,6 +4,7 @@ import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
 import { supabase } from '../services/supabase'
 import Shell from '../components/Shell'
+import Link from 'next/link'
 
 export default function Dashboard() {
   const { checking } = useRequireAuth()
@@ -106,10 +107,9 @@ export default function Dashboard() {
                 Add contact, shipping address, tables count, and UPI in Settings to ship QR stands and start orders.
               </div>
             </div>
-            <a href="/settings">
-              <button>Open Settings</button>
-            </a>
-          </div>
+            <Link href="/settings">
+  <button>Open Settings</button>
+</Link>          </div>
         </div>
       )}
 
