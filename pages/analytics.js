@@ -1,6 +1,5 @@
 // pages/analytics.js
 import { useEffect, useState } from 'react'
-import Shell from '../components/Shell'
 import Alert from '../components/Alert'
 import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
@@ -18,7 +17,7 @@ export default function AnalyticsPage() {
     const load = async () => {
       let from = new Date()
       if (range === 'today') {
-        from.setHours(0,0,0,0)
+        from.setHours(0, 0, 0, 0)
       } else if (range === '7d') {
         from.setDate(from.getDate() - 7)
       } else if (range === '30d') {
@@ -26,13 +25,15 @@ export default function AnalyticsPage() {
       }
       const { data, error } = await supabase
         .from('orders')
-        .select('total')
+        .select('total, created_at')
         .eq('restaurant_id', restaurant.id)
         .gte('created_at', from.toISOString())
         .neq('status', 'cancelled')
+
       if (error) { setError(error.message); return }
-      const totals = (data || []).map(r => Number(r.total || 0))
-      const revenue = totals.reduce((a,b) => a + b, 0)
+
+      const totals = Array.isArray(data) ? data.map(r => Number(r.total || 0)) : []
+      const revenue = totals.reduce((a, b) => a + b, 0)
       const orders = totals.length
       const avg = orders ? revenue / orders : 0
       setStats({ orders, revenue, avg })
@@ -40,14 +41,14 @@ export default function AnalyticsPage() {
     load()
   }, [restaurant?.id, range])
 
-  if (checking || loading) return <Shell><p>Loading…</p></Shell>
+  if (checking || loading) return <p>Loading…</p>
 
   return (
-    <Shell>
+    <>
       <h1>Analytics</h1>
       {error && <Alert type="error">{error}</Alert>}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <button onClick={() => setRange('today')} disabled={range === 'today'}>Today</button>
         <button onClick={() => setRange('7d')} disabled={range === '7d'}>Last 7 days</button>
         <button onClick={() => setRange('30d')} disabled={range === '30d'}>Last 30 days</button>
@@ -62,7 +63,7 @@ export default function AnalyticsPage() {
       <p style={{ color: '#666', marginTop: 16 }}>
         Charts coming soon: sales trend, peak hours heatmap, top items, cancellations.
       </p>
-    </Shell>
+    </>
   )
 }
 

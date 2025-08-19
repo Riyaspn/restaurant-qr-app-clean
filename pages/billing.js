@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
 import { supabase } from '../services/supabase'
-import Shell from '../components/Shell'
 import Alert from '../components/Alert'
 
 export default function BillingPage() {
@@ -45,16 +44,10 @@ export default function BillingPage() {
     loadOrders()
   }, [loadOrders])
 
-  if (checking || loadingRestaurant || !restaurant?.id) {
-    return (
-      <Shell>
-        <div>Loading...</div>
-      </Shell>
-    )
-  }
+  if (checking || loadingRestaurant || !restaurant?.id) return <div>Loading...</div>
 
   return (
-    <Shell>
+    <>
       <div className="billing-page">
         <div className="page-header">
           <h1>Billing &amp; Receipts</h1>
@@ -75,43 +68,58 @@ export default function BillingPage() {
 
               const generateReceipt = () => {
                 const receiptWindow = window.open('', '_blank')
-                receiptWindow.document.write(`
-                  <!DOCTYPE html><html><head><title>Receipt #${order.id.slice(0, 8)}</title>
-                  <style>
-                    body { font-family:'Courier New',monospace; margin:0; padding:20px; }
-                    .receipt { max-width:300px; margin:auto; }
-                    .header { text-align:center; border-bottom:1px dashed #000; margin-bottom:10px; }
-                    .items, .total { width:100%; margin:10px 0; }
-                    .item { display:flex; justify-content:space-between; }
-                    .footer { text-align:center; margin-top:20px; font-size:10px; }
-                  </style></head><body>
-                  <div class="receipt">
-                    <div class="header">
-                      <div>${restaurant.name || ''}</div>
-                      <div>${restaurant.address || ''}</div>
-                    </div>
-                    ${
-                      order.order_items
-                        .map(
-                          (item) => `
-                        <div class="item">
-                          <span>${item.menu_items?.name}</span>
-                          <span>${item.quantity}</span>
-                          <span>₹${(item.quantity * item.price).toFixed(2)}</span>
-                        </div>`
-                        )
-                        .join('')
-                    }
-                    <div class="total">
-                      <div style="display:flex; justify-content:space-between;">
-                        <strong>Total:</strong>
-                        <strong>₹${total.toFixed(2)}</strong>
+                const html = `
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <meta charset="utf-8" />
+                    <title>Receipt #${order.id.slice(0, 8)}</title>
+                    <style>
+                      body { font-family:'Courier New',monospace; margin:0; padding:20px; }
+                      .receipt { max-width:300px; margin:auto; }
+                      .center { text-align:center; }
+                      .header { text-align:center; border-bottom:1px dashed #000; margin-bottom:10px; padding-bottom:8px; }
+                      .row { display:flex; justify-content:space-between; }
+                      .items { margin:10px 0; }
+                      .item { display:flex; justify-content:space-between; gap:6px; }
+                      .total { margin-top:10px; border-top:1px dashed #000; padding-top:8px; }
+                      .footer { text-align:center; margin-top:20px; font-size:10px; }
+                    </style>
+                  </head>
+                  <body>
+                    <div class="receipt">
+                      <div class="header">
+                        <div><strong>${restaurant.name || ''}</strong></div>
+                        <div>${restaurant.address || ''}</div>
+                        <div>${restaurant.phone || ''}</div>
                       </div>
+
+                      <div class="row"><span>Date:</span><span>${new Date(order.created_at).toLocaleString()}</span></div>
+                      <div class="row"><span>Table:</span><span>${order.table_number || 'N/A'}</span></div>
+                      <div class="row"><span>Bill No:</span><span>${order.id.slice(0, 8)}</span></div>
+
+                      <div class="items">
+                        <div class="item"><strong>Item</strong><strong>Qty</strong><strong>Amount</strong></div>
+                        ${(order.order_items || [])
+                          .map(it => `
+                            <div class="item">
+                              <span>${it.menu_items?.name || ''}</span>
+                              <span>${it.quantity}</span>
+                              <span>₹${(it.quantity * it.price).toFixed(2)}</span>
+                            </div>
+                          `).join('')}
+                      </div>
+
+                      <div class="total row">
+                        <strong>Total:</strong><strong>₹${total.toFixed(2)}</strong>
+                      </div>
+
+                      <div class="footer">Thank You! Visit Again!</div>
                     </div>
-                    <div class="footer">Thank You! Visit Again!</div>
-                  </div>
-                  </body></html>
-                `)
+                  </body>
+                  </html>
+                `
+                receiptWindow.document.write(html)
                 receiptWindow.document.close()
               }
 
@@ -143,9 +151,10 @@ export default function BillingPage() {
         .orders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
         .order-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; }
         .order-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-        .order-info { margin-bottom: 1rem; }
+        .order-info { margin-bottom: 1rem; display: flex; gap: 12px; color: #374151; }
         .order-footer button { padding: 0.5rem 1rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        .order-footer button:hover { background: #1d4ed8; }
       `}</style>
-    </Shell>
+    </>
   )
 }

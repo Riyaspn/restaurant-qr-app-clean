@@ -1,9 +1,8 @@
 // pages/menu.js
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
-import Shell from '../components/Shell'
 import Alert from '../components/Alert'
 import ItemEditor from '../components/ItemEditor'
 import LibraryPicker from '../components/LibraryPicker'
@@ -11,6 +10,7 @@ import LibraryPicker from '../components/LibraryPicker'
 export default function MenuPage() {
   const { checking } = useRequireAuth()
   const { restaurant, loading: loadingRestaurant } = useRestaurant()
+
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -20,16 +20,16 @@ export default function MenuPage() {
   const [editorItem, setEditorItem] = useState(null)
   const [showLib, setShowLib] = useState(false)
 
-  // Fetch menu items when restaurant is known
   useEffect(() => {
     if (!restaurant?.id) return
     const load = async () => {
       setLoading(true)
       const { data, error } = await supabase
         .from('menu_items')
-        .select('id,name,price,category,status,available')
+        .select('id,name,price,category,status')
         .eq('restaurant_id', restaurant.id)
         .order('category', { ascending: true })
+        .order('name', { ascending: true })
       setLoading(false)
       if (error) setError(error.message)
       else setItems(data || [])
@@ -37,37 +37,34 @@ export default function MenuPage() {
     load()
   }, [restaurant?.id])
 
-  // Filtered list
-  const visible = items.filter(i => {
+  const visible = useMemo(() => {
     const q = filter.trim().toLowerCase()
-    if (!q) return true
-    const name = (i.name || '').toLowerCase()
-    const cat = (i.category || '').toLowerCase()
-    return name.includes(q) || cat.includes(q)
-  })
+    if (!q) return items
+    return items.filter(i => {
+      const name = (i.name || '').toLowerCase()
+      const cat = (i.category || '').toLowerCase()
+      return name.includes(q) || cat.includes(q)
+    })
+  }, [items, filter])
 
-  // Toggle status between 'available' and 'out_of_stock'
   const toggleStatus = async (id, current) => {
-    const newStatus = current === 'available' ? 'out_of_stock' : 'available'
-    // Optimistic update
-    setItems(prev => prev.map(i => (i.id === id ? { ...i, status: newStatus } : i)))
+    const next = current === 'available' ? 'out_of_stock' : 'available'
+    setItems(prev => prev.map(i => (i.id === id ? { ...i, status: next } : i)))
     setSnackbar({
-      message: `Marked ${newStatus.replace('_', ' ')}`,
+      message: `Marked ${next.replace('_', ' ')}`,
       action: 'Undo',
       onAction: () => {
         setItems(prev => prev.map(i => (i.id === id ? { ...i, status: current } : i)))
       }
     })
-    // Persist
     const { error } = await supabase
       .from('menu_items')
-      .update({ status: newStatus })
+      .update({ status: next })
       .eq('id', id)
       .eq('restaurant_id', restaurant.id)
     if (error) setError(error.message)
   }
 
-  // Delete item
   const onDelete = async (id) => {
     const snapshot = items
     setItems(prev => prev.filter(i => i.id !== id))
@@ -78,34 +75,30 @@ export default function MenuPage() {
       .eq('restaurant_id', restaurant.id)
     if (error) {
       setError(error.message)
-      setItems(snapshot) // revert on error
+      setItems(snapshot)
     }
   }
 
-  // Selection helpers
   const toggleSelect = (id) => {
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
   }
+
   const allSelected = visible.length > 0 && selected.size === visible.length
   const toggleSelectAll = () => {
     if (allSelected) setSelected(new Set())
     else setSelected(new Set(visible.map(i => i.id)))
   }
 
-  // Bulk action for status
   const applyBulk = async (status) => {
     const ids = Array.from(selected)
     if (ids.length === 0) return
-    // Optimistic
     setItems(prev => prev.map(i => (ids.includes(i.id) ? { ...i, status } : i)))
     setSelected(new Set())
     setSnackbar({ message: `Bulk updated to ${status.replace('_', ' ')}` })
-    // Persist
     const { error } = await supabase
       .from('menu_items')
       .update({ status })
@@ -114,25 +107,21 @@ export default function MenuPage() {
     if (error) setError(error.message)
   }
 
-  if (checking || loadingRestaurant || !restaurant?.id) {
-
-    return (
-      <Shell>
-        <p>Loading…</p>
-      </Shell>
-    )
-  }
+  if (checking || loadingRestaurant || !restaurant?.id) return <p>Loading…</p>
 
   return (
-    <Shell>
+    <div className="menu-page" style={{ maxWidth: 1200, margin: '0 auto' }}>
       <h1>Menu Management</h1>
+
       {error && <Alert type="error">{error}</Alert>}
+
       {snackbar && (
         <div
           className="snackbar"
           style={{
             position: 'fixed',
             left: '50%',
+            bottom: 24,
             transform: 'translateX(-50%)',
             background: '#333',
             color: '#fff',
@@ -158,7 +147,8 @@ export default function MenuPage() {
           )}
         </div>
       )}
-      {/* Responsive actions bar */}
+
+      {/* Actions bar */}
       <div className="actions-bar" style={{ marginBottom: 16, alignItems: 'center' }}>
         <input
           type="text"
@@ -172,7 +162,8 @@ export default function MenuPage() {
         <button onClick={() => applyBulk('available')}>Mark Available</button>
         <button onClick={() => applyBulk('out_of_stock')}>Mark Out of Stock</button>
       </div>
-      {/* Responsive table wrapper */}
+
+      {/* Table */}
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -189,17 +180,9 @@ export default function MenuPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={6} style={{ padding: 12 }}>
-                  Loading items…
-                </td>
-              </tr>
+              <tr><td colSpan={6} style={{ padding: 12 }}>Loading items…</td></tr>
             ) : visible.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ padding: 12, color: '#666' }}>
-                  No items found.
-                </td>
-              </tr>
+              <tr><td colSpan={6} style={{ padding: 12, color: '#666' }}>No items found.</td></tr>
             ) : (
               visible.map(item => {
                 const isAvailable = item.status === 'available'
@@ -255,7 +238,8 @@ export default function MenuPage() {
           </tbody>
         </table>
       </div>
-      {/* Item editor modal */}
+
+      {/* Item editor */}
       <ItemEditor
         open={!!editorItem}
         onClose={() => setEditorItem(null)}
@@ -272,7 +256,8 @@ export default function MenuPage() {
         }}
         onError={(msg) => setError(msg)}
       />
-      {/* Library picker modal */}
+
+      {/* Library picker */}
       <LibraryPicker
         open={showLib}
         onClose={() => setShowLib(false)}
@@ -282,7 +267,7 @@ export default function MenuPage() {
           setItems(prev => [...rows, ...prev])
         }}
       />
-    </Shell>
+    </div>
   )
 }
 

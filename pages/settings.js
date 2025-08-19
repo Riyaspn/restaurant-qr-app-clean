@@ -1,6 +1,5 @@
 // pages/settings.js
 import { useEffect, useState } from 'react'
-import Shell from '../components/Shell'
 import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
 import { supabase } from '../services/supabase'
@@ -39,13 +38,11 @@ export default function SettingsPage() {
       setLoading(true)
       setError('')
       setSaved(false)
-
       const { data, error } = await supabase
         .from('restaurant_profiles')
         .select('*')
         .eq('restaurant_id', restaurant.id)
         .maybeSingle()
-
       if (error) {
         setError(error.message)
       } else if (data) {
@@ -60,6 +57,7 @@ export default function SettingsPage() {
     e.preventDefault()
     setError('')
     setSaved(false)
+    if (!restaurant?.id) return
 
     const payload = {
       ...form,
@@ -77,12 +75,13 @@ export default function SettingsPage() {
 
   const onChange = (k) => (e) => setForm(s => ({ ...s, [k]: e.target.value }))
 
-  if (checking || loadingRestaurant) return <Shell><p>Loading…</p></Shell>
-  if (loading) return <Shell><p>Loading settings…</p></Shell>
+  if (checking || loadingRestaurant) return <p>Loading…</p>
+  if (loading) return <p>Loading settings…</p>
 
   return (
-    <Shell>
+    <>
       <h1>Settings</h1>
+
       {error && <Alert type="error">{error}</Alert>}
       {saved && <Alert type="success">Saved</Alert>}
 
@@ -163,7 +162,7 @@ export default function SettingsPage() {
           <button type="submit">Save</button>
         </div>
       </form>
-    </Shell>
+    </>
   )
 }
 

@@ -1,6 +1,5 @@
 // pages/promotions.js
 import { useState } from 'react'
-import Shell from '../components/Shell'
 import Alert from '../components/Alert'
 import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
@@ -12,8 +11,8 @@ export default function PromotionsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [promos, setPromos] = useState([]) // placeholder state
 
-  if (checking || loading) return <Shell><p>Loading…</p></Shell>
-  if (!restaurant) return <Shell><p>No restaurant found.</p></Shell>
+  if (checking || loading) return <p>Loading…</p>
+  if (!restaurant) return <p>No restaurant found.</p>
 
   const addPromo = (promo) => {
     setPromos(prev => [promo, ...prev])
@@ -21,7 +20,7 @@ export default function PromotionsPage() {
   }
 
   return (
-    <Shell>
+    <>
       <h1>Promotions</h1>
       {error && <Alert type="error">{error}</Alert>}
 
@@ -45,7 +44,7 @@ export default function PromotionsPage() {
       )}
 
       {modalOpen && <PromoModal onClose={() => setModalOpen(false)} onSave={addPromo} />}
-    </Shell>
+    </>
   )
 }
 
@@ -62,27 +61,33 @@ function PromoModal({ onClose, onSave }) {
   }
 
   return (
-    <div style={backdrop}>
+    <div style={backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <form onSubmit={save} style={card}>
         <h3 style={{ marginTop: 0 }}>Create promotion</h3>
+
         <Field label="Name">
           <input value={name} onChange={e => setName(e.target.value)} required style={input} />
         </Field>
+
         <Field label="Type">
           <select value={type} onChange={e => setType(e.target.value)} style={{ ...input, height: 36 }}>
             <option value="percent">percent</option>
             <option value="amount">amount</option>
           </select>
         </Field>
+
         <Field label="Value">
           <input type="number" step="0.01" value={value} onChange={e => setValue(e.target.value)} required style={input} />
         </Field>
+
         <Field label="Start">
           <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} style={input} />
         </Field>
+
         <Field label="End">
           <input type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} style={input} />
         </Field>
+
         <div style={{ textAlign: 'right' }}>
           <button type="button" onClick={onClose} style={{ marginRight: 8 }}>Cancel</button>
           <button type="submit">Save</button>
@@ -100,6 +105,7 @@ function Field({ label, children }) {
     </label>
   )
 }
-const backdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+
+const backdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
 const card = { background: '#fff', width: 420, padding: 16, borderRadius: 8 }
 const input = { width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 4 }

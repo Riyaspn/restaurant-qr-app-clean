@@ -1,6 +1,5 @@
 // pages/availability.js
 import { useState, useEffect } from 'react'
-import Shell from '../components/Shell'
 import Alert from '../components/Alert'
 import { useRequireAuth } from '../lib/useRequireAuth'
 import { useRestaurant } from '../context/RestaurantContext'
@@ -22,8 +21,8 @@ export default function AvailabilityPage() {
     if (restaurant) setPaused(!!restaurant.online_paused)
   }, [restaurant])
 
-  if (checking || loading) return <Shell><p>Loading…</p></Shell>
-  if (!restaurant) return <Shell><p>No restaurant found.</p></Shell>
+  if (checking || loading) return <p>Loading…</p>
+  if (!restaurant) return <p>No restaurant found.</p>
 
   const togglePause = async () => {
     setSaving(true)
@@ -46,12 +45,11 @@ export default function AvailabilityPage() {
 
   const saveHours = async () => {
     // Placeholder: persist to a future table like restaurant_hours
-    // For now, just show a success notification.
     alert('Hours saved (placeholder).')
   }
 
   return (
-    <Shell>
+    <>
       <h1>Availability & Hours</h1>
       {error && <Alert type="error">{error}</Alert>}
 
@@ -87,6 +85,6 @@ export default function AvailabilityPage() {
           <button onClick={saveHours}>Save hours</button>
         </div>
       </div>
-    </Shell>
+    </>
   )
 }

@@ -2,7 +2,12 @@
 import Head from 'next/head'
 import Shell from './Shell'
 
-export default function Layout({ children, title = 'Cafe QR', noChrome = false }) {
+export default function Layout({
+  children,
+  title = 'Cafe QR',
+  noChrome = false,
+  showSidebar = false
+}) {
   return (
     <>
       <Head>
@@ -11,7 +16,12 @@ export default function Layout({ children, title = 'Cafe QR', noChrome = false }
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      {!noChrome ? <Shell>{children}</Shell> : <main className="app-main app-main--plain">{children}</main>}
+
+      {!noChrome ? (
+        <Shell showSidebar={showSidebar}>{children}</Shell>
+      ) : (
+        <main className="app-main app-main--plain">{children}</main>
+      )}
     </>
   )
 }
