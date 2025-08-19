@@ -26,7 +26,7 @@ export default function Shell({ children }) {
           <div className="header-content">
             <Link href="/" className="logo-link">
               <div className="logo">
-                <Image src="/cafeqr-logo.svg" alt="Cafe QR" width={28} height={28} priority />
+                <Image src="/cafeqr-logo.svg" alt="Cafe QR" width={32} height={32} priority />
                 <span>Cafe QR</span>
               </div>
             </Link>
@@ -97,7 +97,94 @@ export default function Shell({ children }) {
       </div>
 
       <style jsx>{`
-        /* (styles unchanged) */
+        .shell-container {
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+          width: 100%;
+        }
+        .shell-header {
+          background: #fff;
+          border-bottom: 1px solid #e5e7eb;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .header-content {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 1rem;
+          height: 60px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .logo-link { text-decoration: none; color: inherit; }
+        .logo {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 1.25rem;
+          font-weight: 600;
+        }
+        .header-nav {
+          display: flex;
+          gap: 1.5rem;
+        }
+        .header-nav :global(a) {
+          color: #6b7280;
+          text-decoration: none;
+          font-weight: 500;
+        }
+        .header-nav :global(a:hover) { color: #374151; }
+        .menu-toggle {
+          display: none;
+        }
+        @media (max-width: 767px) {
+          .menu-toggle { display: block; background: none; border: none; font-size: 1.5rem; }
+          .header-nav :global(a) { display: none; }
+        }
+        .main-layout { display: flex; flex: 1; }
+        .sidebar-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; display: none;
+        }
+        .sidebar {
+          background: #fff;
+          border-right: 1px solid #e5e7eb;
+          transition: transform 0.3s ease;
+          width: 280px;
+        }
+        .sidebar-content { display: flex; flex-direction: column; height: 100%; }
+        .sidebar-header {
+          padding: 1rem; border-bottom: 1px solid #f3f4f6;
+          display: flex; justify-content: space-between; align-items: center;
+        }
+        .close-btn { background: none; border: none; font-size: 1.25rem; display: none; }
+        .sidebar-nav { flex: 1; padding: 0.5rem 0; }
+        .nav-item {
+          display: flex; align-items: center; gap: 0.75rem;
+          padding: 0.75rem 1rem; color: #6b7280; text-decoration: none;
+          transition: background 0.2s, color 0.2s; border-left: 3px solid transparent;
+        }
+        .nav-item:hover { background: #f9fafb; color: #374151; }
+        .nav-icon { font-size: 1.25rem; }
+        .nav-text { font-size: 1rem; }
+        .nav-divider { height: 1px; background: #f3f4f6; margin: 0.5rem 1rem; }
+        .logout { color: #dc2626; }
+        @media (max-width: 767px) {
+          .sidebar {
+            position: fixed; top: 0; left: 0; height: 100vh;
+            transform: translateX(${sidebarOpen ? '0' : '-100%'});
+            z-index: 45; box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+          }
+          .sidebar.open ~ .sidebar-overlay { display: block; }
+          .close-btn { display: block; }
+        }
+        .main-content {
+          flex: 1; overflow-x: auto; padding: 1rem; width: 100%;
+        }
+        .content-wrapper { max-width: 1200px; margin: 0 auto; }
       `}</style>
     </>
   )

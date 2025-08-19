@@ -1,4 +1,4 @@
-/* Base improvements */
+/* styles/responsive.css */
 :root {
   --pad: 16px;
   --pad-sm: 12px;
@@ -11,23 +11,20 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Shell layout: make sidebar collapsible on small screens */
+/* Shell layout adjustments */
 @media (max-width: 768px) {
-  .shell {
+  .shell-container {
     flex-direction: column;
   }
-  .shell-aside {
-    width: 100% !important;
-    border-right: none !important;
-    border-bottom: 1px solid #eee !important;
-    padding: var(--pad-sm) !important;
+  .sidebar {
+    width: 80% !important;
   }
-  .shell-main {
+  .main-content {
     padding: var(--pad-sm) !important;
   }
 }
 
-/* KPI grid on dashboard: 1 per row on phones, 2 per row on small tablets */
+/* KPI grid responsiveness */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -40,7 +37,7 @@ html, body {
   .kpi-grid { grid-template-columns: 1fr; }
 }
 
-/* Two-column content rows → single column on mobile */
+/* Two-column → single-column */
 .two-col {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -50,13 +47,10 @@ html, body {
   .two-col { grid-template-columns: 1fr; }
 }
 
-/* Tables: enable horizontal scroll on small screens */
+/* Table horizontal scroll */
 .table-wrap {
   overflow-x: auto;
-}
-.table {
-  width: 100%;
-  border-collapse: collapse;
+  -webkit-overflow-scrolling: touch;
 }
 .table th, .table td {
   padding: 10px;
@@ -65,30 +59,23 @@ html, body {
   .table th, .table td {
     padding: 8px 6px;
     font-size: 14px;
-    white-space: nowrap; /* prevent cramped wrapping */
   }
 }
 
-/* Orders board columns: stack on mobile */
+/* Orders board columns */
 .order-columns {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--gap);
 }
-@media (max-width: 1200px) {
-  .order-columns { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 800px) {
-  .order-columns { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 520px) {
-  .order-columns { grid-template-columns: 1fr; }
-}
+@media (max-width: 1200px) { .order-columns { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 800px)  { .order-columns { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px)  { .order-columns { grid-template-columns: 1fr; } }
 
-/* Buttons bar wrapping */
+/* Actions bar wrap */
 .actions-bar {
   display: flex;
-  gap: 8px;
+  gap: var(--gap-sm);
   flex-wrap: wrap;
 }
 .actions-bar button,
@@ -102,81 +89,19 @@ html, body {
 
 /* Inputs full width on mobile */
 @media (max-width: 600px) {
-  input[type="text"],
-  input[type="number"],
-  input[type="time"],
-  input[type="datetime-local"],
-  select {
-    width: 100% !important;
-  }
+  input, select, textarea { width: 100% !important; }
 }
 
-/* Modal: use full width on phones */
-.modal-card {
-  width: 420px;
-}
+/* Modal full width on phones */
+.modal-card { width: 420px; }
 @media (max-width: 480px) {
-  .modal-card {
-    width: calc(100% - 24px);
-    margin: 0 12px;
-  }
-}
-/* iOS safe areas and scrolling tweaks */
-html, body {
-  max-width: 100%;
-  overflow-x: hidden;
-  -webkit-text-size-adjust: 100%;
-  background: #fff;
+  .modal-card { width: calc(100% - 24px); margin: 0 12px; }
 }
 
+/* iOS safe area and scrolling */
 :root {
   --safe-top: env(safe-area-inset-top);
-  --safe-right: env(safe-area-inset-right);
   --safe-bottom: env(safe-area-inset-bottom);
-  --safe-left: env(safe-area-inset-left);
 }
-
-/* Ensure main area never collides with iOS home bar */
-.shell-main {
-  padding-bottom: calc(24px + var(--safe-bottom)) !important;
-}
-
-/* Mobile header spacing on iOS notch */
-.shell-header {
-  padding-top: var(--safe-top);
-}
-
-/* Fixed bottom elements (snackbar, banners) respect safe area */
-.snackbar,
-.fixed-bottom {
-  bottom: calc(20px + var(--safe-bottom)) !important;
-}
-
-/* Tables scroll inside wrapper, not page; momentum scroll on iOS */
-.table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Truncate long text in narrow table cells */
-.table .truncate {
-  display: inline-block;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 480px) {
-  .table th, .table td {
-    padding: 8px 6px;
-    font-size: 14px;
-  }
-}
-
-/* Owner app pages (no marketing chrome): let main be full-bleed */
-.app-main.app-main--plain {
-  max-width: none;
-  padding-left: 0;
-  padding-right: 0;
-}
+.shell-header { padding-top: var(--safe-top); }
+.main-content { padding-bottom: calc(24px + var(--safe-bottom)); }
