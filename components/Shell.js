@@ -62,8 +62,8 @@ export default function Shell({ children, showSidebar = false }) {
             </div>
 
             <nav className="header-nav">
-              <a href="/">Home</a>
-              <a href="/faq">FAQ</a>
+              <Link  href="/">Home</Link >
+              <Link  href="/faq">FAQ</Link >
             </nav>
           </div>
         </header>
@@ -151,7 +151,7 @@ export default function Shell({ children, showSidebar = false }) {
           <div className="footer-content">
             <span>
               🔒 Powered by The Online Wala • Secure payments by Cashfree •{' '}
-              <a href="/privacy-policy" className="footer-link">Privacy Policy</a>
+              <Link  href="/privacy-policy" className="footer-link">Privacy Policy</Link >
             </span>
           </div>
         </footer>
