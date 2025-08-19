@@ -12,8 +12,7 @@ export default function Shell({ children }) {
       if (typeof window === 'undefined') return
       const mobile = window.innerWidth < 768
       setIsMobile(mobile)
-      if (!mobile) setSidebarOpen(true)
-      else setSidebarOpen(false)
+      setSidebarOpen(!mobile)
     }
     checkDevice()
     window.addEventListener('resize', checkDevice)
@@ -51,7 +50,6 @@ export default function Shell({ children }) {
           {isMobile && sidebarOpen && (
             <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
           )}
-
           <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
             <div className="sidebar-content">
               <div className="sidebar-header">
@@ -60,31 +58,47 @@ export default function Shell({ children }) {
                   <button className="close-btn" onClick={() => setSidebarOpen(false)}>×</button>
                 )}
               </div>
-              
               <nav className="sidebar-nav">
                 <Link href="/dashboard" className="nav-item">
-                  <span className="nav-icon">📊</span>
-                  <span className="nav-text">Overview</span>
+                  <span className="nav-icon">📊</span><span className="nav-text">Overview</span>
                 </Link>
                 <Link href="/menu" className="nav-item">
-                  <span className="nav-icon">🍽️</span>
-                  <span className="nav-text">Menu</span>
+                  <span className="nav-icon">🍽️</span><span className="nav-text">Menu</span>
                 </Link>
                 <Link href="/orders" className="nav-item">
-                  <span className="nav-icon">📋</span>
-                  <span className="nav-text">Orders</span>
+                  <span className="nav-icon">📋</span><span className="nav-text">Orders</span>
                 </Link>
                 <Link href="/availability" className="nav-item">
-                  <span className="nav-icon">⚠️</span>
-                  <span className="nav-text">Availability</span>
+                  <span className="nav-icon">⚠️</span><span className="nav-text">Availability</span>
                 </Link>
                 <Link href="/promotions" className="nav-item">
-                  <span className="nav-icon">🎯</span>
-                  <span className="nav-text">Promotions</span>
+                  <span className="nav-icon">🎯</span><span className="nav-text">Promotions</span>
                 </Link>
                 <Link href="/analytics" className="nav-item">
-                  <span className="nav-icon">📈</span>
-                  <span className="nav-text">Analytics</span>
+                  <span className="nav-icon">📈</span><span className="nav-text">Analytics</span>
                 </Link>
                 <Link href="/settings" className="nav-item">
-                  <span className="nav-icon">
+                  <span className="nav-icon">⚙️</span><span className="nav-text">Settings</span>
+                </Link>
+                <Link href="/billing" className="nav-item">
+                  <span className="nav-icon">🧾</span><span className="nav-text">Billing</span>
+                </Link>
+                <div className="nav-divider" />
+                <Link href="/logout" className="nav-item logout">
+                  <span className="nav-icon">🚪</span><span className="nav-text">Sign Out</span>
+                </Link>
+              </nav>
+            </div>
+          </aside>
+          <main className="main-content">
+            <div className="content-wrapper">{children}</div>
+          </main>
+        </div>
+      </div>
+
+      <style jsx>{`
+        /* (styles unchanged) */
+      `}</style>
+    </>
+  )
+}

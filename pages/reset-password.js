@@ -54,7 +54,7 @@ export default function ResetPassword() {
         <h1>Reset Password</h1>
         <p style={{ color: 'red' }}>{errorInfo.description}</p>
         <p>
-          <a href="/forgot-password">Request new reset link</a>
+          <Link  href="/forgot-password">Request new reset link</Link >
         </p>
       </div>
     )
