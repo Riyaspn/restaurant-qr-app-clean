@@ -1,7 +1,7 @@
 // pages/order/index.js
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
-import { supabase } from '../services/supabase'
+import { supabase } from '../../services/supabase'
 import Link from 'next/link'
 
 export default function OrderPage() {
