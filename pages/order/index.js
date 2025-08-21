@@ -1,7 +1,7 @@
 // pages/order/index.js
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
-import { supabase } from '../../services/supabase'
+import { supabase } from '../services/supabase'
 import Link from 'next/link'
 
 export default function OrderPage() {
@@ -10,11 +10,9 @@ export default function OrderPage() {
   
   const [restaurant, setRestaurant] = useState(null)
   const [menuItems, setMenuItems] = useState([])
-  const [categories, setCategories] = useState([])
   const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [vegOnly, setVegOnly] = useState(false)
 
@@ -61,11 +59,8 @@ export default function OrderPage() {
 
       if (menuError) throw menuError
 
-      const uniqueCategories = [...new Set((menuData || []).map(item => item.category))].filter(Boolean)
-      
       setRestaurant(restaurantData)
       setMenuItems(menuData || [])
-      setCategories(uniqueCategories)
       
     } catch (err) {
       setError(err.message)
@@ -99,7 +94,6 @@ export default function OrderPage() {
 
   const filteredItems = menuItems.filter(item => {
     if (vegOnly && !item.veg) return false
-    if (selectedCategory && item.category !== selectedCategory) return false
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       return item.name.toLowerCase().includes(query) || 
@@ -125,7 +119,6 @@ export default function OrderPage() {
 
   return (
     <div className="menu-page" style={{'--brand-color': brandColor}}>
-      {/* Header */}
       <header className="header">
         <button onClick={() => router.back()} className="back-btn">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -135,7 +128,6 @@ export default function OrderPage() {
         <h1>{restaurant?.name || 'Restaurant'}</h1>
       </header>
 
-      {/* Search */}
       <div className="search-section">
         <div className="search-container">
           <svg className="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -152,11 +144,8 @@ export default function OrderPage() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
       <div className="filter-tabs">
-        <button className={`filter-tab ${selectedCategory === '' ? 'active' : ''}`} onClick={() => setSelectedCategory('')}>
-          Filters ▼
-        </button>
+        <button className="filter-tab">Filters ▼</button>
         <button className={`filter-tab ${!vegOnly ? 'active' : ''}`} onClick={() => setVegOnly(false)}>
           Non Veg
         </button>
@@ -166,7 +155,6 @@ export default function OrderPage() {
         <button className="filter-tab">Vegan</button>
       </div>
 
-      {/* Menu Items */}
       <div className="menu-content">
         {Object.entries(groupedItems).map(([category, items]) => (
           <section key={category} className="category-section">
@@ -234,7 +222,6 @@ export default function OrderPage() {
         ))}
       </div>
 
-      {/* Bottom Cart Bar */}
       {cartItemsCount > 0 && (
         <div className="bottom-cart">
           <div className="cart-info">

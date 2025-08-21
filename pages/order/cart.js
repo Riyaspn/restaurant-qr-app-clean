@@ -56,7 +56,6 @@ export default function CartSummary() {
     localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`)
   }
 
-  // Update localStorage when cart changes
   useEffect(() => {
     if (restaurantId && tableNumber) {
       localStorage.setItem(`cart_${restaurantId}_${tableNumber}`, JSON.stringify(cart))
@@ -64,8 +63,7 @@ export default function CartSummary() {
   }, [cart, restaurantId, tableNumber])
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  const tax = Math.round(subtotal * 0.05 * 100) / 100
-  const total = subtotal + tax
+  const total = subtotal // No tax
 
   if (loading) return <div className="loading">Loading cart...</div>
 
@@ -88,7 +86,6 @@ export default function CartSummary() {
 
   return (
     <div className="cart-page" style={{'--brand-color': brandColor}}>
-      {/* Header */}
       <header className="header">
         <button onClick={() => router.back()} className="back-btn">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -99,12 +96,10 @@ export default function CartSummary() {
         <button onClick={clearCart} className="clear-btn">Clear Cart</button>
       </header>
 
-      {/* Restaurant Info */}
       <div className="restaurant-info">
         <h2>{restaurant?.name}</h2>
       </div>
 
-      {/* Cart Items */}
       <div className="cart-items">
         {cart.map(item => (
           <div key={item.id} className="cart-item">
@@ -145,14 +140,12 @@ export default function CartSummary() {
         ))}
       </div>
 
-      {/* Add More Items */}
       <div className="add-more">
         <Link href={`/order?r=${restaurantId}&t=${tableNumber}`} className="add-more-btn">
           + Add more items
         </Link>
       </div>
 
-      {/* Promo Code */}
       <div className="promo-section">
         <h3>Promo / Credit Code</h3>
         <div className="promo-input-container">
@@ -167,23 +160,13 @@ export default function CartSummary() {
         </div>
       </div>
 
-      {/* Bill Summary */}
       <div className="bill-summary">
-        <div className="summary-row">
-          <span>Subtotal</span>
-          <span>₹{subtotal.toFixed(2)}</span>
-        </div>
-        <div className="summary-row">
-          <span>Total Tax <span className="info-icon">ℹ️</span></span>
-          <span>₹{tax.toFixed(2)}</span>
-        </div>
         <div className="summary-row total-row">
           <span>Total</span>
           <span>₹{total.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Proceed Button */}
       <div className="proceed-section">
         <Link 
           href={`/order/payment?r=${restaurantId}&t=${tableNumber}&total=${total}`}
@@ -235,7 +218,6 @@ export default function CartSummary() {
         .summary-row { display: flex; justify-content: space-between; margin-bottom: 12px; color: #374151; }
         .summary-row:last-child { margin-bottom: 0; }
         .total-row { font-weight: 700; font-size: 18px; color: #111827; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-        .info-icon { color: #6b7280; font-size: 14px; }
         
         .proceed-section { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px; background: #fff; border-top: 1px solid #e5e7eb; }
         .proceed-btn { display: block; width: 100%; background: var(--brand-color); color: #fff; text-decoration: none; padding: 16px; text-align: center; border-radius: 8px; font-size: 18px; font-weight: 600; }

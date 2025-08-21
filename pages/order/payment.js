@@ -9,13 +9,13 @@ export default function PaymentPage() {
   
   const [restaurant, setRestaurant] = useState(null)
   const [cart, setCart] = useState([])
-  const [selectedPayment, setSelectedPayment] = useState('googlepay')
+  const [selectedPayment, setSelectedPayment] = useState('cash')
   const [loading, setLoading] = useState(false)
   const [specialInstructions, setSpecialInstructions] = useState('')
 
   const totalAmount = parseFloat(total) || 0
-  const subtotal = totalAmount / 1.05
-  const tax = totalAmount - subtotal
+  const subtotal = totalAmount // No tax
+  const tax = 0
 
   useEffect(() => {
     if (restaurantId) loadRestaurantData()
@@ -50,7 +50,6 @@ export default function PaymentPage() {
     setLoading(true)
     
     try {
-      // Prepare order data
       const orderData = {
         restaurant_id: restaurantId,
         restaurant_name: restaurant.name,
@@ -63,14 +62,13 @@ export default function PaymentPage() {
           veg: i.veg || false
         })),
         subtotal,
-        tax,
+        tax: 0,
         total_amount: totalAmount,
         payment_method: selectedPayment === 'cash' ? 'cash' : 'online',
         special_instructions: specialInstructions.trim(),
         payment_status: selectedPayment === 'cash' ? 'pending' : 'completed'
       }
 
-      // Create order
       const response = await fetch('/api/orders/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,10 +82,8 @@ export default function PaymentPage() {
 
       const result = await response.json()
       
-      // Clear cart
       localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`)
       
-      // Redirect to success
       const paymentMethod = selectedPayment === 'cash' ? 'cash' : 'online'
       window.location.href = `/order/success?id=${result.order_id}&method=${paymentMethod}`
       
@@ -113,7 +109,6 @@ export default function PaymentPage() {
 
   return (
     <div className="payment-page" style={{'--brand-color': brandColor}}>
-      {/* Header */}
       <header className="header">
         <button onClick={() => router.back()} className="back-btn">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -124,23 +119,13 @@ export default function PaymentPage() {
         <div className="total-amount">Total: ₹{totalAmount.toFixed(2)}</div>
       </header>
 
-      {/* Bill Summary */}
       <div className="bill-summary">
-        <div className="summary-row">
-          <span>Subtotal</span>
-          <span>₹{subtotal.toFixed(2)}</span>
-        </div>
-        <div className="summary-row">
-          <span>Total Tax <span className="info-icon">ℹ️</span></span>
-          <span>₹{tax.toFixed(2)}</span>
-        </div>
         <div className="summary-row total-row">
           <span>Total</span>
           <span>₹{totalAmount.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Wallet Section */}
       <div className="wallet-section">
         <div className="wallet-item">
           <span>SmartQ Wallet</span>
@@ -148,17 +133,14 @@ export default function PaymentPage() {
         </div>
       </div>
 
-      {/* Remaining Due */}
       <div className="remaining-due">
         <span>Remaining Due</span>
         <span>₹{totalAmount.toFixed(2)}</span>
       </div>
 
-      {/* Payment Methods */}
       <div className="payment-methods">
         <p>Select any payment method from below to pay the amount</p>
         
-        {/* Cash Payment */}
         <div className="payment-section">
           <label className={`payment-option ${selectedPayment === 'cash' ? 'selected' : ''}`}>
             <input
@@ -175,7 +157,6 @@ export default function PaymentPage() {
           </label>
         </div>
 
-        {/* UPI Apps */}
         <div className="payment-section">
           <h3>UPI Apps</h3>
           <div className="upi-grid">
@@ -197,7 +178,6 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        {/* Other Payment Options */}
         <div className="payment-section">
           <h3>Other payment options</h3>
           {paymentOptions.filter(p => p.type === 'card').map(option => (
@@ -217,7 +197,6 @@ export default function PaymentPage() {
         </div>
       </div>
 
-      {/* Special Instructions */}
       <div className="instructions-section">
         <textarea
           placeholder="Special instructions (optional)"
@@ -228,7 +207,6 @@ export default function PaymentPage() {
         />
       </div>
 
-      {/* Place Order Button */}
       <div className="place-order-section">
         <button 
           onClick={handlePayment}
@@ -251,7 +229,6 @@ export default function PaymentPage() {
         .summary-row { display: flex; justify-content: space-between; margin-bottom: 12px; color: #374151; }
         .summary-row:last-child { margin-bottom: 0; }
         .total-row { font-weight: 700; font-size: 18px; color: #111827; }
-        .info-icon { color: #6b7280; font-size: 14px; }
         
         .wallet-section { background: #fff; padding: 16px 20px; margin-bottom: 8px; }
         .wallet-item { display: flex; justify-content: space-between; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; color: #374151; }
