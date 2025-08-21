@@ -14,6 +14,7 @@ export default async function handler(req, res) {
   try {
     const {
       restaurant_id,
+      restaurant_name,
       table_number,
       items,
       subtotal,
@@ -21,8 +22,7 @@ export default async function handler(req, res) {
       total_amount,
       payment_method,
       payment_status,
-      special_instructions,
-      payment_details
+      special_instructions
     } = req.body
 
     // Validation
@@ -30,34 +30,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
-    // Get restaurant and profile data
-    const { data: restaurant, error: restError } = await supabase
-      .from('restaurants')
-      .select(`
-        id, name,
-        restaurant_profiles(phone, shipping_address_line1, shipping_city, shipping_state, shipping_pincode)
-      `)
-      .eq('id', restaurant_id)
-      .single()
+    console.log('Creating order:', { restaurant_id, table_number, items_count: items.length })
 
-    if (restError || !restaurant) {
-      return res.status(404).json({ error: 'Restaurant not found' })
-    }
-
-    const profile = restaurant.restaurant_profiles || {}
-    const fullAddress = [
-      profile.shipping_address_line1,
-      profile.shipping_city,
-      profile.shipping_state,
-      profile.shipping_pincode
-    ].filter(Boolean).join(', ')
-
-    // Create order with denormalized restaurant data
+    // Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert([{
         restaurant_id,
-        table_number,
+        table_number: table_number || 1,
         status: 'new',
         payment_method: payment_method || 'cash',
         payment_status: payment_status || 'pending',
@@ -65,10 +45,7 @@ export default async function handler(req, res) {
         tax: tax || 0,
         total_amount: total_amount || 0,
         special_instructions: special_instructions || null,
-        payment_details: payment_details || null,
-        restaurant_name: restaurant.name,
-        restaurant_phone: profile.phone,
-        restaurant_address: fullAddress,
+        restaurant_name: restaurant_name || null,
         created_at: new Date().toISOString()
       }])
       .select()
@@ -76,16 +53,18 @@ export default async function handler(req, res) {
 
     if (orderError) {
       console.error('Order creation error:', orderError)
-      throw new Error('Failed to create order')
+      return res.status(500).json({ error: 'Failed to create order', details: orderError.message })
     }
+
+    console.log('Order created:', order.id)
 
     // Create order items
     const orderItems = items.map(item => ({
       order_id: order.id,
       menu_item_id: item.id,
-      quantity: item.quantity,
-      price: item.price,
-      item_name: item.name
+      quantity: item.quantity || 1,
+      price: item.price || 0,
+      item_name: item.name || 'Unknown Item'
     }))
 
     const { error: itemsError } = await supabase
@@ -94,10 +73,12 @@ export default async function handler(req, res) {
 
     if (itemsError) {
       console.error('Order items creation error:', itemsError)
-      // Rollback order if items creation fails
+      // Try to rollback order
       await supabase.from('orders').delete().eq('id', order.id)
-      throw new Error('Failed to create order items')
+      return res.status(500).json({ error: 'Failed to create order items', details: itemsError.message })
     }
+
+    console.log('Order items created successfully')
 
     return res.status(200).json({ 
       success: true, 
