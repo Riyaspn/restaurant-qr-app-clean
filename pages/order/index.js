@@ -1,3 +1,5 @@
+/* eslint react/no-unescaped-entities: "off" */
+
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../services/supabase'
