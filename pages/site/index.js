@@ -28,7 +28,7 @@ export default function PublicHome() {
       <h3>Legal</h3>
       <ul>
         <li><a href="/legal/terms">Terms & Conditions</a></li>
-        <li><a href="/pages/privacy-policy.js">Privacy Policy</a></li>
+        <li><a href="/privacy-policy">Privacy Policy</a></li>
         <li><a href="/legal/refund">Refund & Cancellation</a></li>
       </ul>
     </main>

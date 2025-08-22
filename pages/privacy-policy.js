@@ -131,7 +131,7 @@ export default function PrivacyPolicy() {
         <h2>Contact Us</h2>
         <p>
           If you have questions or requests regarding this policy, contact us at
-          <a href="mailto:support@theonlinewala.com"> support@theonlinewala.com</a> or at:
+          <a href="mailto:pnriyas50@gmail.com"> support@theonlinewala.com</a> or at:
           <br />
           The Online Wala<br />
           +917012120844

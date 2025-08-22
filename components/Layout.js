@@ -62,7 +62,7 @@ export default function Layout({
             fontSize: 14,
             color: '#6b7280'
           }}>
-            🔒 Powered by The Online Wala • Secure payments by Cashfree • <a href="/pages/privacy-policy.js" style={{color: '#3498db', textDecoration: 'underline'}}>Privacy Policy</a>
+            🔒 Powered by The Online Wala • Secure payments by Cashfree • <a href="/privacy-policy" style={{color: '#3498db', textDecoration: 'underline'}}>Privacy Policy</a>
           </footer>
         </>
       ) : (
