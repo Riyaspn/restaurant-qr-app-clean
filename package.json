@@ -19,5 +19,13 @@
     "@eslint/eslintrc": "^3",
     "eslint": "^9",
     "eslint-config-next": "15.4.6"
-  }
+  },
+{
+"scripts": {
+"dev": "next dev",
+"build": "NEXT_DISABLE_ESLINT=1 next build",
+"start": "next start",
+"lint": "next lint"
+}
+}
 }

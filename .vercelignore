@@ -1,0 +1,12 @@
+node_modules
+.git
+*.md
+*.psd
+*.ai
+tests
+coverage
+.storybook
+cypress
+tests
+.vscode
+.DS_Store
