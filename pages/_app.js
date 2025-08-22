@@ -16,13 +16,22 @@ const OWNER_ROUTES = [
   '/billing'
 ]
 
+const CUSTOMER_PREFIX = '/order'
+
 function MyApp({ Component, pageProps }) {
   const router = useRouter()
-  const showSidebar = OWNER_ROUTES.some(prefix => router.pathname.startsWith(prefix))
+  const path = router.pathname || ''
+  const showSidebar = OWNER_ROUTES.some(prefix => path.startsWith(prefix))
+  const isCustomerRoute = path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`)
 
   return (
     <RestaurantProvider>
-      <Layout title={pageProps.title} showSidebar={showSidebar}>
+      <Layout 
+        title={pageProps.title} 
+        showSidebar={showSidebar}
+        hideChrome={isCustomerRoute}
+        showCustomerHeader={isCustomerRoute}
+      >
         <Component {...pageProps} />
       </Layout>
     </RestaurantProvider>
