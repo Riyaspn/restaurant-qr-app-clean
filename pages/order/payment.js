@@ -132,21 +132,31 @@ export default function PaymentPage() {
         </div>
       </div>
 
-      <div style={{background: '#fff', padding: '20px', marginBottom: '8px'}}>
-        <h3 style={{margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600}}>💳 Choose Payment Method</h3>
-        
+      {/* iOS-safe, single-column payment options */}
+      <div className="payment-methods">
+        <h3>💳 Choose Payment Method</h3>
+
         {paymentMethods.map(method => (
-          <label key={method.id} style={{display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', border: selectedPayment === method.id ? `1px solid ${brandColor}` : '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '8px', cursor: 'pointer', background: selectedPayment === method.id ? '#fffbeb' : '#fff'}}>
+          <label
+            key={method.id}
+            className={`pay-card ${selectedPayment === method.id ? 'selected' : ''}`}
+          >
             <input
               type="radio"
               value={method.id}
               checked={selectedPayment === method.id}
               onChange={(e) => setSelectedPayment(e.target.value)}
-              style={{margin: 0}}
             />
-            <span style={{fontSize: '20px'}}>{method.icon}</span>
-            <span style={{flex: 1}}>{method.name}</span>
-            <span style={{fontWeight: 600}}>₹{totalAmount.toFixed(2)}</span>
+            <div className="pay-main">
+              <div className="pay-left">
+                <span className="pay-emoji" aria-hidden="true">{method.icon}</span>
+                <div className="pay-text">
+                  <div className="pay-name">{method.name}</div>
+                  {method.id === 'cash' && <div className="pay-note">Pay at counter</div>}
+                </div>
+              </div>
+              <div className="pay-right">₹{totalAmount.toFixed(2)}</div>
+            </div>
           </label>
         ))}
       </div>
@@ -179,6 +189,78 @@ export default function PaymentPage() {
            `Pay ₹${totalAmount.toFixed(2)}`}
         </button>
       </div>
+
+      <style jsx>{`
+        :global(html), :global(body) { -webkit-text-size-adjust: 100%; }
+        .payment-methods { background: #fff; padding: 16px; margin-bottom: 84px; }
+        .payment-methods h3 { margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #111827; }
+
+        .pay-card {
+          display: block;
+          width: 100%;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 12px;
+          background: #fff;
+          margin-bottom: 10px;
+          overflow: hidden;
+        }
+        .pay-card.selected {
+          border-color: ${brandColor};
+          background: #fffbeb;
+        }
+        .pay-card input { display: none; }
+
+        .pay-main {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 14px 16px;
+          min-height: 56px;
+        }
+        .pay-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .pay-emoji {
+          font-size: 20px;
+          line-height: 1;
+          display: inline-block;
+          width: 24px;
+          text-align: center;
+          font-variant-emoji: text;
+        }
+        .pay-text {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+        }
+        .pay-name {
+          font-size: 15px;
+          font-weight: 600;
+          color: #111827;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .pay-note {
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .pay-right {
+          font-weight: 700;
+          color: #111827;
+          flex: 0 0 auto;
+          text-align: right;
+          min-width: 96px;
+        }
+        @media (max-width: 380px) {
+          .pay-right { min-width: 84px; }
+        }
+      `}</style>
     </div>
   )
 }
