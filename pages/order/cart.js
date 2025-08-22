@@ -15,34 +15,21 @@ export default function CartSummary() {
     if (restaurantId) loadRestaurantData()
   }, [restaurantId])
 
-  // Enhanced cart loading with better error handling
+  // Load cart from localStorage (no images needed)
   useEffect(() => {
     if (typeof window !== 'undefined' && restaurantId && tableNumber) {
       const cartKey = `cart_${restaurantId}_${tableNumber}`
-      console.log('Loading cart from localStorage with key:', cartKey)
-      
       const stored = localStorage.getItem(cartKey)
-      console.log('Raw localStorage data:', stored)
-      
       if (stored) {
         try {
-          const parsedCart = JSON.parse(stored)
-          console.log('Parsed cart data:', parsedCart)
-          
-          if (Array.isArray(parsedCart) && parsedCart.length > 0) {
-            setCart(parsedCart)
-            console.log('Cart loaded successfully:', parsedCart)
-          } else {
-            console.log('Cart is empty or invalid')
-            setCart([])
-          }
-        } catch (e) {
-          console.error('Failed to parse cart data:', e)
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) setCart(parsed)
+          else setCart([])
+        } catch {
           localStorage.removeItem(cartKey)
           setCart([])
         }
       } else {
-        console.log('No cart data found in localStorage')
         setCart([])
       }
       setLoading(false)
@@ -56,33 +43,31 @@ export default function CartSummary() {
         .select('id, name, restaurant_profiles(brand_color)')
         .eq('id', restaurantId)
         .single()
-      
       if (!error) setRestaurant(data)
     } catch (e) {
       console.error(e)
     }
   }
 
+  const persistCart = (nextCart) => {
+    if (typeof window !== 'undefined' && restaurantId && tableNumber) {
+      const cartKey = `cart_${restaurantId}_${tableNumber}`
+      localStorage.setItem(cartKey, JSON.stringify(nextCart))
+    }
+  }
+
   const updateQuantity = (itemId, quantity) => {
     if (quantity === 0) {
       setCart(prev => {
-        const newCart = prev.filter(c => c.id !== itemId)
-        // Save to localStorage immediately
-        if (typeof window !== 'undefined' && restaurantId && tableNumber) {
-          const cartKey = `cart_${restaurantId}_${tableNumber}`
-          localStorage.setItem(cartKey, JSON.stringify(newCart))
-        }
-        return newCart
+        const next = prev.filter(c => c.id !== itemId)
+        persistCart(next)
+        return next
       })
     } else {
       setCart(prev => {
-        const newCart = prev.map(c => c.id === itemId ? { ...c, quantity } : c)
-        // Save to localStorage immediately
-        if (typeof window !== 'undefined' && restaurantId && tableNumber) {
-          const cartKey = `cart_${restaurantId}_${tableNumber}`
-          localStorage.setItem(cartKey, JSON.stringify(newCart))
-        }
-        return newCart
+        const next = prev.map(c => c.id === itemId ? { ...c, quantity } : c)
+        persistCart(next)
+        return next
       })
     }
   }
@@ -116,10 +101,8 @@ export default function CartSummary() {
 
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b'
 
-  // Rest of the component remains the same...
   return (
     <div style={{minHeight: '100vh', background: '#f8f9fa', paddingBottom: '120px'}}>
-      {/* Header and rest of the component code remains unchanged */}
       <header style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: '#fff', borderBottom: '1px solid #e5e7eb'}}>
         <button onClick={() => router.back()} style={{background: 'none', border: 'none', padding: '8px', cursor: 'pointer'}}>
           ←
@@ -136,10 +119,7 @@ export default function CartSummary() {
       <div style={{background: '#fff', marginTop: '8px'}}>
         {cart.map(item => (
           <div key={item.id} style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', borderBottom: '1px solid #f3f4f6'}}>
-            <div style={{width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden'}}>
-              <img src={item.image_url || '/placeholder-food.jpg'} alt={item.name} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-            </div>
-            
+            {/* Removed image block */}
             <div style={{flex: 1}}>
               <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
                 <span style={{fontSize: '12px'}}>{item.veg ? '🟢' : '🔺'}</span>

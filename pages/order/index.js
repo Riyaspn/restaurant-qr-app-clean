@@ -1,171 +1,115 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../services/supabase'
 import Link from 'next/link'
 
 export default function OrderPage() {
   const router = useRouter()
   const { r: restaurantId, t: tableNumber } = router.query
-  
+
   const [restaurant, setRestaurant] = useState(null)
   const [menuItems, setMenuItems] = useState([])
   const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterMode, setFilterMode] = useState('all')
+  const [filterMode, setFilterMode] = useState('all') // all, veg, popular
 
-  // Load cart immediately when component mounts
   useEffect(() => {
-    if (typeof window !== 'undefined' && restaurantId && tableNumber) {
-      const cartKey = `cart_${restaurantId}_${tableNumber}`
-      const stored = localStorage.getItem(cartKey)
+    if (restaurantId) loadData()
+  }, [restaurantId])
+
+  useEffect(() => {
+    if (restaurantId && tableNumber) {
+      const key = `cart_${restaurantId}_${tableNumber}`
+      const stored = localStorage.getItem(key)
       if (stored) {
-        try {
-          const parsedCart = JSON.parse(stored)
-          console.log('Loading cart from localStorage:', parsedCart)
-          setCart(parsedCart)
-        } catch (e) {
-          console.warn('Failed to parse cart from localStorage:', e)
-          localStorage.removeItem(cartKey)
-        }
+        try { setCart(JSON.parse(stored)) } catch {}
       }
     }
   }, [restaurantId, tableNumber])
 
-  // Save cart whenever it changes
   useEffect(() => {
-    if (typeof window !== 'undefined' && restaurantId && tableNumber && cart.length >= 0) {
-      const cartKey = `cart_${restaurantId}_${tableNumber}`
-      localStorage.setItem(cartKey, JSON.stringify(cart))
-      console.log('Saving cart to localStorage:', cart)
+    if (restaurantId && tableNumber) {
+      const key = `cart_${restaurantId}_${tableNumber}`
+      localStorage.setItem(key, JSON.stringify(cart))
     }
   }, [cart, restaurantId, tableNumber])
-
-  useEffect(() => {
-    if (restaurantId) {
-      loadData()
-    }
-  }, [restaurantId])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      
-      const { data: restaurantData, error: restError } = await supabase
+
+      const { data: rest, error: restErr } = await supabase
         .from('restaurants')
         .select('id, name, online_paused, restaurant_profiles(brand_color, phone)')
         .eq('id', restaurantId)
         .single()
+      if (restErr) throw restErr
+      if (!rest) throw new Error('Restaurant not found')
+      if (rest.online_paused) throw new Error('Restaurant is currently closed')
 
-      if (restError) throw restError
-      if (!restaurantData) throw new Error('Restaurant not found')
-      if (restaurantData.online_paused) throw new Error('Restaurant is currently closed')
-
-      const { data: menuData, error: menuError } = await supabase
+      const { data: menu, error: menuErr } = await supabase
         .from('menu_items')
-        .select('id, name, price, description, image_url, category, veg, status')
+        .select('id, name, price, description, category, veg, status')
         .eq('restaurant_id', restaurantId)
         .eq('status', 'available')
         .order('category')
         .order('name')
+      if (menuErr) throw menuErr
 
-      if (menuError) throw menuError
-
-      const enhanced = (menuData || []).map((item, idx) => ({
+      // Remove all offer-related fields. Keep a simple "popular" and "rating" if you like.
+      const cleaned = (menu || []).map((item, i) => ({
         ...item,
-        rating: Number((3.8 + Math.random() * 1.2).toFixed(1)),
-        popular: idx % 4 === 0,
-        discount: idx % 6 === 0 ? Math.floor(Math.random() * 30) + 10 : null,
-        orderCount: Math.floor(Math.random() * 100) + 20
+        rating: Number((3.8 + Math.random() * 1.0).toFixed(1)),
+        popular: i % 4 === 0
       }))
 
-      setRestaurant(restaurantData)
-      setMenuItems(enhanced)
-    } catch (err) {
-      setError(err.message || 'Failed to load menu')
+      setRestaurant(rest)
+      setMenuItems(cleaned)
+    } catch (e) {
+      setError(e.message || 'Failed to load menu')
     } finally {
       setLoading(false)
     }
   }
 
   const addToCart = (item) => {
-    console.log('Adding item to cart:', item.name)
     setCart(prev => {
       const existing = prev.find(c => c.id === item.id)
-      if (existing) {
-        const newCart = prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)
-        console.log('Updated existing item, new cart:', newCart)
-        return newCart
-      }
-      const newCart = [...prev, { ...item, quantity: 1 }]
-      console.log('Added new item, new cart:', newCart)
-      return newCart
+      if (existing) return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c)
+      return [...prev, { ...item, quantity: 1 }]
     })
   }
 
   const updateCartItem = (itemId, quantity) => {
-    console.log('Updating cart item:', itemId, 'to quantity:', quantity)
-    if (quantity === 0) {
-      setCart(prev => {
-        const newCart = prev.filter(c => c.id !== itemId)
-        console.log('Removed item, new cart:', newCart)
-        return newCart
-      })
-    } else {
-      setCart(prev => {
-        const newCart = prev.map(c => c.id === itemId ? { ...c, quantity } : c)
-        console.log('Updated quantity, new cart:', newCart)
-        return newCart
-      })
-    }
+    if (quantity === 0) setCart(prev => prev.filter(c => c.id !== itemId))
+    else setCart(prev => prev.map(c => c.id === itemId ? { ...c, quantity } : c))
   }
 
-  const getItemQuantity = (itemId) => {
-    const item = cart.find(c => c.id === itemId)
-    return item ? item.quantity : 0
-  }
+  const getItemQuantity = (itemId) => cart.find(c => c.id === itemId)?.quantity || 0
 
-  const filteredItems = menuItems.filter(item => {
-    if (filterMode === 'veg' && !item.veg) return false
-    if (filterMode === 'popular' && !item.popular) return false
-    if (filterMode === 'offers' && !item.discount) return false
-    
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      return item.name.toLowerCase().includes(query) || 
-             (item.description || '').toLowerCase().includes(query)
-    }
-    return true
-  })
+  const filteredItems = useMemo(() => {
+    const q = (searchQuery || '').toLowerCase()
+    return (menuItems || []).filter(item => {
+      if (filterMode === 'veg' && !item.veg) return false
+      if (filterMode === 'popular' && !item.popular) return false
+      if (!q) return true
+      return (item.name || '').toLowerCase().includes(q) || (item.description || '').toLowerCase().includes(q)
+    })
+  }, [menuItems, filterMode, searchQuery])
 
-  const groupedItems = filteredItems.reduce((acc, item) => {
-    const cat = item.category || 'Others'
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(item)
-    return acc
-  }, {})
+  const groupedItems = useMemo(() => {
+    return filteredItems.reduce((acc, item) => {
+      const cat = item.category || 'Others'
+      if (!acc[cat]) acc[cat] = []
+      acc[cat].push(item)
+      return acc
+    }, {})
+  }, [filteredItems])
 
-  const cartTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0)
-  const cartItemsCount = cart.reduce((s, i) => s + i.quantity, 0)
-
-  // Enhanced checkout function
-  const handleCheckout = () => {
-    if (cartItemsCount === 0) {
-      alert('Please add items to your cart first')
-      return
-    }
-    
-    // Ensure cart is saved before navigation
-    if (typeof window !== 'undefined' && restaurantId && tableNumber) {
-      const cartKey = `cart_${restaurantId}_${tableNumber}`
-      localStorage.setItem(cartKey, JSON.stringify(cart))
-      console.log('Final cart save before checkout:', cart)
-    }
-    
-    // Navigate to cart page
-    router.push(`/order/cart?r=${restaurantId}&t=${tableNumber}`)
-  }
+  const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.quantity, 0), [cart])
+  const cartItemsCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart])
 
   if (loading) return <div style={{padding: 40, textAlign: 'center'}}>Loading menu...</div>
   if (error) return <div style={{padding: 40, textAlign: 'center', color: 'red'}}>{error}</div>
@@ -173,16 +117,14 @@ export default function OrderPage() {
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b'
 
   return (
-    <div style={{minHeight: '100vh', background: '#f8f9fa', paddingBottom: cartItemsCount > 0 ? '90px' : '0'}}>
-      <header style={{padding: '1rem', background: '#fff', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '12px'}}>
-        <button onClick={() => router.back()} style={{background: 'none', border: 'none', padding: '8px', cursor: 'pointer'}}>
-          ←
-        </button>
+    <div style={{minHeight: '100vh', background: '#f8f9fa', paddingBottom: cartItemsCount > 0 ? '90px' : '0', fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif'}}>
+      <header style={{padding: '1rem', background: '#fff', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12}}>
+        <button onClick={() => router.back()} style={{background: 'none', border: 'none', padding: 8, cursor: 'pointer'}}>←</button>
         <div style={{flex: 1}}>
           <h1 style={{margin: 0, fontSize: '1.25rem', fontWeight: 600}}>{restaurant?.name || 'Restaurant'}</h1>
-          <div style={{fontSize: '14px', color: '#666', marginTop: '4px'}}>
+          <div style={{fontSize: 14, color: '#666', marginTop: 4}}>
             <span style={{color: brandColor, fontWeight: 500}}>⏱️ 15-20 mins</span>
-            <span style={{marginLeft: '16px', color: '#f59e0b'}}>⭐ 4.3 (500+ orders)</span>
+            <span style={{marginLeft: 16, color: '#f59e0b'}}>⭐ 4.3 (500+ orders)</span>
           </div>
         </div>
       </header>
@@ -193,97 +135,73 @@ export default function OrderPage() {
           placeholder="Search for dishes..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          style={{width: '100%', padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '16px'}}
+          style={{width: '100%', padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 16}}
         />
       </div>
 
-      <div style={{display: 'flex', gap: '8px', padding: '1rem', background: '#fff', borderBottom: '1px solid #f3f4f6', overflowX: 'auto'}}>
-        {['all', 'veg', 'popular', 'offers'].map(mode => (
-          <button 
-            key={mode}
-            onClick={() => setFilterMode(mode)}
+      <div style={{display: 'flex', gap: 8, padding: '1rem', background: '#fff', borderBottom: '1px solid #f3f4f6', overflowX: 'auto'}}>
+        {[
+          { id: 'all', label: 'All Items' },
+          { id: 'veg', label: '🟢 Veg Only' },
+          { id: 'popular', label: '🔥 Popular' }
+        ].map(m => (
+          <button
+            key={m.id}
+            onClick={() => setFilterMode(m.id)}
             style={{
-              padding: '8px 16px', 
-              border: '1px solid #e5e7eb', 
-              borderRadius: '20px', 
-              background: filterMode === mode ? brandColor : '#fff',
-              color: filterMode === mode ? '#fff' : '#000',
+              padding: '8px 16px',
+              border: '1px solid #e5e7eb',
+              borderRadius: 20,
+              background: filterMode === m.id ? brandColor : '#fff',
+              color: filterMode === m.id ? '#fff' : '#000',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              fontSize: '14px'
+              fontSize: 14
             }}
           >
-            {mode === 'all' ? 'All Items' : 
-             mode === 'veg' ? '🟢 Veg Only' : 
-             mode === 'popular' ? '🔥 Popular' : '🎉 Offers'}
+            {m.label}
           </button>
         ))}
       </div>
 
       <div>
         {Object.entries(groupedItems).map(([category, items]) => (
-          <section key={category} style={{background: '#fff', marginBottom: '8px'}}>
-            <h2 style={{margin: 0, padding: '16px 20px 8px', fontSize: '18px', fontWeight: 600}}>
+          <section key={category} style={{background: '#fff', marginBottom: 8}}>
+            <h2 style={{margin: 0, padding: '16px 20px 8px', fontSize: 18, fontWeight: 600}}>
               {category} ({items.length} items)
             </h2>
-            
+
             {items.map(item => {
               const quantity = getItemQuantity(item.id)
-              const discountedPrice = item.discount ? item.price * (1 - item.discount / 100) : item.price
-              
               return (
-                <div key={item.id} style={{display: 'flex', gap: '16px', padding: '20px', borderBottom: '1px solid #f3f4f6'}}>
+                <div key={item.id} style={{display: 'flex', gap: 16, padding: 20, borderBottom: '1px solid #f3f4f6'}}>
                   <div style={{flex: 1}}>
-                    <div style={{display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap'}}>
-                      {item.popular && <span style={{padding: '2px 8px', borderRadius: '12px', fontSize: '12px', background: '#fef3c7', color: '#f59e0b'}}>🔥 Popular</span>}
-                      {item.rating >= 4.5 && <span style={{padding: '2px 8px', borderRadius: '12px', fontSize: '12px', background: '#dcfce7', color: '#16a34a'}}>⭐ Top Rated</span>}
-                      {item.discount && <span style={{padding: '2px 8px', borderRadius: '12px', fontSize: '12px', background: '#fecaca', color: '#dc2626'}}>{item.discount}% OFF</span>}
+                    <div style={{display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap'}}>
+                      {item.popular && <span style={{padding: '2px 8px', borderRadius: 12, fontSize: 12, background: '#fef3c7', color: '#b45309'}}>🔥 Popular</span>}
                     </div>
-                    
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px'}}>
-                      <span style={{fontSize: '12px'}}>{item.veg ? '🟢' : '🔺'}</span>
-                      <h3 style={{margin: 0, fontSize: '16px', fontWeight: 600}}>{item.name}</h3>
+
+                    <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
+                      <span style={{fontSize: 12}}>{item.veg ? '🟢' : '🔺'}</span>
+                      <h3 style={{margin: 0, fontSize: 16, fontWeight: 600}}>{item.name}</h3>
                     </div>
-                    
-                    <div style={{display: 'flex', gap: '12px', marginBottom: '8px', fontSize: '13px'}}>
-                      <span style={{color: '#f59e0b', fontWeight: 500}}>⭐ {item.rating}</span>
-                      <span style={{color: '#6b7280'}}>({item.orderCount} orders)</span>
-                    </div>
-                    
+
                     {item.description && (
-                      <p style={{margin: '0 0 12px 0', color: '#6b7280', fontSize: '14px'}}>{item.description}</p>
+                      <p style={{margin: '0 0 12px 0', color: '#6b7280', fontSize: 14}}>{item.description}</p>
                     )}
-                    
+
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                      <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                        {item.discount ? (
-                          <>
-                            <span style={{textDecoration: 'line-through', color: '#9ca3af', fontSize: '14px'}}>₹{item.price.toFixed(2)}</span>
-                            <span style={{fontSize: '16px', fontWeight: 600}}>₹{discountedPrice.toFixed(2)}</span>
-                            <span style={{background: '#dcfce7', color: '#16a34a', padding: '2px 6px', borderRadius: '4px', fontSize: '12px'}}>Save ₹{(item.price - discountedPrice).toFixed(2)}</span>
-                          </>
-                        ) : (
-                          <span style={{fontSize: '16px', fontWeight: 600}}>₹{item.price.toFixed(2)}</span>
-                        )}
-                      </div>
-                      
+                      <span style={{fontSize: 16, fontWeight: 600}}>₹{item.price.toFixed(2)}</span>
+
                       {quantity > 0 ? (
-                        <div style={{display: 'flex', alignItems: 'center', background: brandColor, borderRadius: '6px', overflow: 'hidden'}}>
-                          <button onClick={() => updateCartItem(item.id, quantity - 1)} style={{background: 'none', border: 'none', color: '#fff', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 600}}>-</button>
-                          <span style={{background: '#fff', color: brandColor, minWidth: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600}}>{quantity}</span>
-                          <button onClick={() => updateCartItem(item.id, quantity + 1)} style={{background: 'none', border: 'none', color: '#fff', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 600}}>+</button>
+                        <div style={{display: 'flex', alignItems: 'center', background: brandColor, borderRadius: 6, overflow: 'hidden'}}>
+                          <button onClick={() => updateCartItem(item.id, quantity - 1)} style={{background: 'none', border: 'none', color: '#fff', width: 32, height: 32, cursor: 'pointer', fontWeight: 600}}>-</button>
+                          <span style={{background: '#fff', color: brandColor, minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600}}>{quantity}</span>
+                          <button onClick={() => updateCartItem(item.id, quantity + 1)} style={{background: 'none', border: 'none', color: '#fff', width: 32, height: 32, cursor: 'pointer', fontWeight: 600}}>+</button>
                         </div>
                       ) : (
-                        <button onClick={() => addToCart({ ...item, price: discountedPrice })} style={{background: brandColor, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: 500, cursor: 'pointer'}}>Add +</button>
+                        <button onClick={() => addToCart(item)} style={{background: brandColor, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 6, fontWeight: 500, cursor: 'pointer'}}>Add +</button>
                       )}
                     </div>
-                  </div>
-                  
-                  <div style={{width: '100px', height: '80px', borderRadius: '8px', overflow: 'hidden', position: 'relative'}}>
-                    <img src={item.image_url || '/placeholder-food.jpg'} alt={item.name} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-                    {item.discount && (
-                      <div style={{position: 'absolute', top: '4px', right: '4px', background: '#dc2626', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600}}>{item.discount}% OFF</div>
-                    )}
                   </div>
                 </div>
               )
@@ -294,20 +212,20 @@ export default function OrderPage() {
 
       {cartItemsCount > 0 && (
         <div style={{position: 'fixed', bottom: 0, left: 0, right: 0, background: brandColor, color: '#fff', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px', flex: 1}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 12, flex: 1}}>
             <span>🛒</span>
             <div>
-              <div style={{fontSize: '14px'}}>{cartItemsCount} Item{cartItemsCount !== 1 ? 's' : ''}</div>
-              <div style={{fontWeight: 700, fontSize: '16px'}}>₹{cartTotal.toFixed(2)}</div>
+              <div style={{fontSize: 14}}>{cartItemsCount} Item{cartItemsCount !== 1 ? 's' : ''}</div>
+              <div style={{fontWeight: 700, fontSize: 16}}>₹{cartTotal.toFixed(2)}</div>
             </div>
-            <span style={{fontSize: '12px', opacity: 0.9}}>⏱️ 20 mins</span>
+            <span style={{fontSize: 12, opacity: 0.9}}>⏱️ 20 mins</span>
           </div>
-          <button 
-            onClick={handleCheckout}
-            style={{background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer'}}
+          <Link 
+            href={`/order/cart?r=${restaurantId}&t=${tableNumber}`}
+            style={{background: 'rgba(255,255,255,0.2)', color: '#fff', textDecoration: 'none', padding: '12px 20px', borderRadius: 6, fontWeight: 600}}
           >
             Checkout →
-          </button>
+          </Link>
         </div>
       )}
     </div>
