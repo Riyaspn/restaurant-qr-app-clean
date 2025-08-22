@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../../services/supabase'
 
 export default function PaymentPage() {
@@ -17,9 +18,24 @@ export default function PaymentPage() {
   const totalAmount = parseFloat(total) || 0
   const finalTotal = totalAmount + selectedTip
 
+  const loadRestaurantData = useCallback(async () => {
+    if (!restaurantId) return
+    try {
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('id, name, restaurant_profiles(brand_color)')
+        .eq('id', restaurantId)
+        .single()
+      
+      if (!error) setRestaurant(data)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [restaurantId])
+
   useEffect(() => {
     if (restaurantId) loadRestaurantData()
-  }, [restaurantId])
+  }, [restaurantId, loadRestaurantData])
 
   useEffect(() => {
     if (restaurantId && tableNumber) {
@@ -32,22 +48,8 @@ export default function PaymentPage() {
     }
   }, [restaurantId, tableNumber])
 
-  const loadRestaurantData = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('restaurants')
-        .select('id, name, restaurant_profiles(brand_color)')
-        .eq('id', restaurantId)
-        .single()
-      
-      if (!error) setRestaurant(data)
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  const generateUPILink = (app) => {
-    const merchantUPI = 'merchant@upi' // Replace with actual UPI ID
+  const generateUPILink = useCallback((app) => {
+    const merchantUPI = 'merchant@upi'
     const amount = finalTotal
     const orderRef = `ORDER_${Date.now()}`
     
@@ -60,13 +62,12 @@ export default function PaymentPage() {
     }
     
     return appLinks[app] || upiString
-  }
+  }, [finalTotal])
 
-  const handlePayment = async () => {
+  const handlePayment = useCallback(async () => {
     setLoading(true)
     
     try {
-      // For UPI payments, show QR or redirect to app
       if (['googlepay', 'phonepe', 'paytm'].includes(selectedPayment)) {
         const upiLink = generateUPILink(selectedPayment)
         
@@ -75,10 +76,8 @@ export default function PaymentPage() {
           setLoading(false)
           return
         } else {
-          // Try to open UPI app
           window.location.href = upiLink
           setTimeout(() => {
-            // If app doesn't open, show QR as fallback
             setShowUPIQR(true)
           }, 3000)
         }
@@ -127,7 +126,7 @@ export default function PaymentPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedPayment, generateUPILink, restaurantId, restaurant, tableNumber, cart, totalAmount, finalTotal, specialInstructions])
 
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b'
 
@@ -289,10 +288,9 @@ export default function PaymentPage() {
       {showUPIQR && (
         <div className="upi-modal">
           <div className="upi-content">
-            <button className="close-upi" onClick={() => setShowUPIQR(false)}>×</button>
+            <button className="close-upi" onClick={() => setShowUPIQR(false)}>&times;</button>
             <h3>📱 Scan QR to Pay</h3>
             <div className="qr-code">
-              {/* Replace with actual QR code generator */}
               <div className="qr-placeholder">
                 QR CODE<br/>
                 ₹{finalTotal.toFixed(2)}
@@ -326,10 +324,10 @@ export default function PaymentPage() {
       </div>
 
       <style jsx>{`
-        .payment-page { min-height: 100vh; background: #f8f9fa; padding-bottom: 120px; }
+        .payment-page { min-height: 100vh; background: #f8f9fa; padding-bottom: 120px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
         
         .header { display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: #fff; border-bottom: 1px solid #e5e7eb; }
-        .back-btn { background: none; border: none; padding: 8px; cursor: pointer; }
+        .back-btn { background: none; border: none; padding: 8px; cursor: pointer; min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; }
         .header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; flex: 1; text-align: center; }
         .total-amount { font-size: 14px; font-weight: 600; color: var(--brand-color); }
         
@@ -346,7 +344,7 @@ export default function PaymentPage() {
         .tip-section h3 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; color: #111827; }
         .tip-section p { margin: 0 0 12px 0; font-size: 14px; color: #6b7280; }
         .tip-options { display: flex; gap: 8px; flex-wrap: wrap; }
-        .tip-btn { padding: 8px 16px; border: 1px solid #e5e7eb; border-radius: 20px; background: #fff; cursor: pointer; font-size: 14px; }
+        .tip-btn { padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 20px; background: #fff; cursor: pointer; font-size: 14px; min-height: 44px; }
         .tip-btn.selected { background: var(--brand-color); color: #fff; border-color: var(--brand-color); }
         
         .payment-methods { background: #fff; padding: 20px; margin-bottom: 8px; }
@@ -355,16 +353,16 @@ export default function PaymentPage() {
         .payment-section h4 { margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #374151; }
         
         .payment-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-        .payment-card { display: flex; flex-direction: column; align-items: center; padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff; position: relative; }
+        .payment-card { display: flex; flex-direction: column; align-items: center; padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff; position: relative; min-height: 80px; }
         .payment-card.selected { border-color: var(--brand-color); background: #fffbeb; }
         .payment-card input { display: none; }
-        .card-content { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .card-content { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
         .payment-icon { font-size: 24px; }
-        .payment-name { font-size: 14px; font-weight: 500; text-align: center; }
+        .payment-name { font-size: 14px; font-weight: 500; }
         .instant-badge { background: #16a34a; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
         .selected-indicator { position: absolute; top: 8px; right: 8px; background: var(--brand-color); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
         
-        .payment-option { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: #fff; }
+        .payment-option { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: #fff; min-height: 44px; }
         .payment-option.selected { border-color: var(--brand-color); background: #fffbeb; }
         .payment-option.full-width { width: 100%; }
         .payment-option input { margin: 0; }
@@ -385,18 +383,23 @@ export default function PaymentPage() {
         
         .upi-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .upi-content { background: white; border-radius: 16px; padding: 24px; max-width: 300px; width: 100%; text-align: center; position: relative; }
-        .close-upi { position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; }
+        .close-upi { position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; min-height: 44px; min-width: 44px; }
         .upi-content h3 { margin: 0 0 16px 0; color: #111827; }
         .qr-code { margin: 20px 0; }
         .qr-placeholder { width: 150px; height: 150px; border: 2px solid #e5e7eb; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; color: #6b7280; }
         .upi-content p { margin: 12px 0; color: #6b7280; }
         .upi-apps { font-size: 12px; color: #374151; margin: 16px 0; }
-        .payment-done-btn { background: #16a34a; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .payment-done-btn { background: #16a34a; color: white; border: none; padding: 16px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; min-height: 44px; }
         
         .place-order-section { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px; background: #fff; border-top: 1px solid #e5e7eb; }
         .order-info { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; color: #374151; }
-        .place-order-btn { width: 100%; background: var(--brand-color); color: #fff; border: none; padding: 16px; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; }
+        .place-order-btn { width: 100%; background: var(--brand-color); color: #fff; border: none; padding: 16px; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; min-height: 44px; }
         .place-order-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        @media (max-width: 768px) {
+          .payment-grid { grid-template-columns: 1fr; }
+          .tip-options { justify-content: center; }
+        }
       `}</style>
     </div>
   )

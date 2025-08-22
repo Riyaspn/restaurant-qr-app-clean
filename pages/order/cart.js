@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../../services/supabase'
 import Link from 'next/link'
 
@@ -12,11 +13,26 @@ export default function CartSummary() {
   const [promoCode, setPromoCode] = useState('')
   const [appliedOffers, setAppliedOffers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [estimatedTime, setEstimatedTime] = useState(20)
+  const [estimatedTime] = useState(20)
+
+  const loadRestaurantData = useCallback(async () => {
+    if (!restaurantId) return
+    try {
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('id, name, restaurant_profiles(brand_color)')
+        .eq('id', restaurantId)
+        .single()
+      
+      if (!error) setRestaurant(data)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [restaurantId])
 
   useEffect(() => {
     if (restaurantId) loadRestaurantData()
-  }, [restaurantId])
+  }, [restaurantId, loadRestaurantData])
 
   useEffect(() => {
     if (restaurantId && tableNumber) {
@@ -30,34 +46,23 @@ export default function CartSummary() {
     }
   }, [restaurantId, tableNumber])
 
-  const loadRestaurantData = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('restaurants')
-        .select('id, name, restaurant_profiles(brand_color)')
-        .eq('id', restaurantId)
-        .single()
-      
-      if (!error) setRestaurant(data)
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  const updateQuantity = (itemId, quantity) => {
+  const updateQuantity = useCallback((itemId, quantity) => {
     if (quantity === 0) {
       setCart(prev => prev.filter(c => c.id !== itemId))
     } else {
       setCart(prev => prev.map(c => c.id === itemId ? { ...c, quantity } : c))
     }
-  }
+  }, [])
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCart([])
-    localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`)
-  }
+    if (restaurantId && tableNumber) {
+      localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`)
+    }
+  }, [restaurantId, tableNumber])
 
-  const applyPromoCode = () => {
+  const applyPromoCode = useCallback(() => {
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     const promos = {
       'FIRST10': { name: 'First Order Discount', amount: subtotal * 0.1, type: 'percentage' },
       'SAVE20': { name: '20% Off', amount: Math.min(subtotal * 0.2, 100), type: 'percentage' },
@@ -71,11 +76,11 @@ export default function CartSummary() {
     } else {
       alert(promo ? 'Offer already applied!' : 'Invalid promo code')
     }
-  }
+  }, [promoCode, cart, appliedOffers])
 
-  const removeOffer = (offerId) => {
+  const removeOffer = useCallback((offerId) => {
     setAppliedOffers(prev => prev.filter(o => o.id !== offerId))
-  }
+  }, [])
 
   useEffect(() => {
     if (restaurantId && tableNumber) {
@@ -208,7 +213,7 @@ export default function CartSummary() {
             {appliedOffers.map(offer => (
               <div key={offer.id} className="applied-offer">
                 <span>✅ {offer.name} (-₹{offer.amount.toFixed(2)})</span>
-                <button onClick={() => removeOffer(offer.id)} className="remove-offer">×</button>
+                <button onClick={() => removeOffer(offer.id)} className="remove-offer">&times;</button>
               </div>
             ))}
           </div>
@@ -260,12 +265,12 @@ export default function CartSummary() {
       </div>
 
       <style jsx>{`
-        .cart-page { min-height: 100vh; background: #f8f9fa; padding-bottom: 120px; }
+        .cart-page { min-height: 100vh; background: #f8f9fa; padding-bottom: 120px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
         
         .header { display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: #fff; border-bottom: 1px solid #e5e7eb; }
-        .back-btn { background: none; border: none; padding: 8px; cursor: pointer; }
+        .back-btn { background: none; border: none; padding: 8px; cursor: pointer; min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; }
         .header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; flex: 1; text-align: center; }
-        .clear-btn { background: none; border: none; color: var(--brand-color); cursor: pointer; font-weight: 500; }
+        .clear-btn { background: none; border: none; color: var(--brand-color); cursor: pointer; font-weight: 500; padding: 8px; min-height: 44px; }
         
         .restaurant-info { background: var(--brand-color); color: #fff; padding: 16px 20px; }
         .restaurant-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
@@ -292,9 +297,9 @@ export default function CartSummary() {
         
         .item-controls { display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .quantity-selector { display: flex; align-items: center; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
-        .qty-btn { background: #fff; border: none; width: 36px; height: 36px; cursor: pointer; font-weight: 600; color: var(--brand-color); }
-        .qty-count { background: #f8f9fa; min-width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-weight: 600; }
-        .remove-btn { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.6; }
+        .qty-btn { background: #fff; border: none; width: 44px; height: 44px; cursor: pointer; font-weight: 600; color: var(--brand-color); font-size: 18px; }
+        .qty-count { background: #f8f9fa; min-width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+        .remove-btn { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.6; padding: 8px; min-height: 44px; min-width: 44px; }
         
         .add-more { background: #fff; padding: 16px 20px; margin-top: 8px; }
         .add-more-btn { color: var(--brand-color); text-decoration: none; font-weight: 500; display: block; margin-bottom: 8px; }
@@ -303,12 +308,12 @@ export default function CartSummary() {
         .promo-section { background: #fff; padding: 16px 20px; margin-top: 8px; }
         .promo-section h3 { margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #111827; }
         .promo-input-container { display: flex; gap: 8px; margin-bottom: 12px; }
-        .promo-input { flex: 1; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 16px; }
-        .apply-btn { background: var(--brand-color); color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .promo-input { flex: 1; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 16px; }
+        .apply-btn { background: var(--brand-color); color: #fff; border: none; padding: 16px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; }
         
         .applied-offers { display: flex; flex-direction: column; gap: 6px; }
         .applied-offer { display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; color: #16a34a; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-        .remove-offer { background: none; border: none; cursor: pointer; color: #dc2626; font-weight: bold; }
+        .remove-offer { background: none; border: none; cursor: pointer; color: #dc2626; font-weight: bold; min-height: 44px; min-width: 44px; }
         
         .bill-summary { background: #fff; margin-top: 8px; padding: 20px; }
         .bill-summary h3 { margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #111827; }
@@ -320,7 +325,7 @@ export default function CartSummary() {
         .savings-highlight { background: #dcfce7; color: #16a34a; padding: 12px; border-radius: 8px; text-align: center; font-weight: 600; margin-top: 12px; }
         
         .proceed-section { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px; background: #fff; border-top: 1px solid #e5e7eb; }
-        .proceed-btn { display: block; width: 100%; background: var(--brand-color); color: #fff; text-decoration: none; padding: 16px; text-align: center; border-radius: 8px; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .proceed-btn { display: block; width: 100%; background: var(--brand-color); color: #fff; text-decoration: none; padding: 16px; text-align: center; border-radius: 8px; font-size: 18px; font-weight: 600; margin-bottom: 8px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
         .security-note { text-align: center; font-size: 12px; color: #6b7280; }
         
         .empty-cart { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8f9fa; }
@@ -328,9 +333,15 @@ export default function CartSummary() {
         .empty-icon { font-size: 64px; margin-bottom: 20px; opacity: 0.5; }
         .empty-content h2 { margin: 0 0 8px 0; color: #111827; }
         .empty-content p { color: #6b7280; margin-bottom: 24px; }
-        .browse-btn { background: var(--brand-color); color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; }
+        .browse-btn { background: var(--brand-color); color: #fff; text-decoration: none; padding: 16px 24px; border-radius: 8px; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; }
         
-        .loading { text-align: center; padding: 40px; color: #6b7280; }
+        .loading { text-align: center; padding: 40px; color: #6b7280; font-size: 16px; }
+
+        @media (max-width: 768px) {
+          .header { padding: 0.75rem; }
+          .restaurant-info { padding: 12px 16px; }
+          .cart-item { padding: 12px 16px; }
+        }
       `}</style>
     </div>
   )

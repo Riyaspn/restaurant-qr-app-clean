@@ -1,7 +1,6 @@
-/* eslint react/no-unescaped-entities: "off" */
-
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../../services/supabase'
 import Link from 'next/link'
 
@@ -12,47 +11,9 @@ export default function OrderSuccess() {
   const [loading, setLoading] = useState(true)
   const [orderStatus, setOrderStatus] = useState('confirmed')
   const [estimatedTime, setEstimatedTime] = useState(20)
-  const [statusHistory, setStatusHistory] = useState([])
 
-  useEffect(() => {
-    if (orderId) loadOrder()
-  }, [orderId])
-
-  useEffect(() => {
-    // Simulate status updates
-    const statusUpdates = [
-      { status: 'confirmed', time: 'Just now', message: 'Order received successfully' },
-      { status: 'preparing', time: '5 mins', message: 'Chef started preparing your order' },
-      { status: 'ready', time: '20 mins', message: 'Order ready for pickup' }
-    ]
-    
-    setStatusHistory(statusUpdates)
-
-    // Simulate real-time updates
-    const timer1 = setTimeout(() => {
-      setOrderStatus('preparing')
-      setEstimatedTime(15)
-    }, 10000) // After 10 seconds
-
-    const timer2 = setTimeout(() => {
-      setOrderStatus('ready')
-      setEstimatedTime(0)
-      // Show notification
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Order Ready! 🎉', {
-          body: 'Your order is ready for pickup at the counter',
-          icon: '/logo.png'
-        })
-      }
-    }, 300000) // After 5 minutes (demo - normally 20 mins)
-
-    return () => {
-      clearTimeout(timer1)
-      clearTimeout(timer2)
-    }
-  }, [orderId])
-
-  const loadOrder = async () => {
+  const loadOrder = useCallback(async () => {
+    if (!orderId) return
     try {
       const { data } = await supabase
         .from('orders')
@@ -69,7 +30,6 @@ export default function OrderSuccess() {
       setOrder(data)
       if (data) {
         setOrderStatus(data.status || 'confirmed')
-        // Request notification permission
         if ('Notification' in window && Notification.permission === 'default') {
           Notification.requestPermission()
         }
@@ -79,7 +39,34 @@ export default function OrderSuccess() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [orderId])
+
+  useEffect(() => {
+    if (orderId) loadOrder()
+  }, [orderId, loadOrder])
+
+  useEffect(() => {
+    const timer1 = setTimeout(() => {
+      setOrderStatus('preparing')
+      setEstimatedTime(15)
+    }, 10000)
+
+    const timer2 = setTimeout(() => {
+      setOrderStatus('ready')
+      setEstimatedTime(0)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Order Ready! 🎉', {
+          body: 'Your order is ready for pickup at the counter',
+          icon: '/logo.png'
+        })
+      }
+    }, 300000)
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+    }
+  }, [orderId])
 
   if (loading) {
     return (
@@ -99,7 +86,7 @@ export default function OrderSuccess() {
         <div className="error-content">
           <div className="error-icon">😕</div>
           <h2>Order not found</h2>
-          <p>We couldn't find your order details</p>
+          <p>We couldn&apos;t find your order details</p>
           <Link href="/" className="home-btn">Go Home</Link>
         </div>
       </div>
@@ -228,12 +215,6 @@ export default function OrderSuccess() {
       </div>
 
       <div className="action-buttons">
-        {paid && (
-          <Link href={`/order/bill/${orderId}`} className="action-btn secondary">
-            📄 View Bill
-          </Link>
-        )}
-        
         <button 
           onClick={() => window.location.reload()} 
           className="action-btn primary"
@@ -241,7 +222,7 @@ export default function OrderSuccess() {
           🔄 Refresh Status
         </button>
         
-        <Link href="/" className="action-btn secondary">
+        <Link href={`/order?r=${order.restaurant_id || ''}&t=${order.table_number}`} className="action-btn secondary">
           🏠 Order Again
         </Link>
       </div>
@@ -259,14 +240,14 @@ export default function OrderSuccess() {
       </div>
 
       <style jsx>{`
-        .success-page { min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; }
+        .success-page { min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
         
         .loading-screen, .error-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8f9fa; }
         .loading-content, .error-content { text-align: center; padding: 40px; }
         .success-animation, .error-icon { font-size: 64px; margin-bottom: 20px; }
         .loading-spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .home-btn { background: #3b82f6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; }
+        .home-btn { background: #3b82f6; color: white; text-decoration: none; padding: 16px 24px; border-radius: 8px; min-height: 44px; display: inline-flex; align-items: center; }
         
         .success-header { background: white; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 16px; }
         .success-header .success-animation { font-size: 48px; margin-bottom: 16px; }
@@ -276,7 +257,7 @@ export default function OrderSuccess() {
         
         .restaurant-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
         .restaurant-info h2 { margin: 0 0 8px 0; color: #111827; }
-        .restaurant-details { display: flex; gap: 16px; font-size: 14px; color: #6b7280; }
+        .restaurant-details { display: flex; gap: 16px; font-size: 14px; color: #6b7280; flex-wrap: wrap; }
         
         .pickup-alert { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 12px; padding: 16px; margin-top: 16px; display: flex; gap: 12px; }
         .alert-icon { font-size: 24px; }
@@ -327,14 +308,19 @@ export default function OrderSuccess() {
         .payment-status .pending { color: #f59e0b; }
         
         .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-        .action-btn { padding: 16px; border-radius: 12px; text-decoration: none; text-align: center; font-weight: 600; border: none; cursor: pointer; font-size: 16px; }
+        .action-btn { padding: 16px; border-radius: 12px; text-decoration: none; text-align: center; font-weight: 600; border: none; cursor: pointer; font-size: 16px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
         .action-btn.primary { background: #3b82f6; color: white; }
         .action-btn.secondary { background: white; color: #374151; border: 1px solid #e5e7eb; }
         
         .help-section { background: white; border-radius: 16px; padding: 20px; }
         .help-card h4 { margin: 0 0 8px 0; color: #111827; }
         .help-card p { margin: 0 0 12px 0; color: #6b7280; font-size: 14px; }
-        .contact-btn { background: #10b981; color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; }
+        .contact-btn { background: #10b981; color: white; text-decoration: none; padding: 12px 16px; border-radius: 6px; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
+
+        @media (max-width: 768px) {
+          .success-page { padding: 16px; }
+          .restaurant-details { flex-direction: column; gap: 8px; }
+        }
       `}</style>
     </div>
   )
