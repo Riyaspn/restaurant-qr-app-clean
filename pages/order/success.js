@@ -16,8 +16,10 @@ export default function OrderSuccess() {
   }, [orderId])
 
   const loadOrder = async () => {
+    setLoading(true)
     try {
-      const { data, error } = await supabase
+      // 1) Fetch the order record (anonymous SELECT policy must allow this)
+      const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .select(`
           id,
@@ -28,14 +30,27 @@ export default function OrderSuccess() {
           payment_status,
           payment_method,
           restaurant_id,
-          restaurant_name,
           table_number
         `)
         .eq('id', orderId)
         .single()
 
-      if (error) throw error
-      setOrder(data)
+      if (orderError) throw orderError
+
+      // 2) Fetch the restaurant name separately
+      const { data: restData, error: restError } = await supabase
+        .from('restaurants')
+        .select('name')
+        .eq('id', orderData.restaurant_id)
+        .single()
+
+      if (restError) throw restError
+
+      // 3) Combine and set
+      setOrder({
+        ...orderData,
+        restaurant_name: restData.name
+      })
     } catch (e) {
       console.error('Failed to load order:', e)
       setOrder(null)
