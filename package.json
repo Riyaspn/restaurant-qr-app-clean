@@ -1,24 +1,22 @@
 {
-"name": "restaurant-qr-app-clean",
-"version": "0.1.0",
-"private": true,
-"scripts": {
-"dev": "next dev",
-"build": "next build",
-"start": "next start",
-"lint": "next lint"
-},
-"dependencies": {
-"@supabase/supabase-js": "^2.55.0",
-"@upstash/ratelimit": "^0.6.0",
-"@vercel/kv": "^1.0.0",
-"next": "14.2.5",
-"qrcode": "^1.5.4",
-"react": "18.3.1",
-"react-dom": "18.3.1"
-},
-"devDependencies": {
-"eslint": "^8.57.0",
-"eslint-config-next": "14.2.5"
-}
+  "name": "restaurant-qr-app-clean",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
+    "next": "14.2.32",
+    "qrcode": "^1.5.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5"
+  }
 }
