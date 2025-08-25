@@ -1,33 +1,31 @@
 // pages/_app.js
-import '../styles/responsive.css'
-import '../styles/globals.css'
-import Layout from '../components/Layout'
-import { RestaurantProvider } from '../context/RestaurantContext'
-import { useRouter } from 'next/router'
+import '../styles/responsive.css';
+import '../styles/globals.css';
+import '../styles/theme.css';
 
-const OWNER_ROUTES = [
-  '/dashboard',
-  '/menu',
-  '/orders',
-  '/availability',
-  '/promotions',
-  '/analytics',
-  '/settings',
-  '/billing'
-]
+import Layout from '../components/Layout';
+import { RestaurantProvider } from '../context/RestaurantContext';
+import { useRouter } from 'next/router';
 
-const CUSTOMER_PREFIX = '/order'
+const OWNER_PREFIX = '/owner';
+const CUSTOMER_PREFIX = '/order';
 
 function MyApp({ Component, pageProps }) {
-  const router = useRouter()
-  const path = router.pathname || ''
-  const showSidebar = OWNER_ROUTES.some(prefix => path.startsWith(prefix))
-  const isCustomerRoute = path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`)
+  const router = useRouter();
+  const path = router.pathname || '';
+
+  // Owner layout (sidebar) for all /owner routes
+  const showSidebar =
+    path === OWNER_PREFIX || path.startsWith(`${OWNER_PREFIX}/`);
+
+  // Customer-facing order flow hides chrome
+  const isCustomerRoute =
+    path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`);
 
   return (
     <RestaurantProvider>
-      <Layout 
-        title={pageProps.title} 
+      <Layout
+        title={pageProps?.title}
         showSidebar={showSidebar}
         hideChrome={isCustomerRoute}
         showCustomerHeader={isCustomerRoute}
@@ -35,7 +33,7 @@ function MyApp({ Component, pageProps }) {
         <Component {...pageProps} />
       </Layout>
     </RestaurantProvider>
-  )
+  );
 }
 
-export default MyApp
+export default MyApp;

@@ -1,6 +1,17 @@
+// services/supabase.js
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Public (anon) client for browser usage and Realtime subscriptions
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Avoid crashing; log only in development
+  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    console.warn('Supabase env vars missing: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: { params: { eventsPerSecond: 10 } }
+})
