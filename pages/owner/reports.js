@@ -2,17 +2,16 @@
 import React from 'react'
 import ReportTiles from '../../components/ReportTiles'
 import { useRouter } from 'next/router'
-import { useRequireAuth } from '../../lib/useRequireAuth';
-export default function OwnerHome() {
-  const { checking } = useRequireAuth();
-  if (checking) return <div style={{ padding: 24 }}>Loading…</div>;
-  return <div style={{ padding: 24 }}>Dashboard content</div>;
-}
-
+import { useRequireAuth } from '../../lib/useRequireAuth'
 
 export default function OwnerReports() {
+  const { checking } = useRequireAuth()
   const router = useRouter()
   const restaurantId = router.query.r || process.env.NEXT_PUBLIC_RESTAURANT_ID
+
+  if (checking) {
+    return <div style={{ padding: 24 }}>Loading…</div>
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
