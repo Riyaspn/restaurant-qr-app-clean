@@ -20,6 +20,7 @@ export default function PublicHome() {
 
       <h3>Support</h3>
       <p>
+        Riyas Puthenveetil Navas  
         Email: pnriyas50@gmail.com<br/>
         Phone: +91-7012120844
       </p>
