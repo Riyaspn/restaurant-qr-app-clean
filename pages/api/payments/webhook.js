@@ -2,7 +2,11 @@
 import crypto from 'crypto'
 
 export const config = {
-  api: { bodyParser: false } // critical: use raw body for HMAC
+  api: { bodyParser: false }
+}
+
+function rid() {
+  return 'wh_' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36)
 }
 
 function readRawBody(req) {
@@ -15,56 +19,63 @@ function readRawBody(req) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).send('Method not allowed')
+  const reqId = rid()
+  const log = (...a) => console.log(`[webhook][${reqId}]`, ...a)
+  const err = (...a) => console.error(`[webhook][${reqId}]`, ...a)
+
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method not allowed')
+  }
 
   try {
     const raw = await readRawBody(req)
+    const secret = process.env.CF_SECRET_KEY || ''
+    const sig = req.headers['x-webhook-signature'] || ''
+    const ts = req.headers['x-webhook-timestamp'] || ''
 
-    // Cashfree sends signature in one of these headers
-    const signature =
-      req.headers['x-webhook-signature'] ||
-      req.headers['x-cf-signature'] ||
-      ''
+    log('Headers present', {
+      hasSig: !!sig,
+      hasTs: !!ts,
+      secretLen: secret.length,
+      rawLen: raw.length
+    })
 
-    if (!signature) {
-      console.error('Webhook: missing signature header')
+    if (!secret) {
+      err('Missing CF_SECRET_KEY')
+      return res.status(500).send('Server misconfigured')
+    }
+    if (!sig) {
+      err('Missing signature header')
       return res.status(400).send('Missing signature')
     }
 
-    const secret = process.env.CF_SECRET_KEY || ''
-    if (!secret) {
-      console.error('Webhook: missing CF_SECRET_KEY env')
-      return res.status(500).send('Server misconfigured')
-    }
+    // Per Cashfree docs: timestamp + rawBody
+    const signedPayload = ts + raw
+    const computed = crypto.createHmac('sha256', secret).update(signedPayload).digest('base64')
+    const match = crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(sig))
 
-    // Compute Base64(HMAC_SHA256(rawBody, secret))
-    const computed = crypto.createHmac('sha256', secret).update(raw).digest('base64')
+    log('Signature compare', { match, computedLen: computed.length, receivedLen: sig.length })
 
-    if (computed !== signature) {
-      console.error('Signature mismatch')
-      // You can log both hashes for debugging, but never return them to the client
+    if (!match) {
+      err('Signature mismatch')
       return res.status(400).send('Invalid signature')
     }
 
-    // ACK quickly
+    // Success - acknowledge quickly
     res.status(200).send('OK')
 
-    // Process event asynchronously (non-blocking)
+    // Process async
     try {
       const event = JSON.parse(raw)
       const orderId = event?.data?.order?.order_id
-      const status =
-        event?.data?.payment?.payment_status ||
-        event?.data?.order?.order_status ||
-        'UNKNOWN'
-
-      // TODO: upsert/update your order record by orderId with status
-      console.log('Webhook processed:', orderId, status)
+      const status = event?.data?.payment?.payment_status || event?.data?.order?.order_status
+      log('Processed', { orderId, status })
+      // TODO: Update database
     } catch (e) {
-      console.error('Post-ack processing error:', e)
+      err('Post-ack error', e?.message)
     }
   } catch (e) {
-    console.error('Webhook handler error:', e)
+    err('Handler error', e?.message)
     return res.status(500).send('Server error')
   }
 }
