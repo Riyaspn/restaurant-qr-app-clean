@@ -1,43 +1,66 @@
 // components/RedirectPayButton.jsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function RedirectPayButton({ amount, customer }) {
   const [loading, setLoading] = useState(false)
+  const [cashfree, setCashfree] = useState(null)
+
+  useEffect(() => {
+    // Load Cashfree SDK
+    const script = document.createElement('script')
+    script.src = 'https://sdk.cashfree.com/js/ui/2.0.0/cashfree.sandbox.js'
+    script.onload = () => {
+      // Initialize Cashfree (as shown in video)
+      const cf = new window.Cashfree({
+        mode: 'sandbox' // Use 'production' for live
+      })
+      setCashfree(cf)
+    }
+    document.body.appendChild(script)
+  }, [])
 
   const startPayment = async () => {
+    if (!cashfree) {
+      alert('Payment system not ready')
+      return
+    }
+
     setLoading(true)
     try {
-      const r = await fetch('/api/payments/create-order', {
+      // Create order first
+      const response = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount,
-          currency: 'INR',
+          order_amount: amount,
+          order_currency: 'INR',
           customer_name: customer.name,
           customer_email: customer.email,
-          customer_phone: customer.phone,
-          metadata: { note: 'Restaurant order' }
+          customer_phone: customer.phone
         })
       })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || 'Failed to create order')
 
-      const isProd = process.env.NEXT_PUBLIC_CF_ENV === 'PROD'
-      const checkoutBase = isProd
-        ? 'https://payments.cashfree.com/pg/view'
-        : 'https://sandbox.cashfree.com/pg/view'
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
 
-      window.location.href = `${checkoutBase}/${encodeURIComponent(data.order_token)}`
-    } catch (e) {
-      alert(e.message)
+      // Use Cashfree SDK for checkout (as shown in video)
+      const checkoutOptions = {
+        paymentSessionId: data.payment_session_id,
+        redirectTarget: '_self' // Opens in same window, use '_blank' for new tab
+      }
+
+      cashfree.checkout(checkoutOptions)
+      
+    } catch (error) {
+      alert(error.message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <button onClick={startPayment} disabled={loading}>
-      {loading ? 'Redirecting…' : `Pay ₹${amount}`}
+    <button onClick={startPayment} disabled={loading || !cashfree}>
+      {loading ? 'Processing...' : `Pay ₹${amount}`}
     </button>
   )
 }
