@@ -1,6 +1,6 @@
 // pages/api/payments/create-order.js
 
-// Utility: simple request id for log correlation
+// Generate a simple request id to correlate logs
 function rid() {
   return 'cf_' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36)
 }
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: 'Method not allowed' })
     }
 
-    // Env checks (no secrets printed)
+    // Check env presence (do not print secrets)
     const hasAppId = !!process.env.CF_APP_ID
     const hasSecret = !!process.env.CF_SECRET_KEY
     const envMode = process.env.CF_ENV || 'TEST'
@@ -27,13 +27,14 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Server configuration error' })
     }
 
-    // Parse and validate input
+    // Parse and validate body
     const {
       order_amount,
       order_currency = 'INR',
       customer_name,
       customer_email,
       customer_phone,
+      // These URLs are used by Cashfree; they can be overridden by the client
       return_url = `${req.headers.origin || ''}/payment-success`,
       notify_url = `${req.headers.origin || ''}/api/payments/webhook`,
     } = req.body || {}
@@ -57,7 +58,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing return_url or notify_url' })
     }
 
-    // Build payload
+    // Build order payload for Cashfree
     const order_id = 'ord_' + Date.now()
     const payload = {
       order_id,
@@ -75,12 +76,12 @@ export default async function handler(req, res) {
       },
     }
 
-    // Endpoint selection
+    // Select base URL based on CF_ENV
     const isProd = envMode === 'PROD'
     const baseUrl = isProd ? 'https://api.cashfree.com/pg/orders' : 'https://sandbox.cashfree.com/pg/orders'
-    log('Calling Cashfree Orders API', { envMode, url: baseUrl })
+    log('Calling Cashfree Orders API', { envMode, url: baseUrl }) // [web:451][web:448]
 
-    // Prepare request
+    // Prepare headers (x-api-version 2022-09-01)
     const headers = {
       'x-client-id': process.env.CF_APP_ID,
       'x-client-secret': process.env.CF_SECRET_KEY,
@@ -91,16 +92,9 @@ export default async function handler(req, res) {
       have_client_id: !!headers['x-client-id'],
       have_client_secret: !!headers['x-client-secret'],
       api_version: headers['x-api-version'],
-    })
-    log('Payload preview', {
-      order_id: payload.order_id,
-      order_amount: payload.order_amount,
-      order_currency: payload.order_currency,
-      has_customer_details: !!payload.customer_details,
-      has_order_meta: !!payload.order_meta,
-    })
+    }) // [web:451][web:448]
 
-    // Execute
+    // Execute request
     const cfRes = await fetch(baseUrl, {
       method: 'POST',
       headers,
@@ -123,22 +117,22 @@ export default async function handler(req, res) {
       order_status: data?.order_status,
       have_token: !!data?.order_token,
       errors: data?.errors || data?.message || null,
-    })
+    }) // [web:451][web:448][web:450][web:453]
 
     if (!cfRes.ok) {
-      // Pass through sanitized error details for debugging
       return res.status(400).json({
         error: 'Order creation failed',
         details: data,
       })
     }
 
-    // Success
     const durationMs = Date.now() - startedAt
     log('Success', { durationMs })
+
+    // Return the token (payment_session_id)
     return res.status(200).json({
       order_id: data.order_id,
-      payment_session_id: data.order_token, // a.k.a. order_token
+      payment_session_id: data.order_token,
       order_status: data.order_status,
     })
   } catch (e) {
