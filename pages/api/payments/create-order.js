@@ -1,5 +1,3 @@
-// pages/api/payments/create-order.js
-
 function rid() {
   return 'cf_' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36)
 }
@@ -9,95 +7,85 @@ export default async function handler(req, res) {
   const log = (...args) => console.log(`[create-order][${reqId}]`, ...args)
   const err = (...args) => console.error(`[create-order][${reqId}]`, ...args)
 
-  try {
-    if (req.method !== 'POST') {
-      log('Method not allowed:', req.method)
-      return res.status(405).json({ error: 'Method not allowed' })
-    }
+  if (req.method !== 'POST') {
+    log('Method not allowed:', req.method)
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
-    // Validate environment
-    const { CF_APP_ID, CF_SECRET_KEY, CF_ENV } = process.env
-    if (!CF_APP_ID || !CF_SECRET_KEY) {
-      err('Missing CF_APP_ID or CF_SECRET_KEY')
-      return res.status(500).json({ error: 'Server configuration error' })
-    }
+  const { CF_APP_ID, CF_SECRET_KEY, CF_ENV } = process.env
+  if (!CF_APP_ID || !CF_SECRET_KEY) {
+    err('Missing CF_APP_ID or CF_SECRET_KEY')
+    return res.status(500).json({ error: 'Server configuration error' })
+  }
 
-    // Parse and validate request body
-    const {
-      order_amount,
-      order_currency = 'INR',
+  const {
+    order_amount,
+    order_currency = 'INR',
+    customer_name,
+    customer_email,
+    customer_phone,
+    order_id = 'ord_' + Date.now(),
+    return_url = `${req.headers.origin || ''}/payment-success`,
+    notify_url = `${req.headers.origin || ''}/api/payments/webhook`
+  } = req.body || {}
+
+  log('Input received', {
+    order_amount,
+    order_currency,
+    has_customer_name: !!customer_name,
+    has_customer_email: !!customer_email,
+    has_customer_phone: !!customer_phone,
+    return_url,
+    notify_url
+  })
+
+  if (!order_amount || !customer_name || !customer_email || !customer_phone) {
+    err('Validation failed: missing required fields')
+    return res.status(400).json({
+      error: 'Missing required fields: order_amount, customer_name, customer_email, customer_phone'
+    })
+  }
+
+  const payload = {
+    order_id,
+    order_amount: Number(order_amount),
+    order_currency,
+    customer_details: {
+      customer_id: 'guest_' + Date.now(),
       customer_name,
       customer_email,
-      customer_phone,
-      order_id = 'ord_' + Date.now(),
-      return_url = `${req.headers.origin || ''}/payment-success`,
-      notify_url = `${req.headers.origin || ''}/api/payments/webhook`
-    } = req.body || {}
+      customer_phone
+    },
+    order_meta: { return_url, notify_url }
+  }
 
-    log('Input received', {
-      order_amount,
-      order_currency,
-      has_customer_name: !!customer_name,
-      has_customer_email: !!customer_email,
-      has_customer_phone: !!customer_phone,
-      return_url,
-      notify_url
-    })
+  const isProd = CF_ENV === 'PROD'
+  const baseUrl = isProd
+    ? 'https://api.cashfree.com/pg/orders'
+    : 'https://sandbox.cashfree.com/pg/orders'
 
-    if (!order_amount || !customer_name || !customer_email || !customer_phone) {
-      err('Validation failed: missing required fields')
-      return res.status(400).json({
-        error:
-          'Missing required fields: order_amount, customer_name, customer_email, customer_phone'
-      })
-    }
+  const headers = {
+    'x-client-id': CF_APP_ID,
+    'x-client-secret': CF_SECRET_KEY,
+    'x-api-version': '2025-01-01',
+    'Content-Type': 'application/json'
+  }
 
-    // Build Cashfree payload
-    const payload = {
-      order_id,
-      order_amount: Number(order_amount),
-      order_currency,
-      customer_details: {
-        customer_id: 'guest_' + Date.now(),
-        customer_name,
-        customer_email,
-        customer_phone
-      },
-      order_meta: {
-        return_url,
-        notify_url
-      }
-    }
-
-    const isProd = CF_ENV === 'PROD'
-    const baseUrl = isProd
-      ? 'https://api.cashfree.com/pg/orders'
-      : 'https://sandbox.cashfree.com/pg/orders'
-
-    const headers = {
-      'x-client-id': CF_APP_ID,
-      'x-client-secret': CF_SECRET_KEY,
-      'x-api-version': '2025-01-01',
-      'Content-Type': 'application/json'
-    }
-
+  try {
     log('Calling Cashfree Orders API', { url: baseUrl })
-
     const cfRes = await fetch(baseUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload)
     })
-
     const text = await cfRes.text()
+
     let data
     try {
       data = JSON.parse(text)
-    } catch (e) {
+    } catch (parseErr) {
       err('Cashfree response not JSON', { status: cfRes.status, text })
-      return res
-        .status(502)
-        .json({ error: 'Invalid response from payment gateway' })
+      return res.status(502).json({ error: 'Invalid response from payment gateway' })
     }
 
     log('Cashfree response', {
