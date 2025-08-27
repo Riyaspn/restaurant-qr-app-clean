@@ -1,3 +1,4 @@
+// pages/payment-success.js
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 
@@ -5,11 +6,14 @@ export default function PaymentSuccess() {
   const router = useRouter()
   const { order_id, payment_session_id } = router.query
   const [status, setStatus] = useState('checking')
-  const [message, setMessage] = useState('Verifying payment status…')
+  const [message, setMessage] = useState('Verifying payment status...')
 
   useEffect(() => {
     if (order_id && payment_session_id) {
       verifyPayment()
+    } else {
+      setMessage('Missing payment identifiers, unable to verify payment.')
+      setStatus('error')
     }
   }, [order_id, payment_session_id])
 
@@ -51,18 +55,14 @@ export default function PaymentSuccess() {
             {message}
           </h2>
           <p>Order ID: {order_id}</p>
-          <button onClick={() => router.push('/')}>
-            Return to Home
-          </button>
+          <button onClick={() => router.push('/')}>Return to Home</button>
         </div>
       )}
 
       {status === 'error' && (
         <div>
           <h2 style={{ color: 'crimson' }}>⚠️ {message}</h2>
-          <button onClick={() => router.push('/')}>
-            Return to Home
-          </button>
+          <button onClick={() => router.push('/')}>Return to Home</button>
         </div>
       )}
     </div>

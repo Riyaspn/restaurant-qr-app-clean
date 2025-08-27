@@ -1,3 +1,4 @@
+// pages/api/payments/create-order.js
 function rid() {
   return 'cf_' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36)
 }
@@ -25,9 +26,12 @@ export default async function handler(req, res) {
     customer_email,
     customer_phone,
     order_id = 'ord_' + Date.now(),
-    return_url = `${req.headers.origin || ''}/payment-success`,
-    notify_url = `${req.headers.origin || ''}/api/payments/webhook`
   } = req.body || {}
+
+  // Construct return_url with placeholders for order_id and payment_session_id
+  const origin = req.headers.origin || ''
+  const return_url = `${origin}/payment-success?order_id={{order_id}}&payment_session_id={{payment_session_id}}`
+  const notify_url = `${origin}/api/payments/webhook`
 
   log('Input received', {
     order_amount,
