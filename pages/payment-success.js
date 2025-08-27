@@ -1,4 +1,3 @@
-// pages/payment-success.js
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 
@@ -24,11 +23,9 @@ export default function PaymentSuccess() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id, payment_session_id })
       })
-
       if (!res.ok) {
         throw new Error(`Verification failed (${res.status})`)
       }
-
       const { order_status } = await res.json()
       if (order_status === 'PAID') {
         setStatus('success')
@@ -43,26 +40,35 @@ export default function PaymentSuccess() {
     }
   }
 
+  const handleReturnToMenu = () => {
+    // Read restaurantId and tableNumber from localStorage (set before payment)
+    const restaurantId = localStorage.getItem('restaurantId')
+    const tableNumber = localStorage.getItem('tableNumber')
+    if (restaurantId && tableNumber) {
+      router.push(`/order?r=${restaurantId}&t=${tableNumber}`)
+    } else {
+      // Fallback to home or a generic menu page if needed
+      router.push('/')
+    }
+  }
+
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>
       <h1>Payment Status</h1>
-
       {status === 'checking' && <p>{message}</p>}
-
       {(status === 'success' || status === 'failed') && (
         <div>
           <h2 style={{ color: status === 'success' ? 'green' : 'red' }}>
             {message}
           </h2>
           <p>Order ID: {order_id}</p>
-          <button onClick={() => router.push('/')}>Return to Home</button>
+          <button onClick={handleReturnToMenu}>Return to Menu</button>
         </div>
       )}
-
       {status === 'error' && (
         <div>
           <h2 style={{ color: 'crimson' }}>⚠️ {message}</h2>
-          <button onClick={() => router.push('/')}>Return to Home</button>
+          <button onClick={handleReturnToMenu}>Return to Menu</button>
         </div>
       )}
     </div>
