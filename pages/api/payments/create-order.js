@@ -1,4 +1,3 @@
-// pages/api/payments/create-order.js
 function rid() {
   return 'cf_' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36)
 }
@@ -28,7 +27,7 @@ export default async function handler(req, res) {
     order_id = 'ord_' + Date.now(),
   } = req.body || {}
 
-  // Construct return_url with placeholders for order_id and payment_session_id
+  // Construct return_url with proper double curly braces placeholders for Cashfree
   const origin = req.headers.origin || ''
   const return_url = `${origin}/payment-success?order_id={{order_id}}&payment_session_id={{payment_session_id}}`
   const notify_url = `${origin}/api/payments/webhook`
