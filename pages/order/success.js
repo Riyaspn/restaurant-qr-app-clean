@@ -1,142 +1,97 @@
-// pages/order/success.js
-
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
-import { supabase } from '../../services/supabase'
-import Link from 'next/link'
 
-export default function OrderSuccess() {
-  const { query } = useRouter()
-  const orderId = typeof query.id === 'string' ? query.id : undefined
-
-  const [order, setOrder] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [errMsg, setErrMsg] = useState('')
+export default function PaymentSuccess() {
+  const router = useRouter()
+  const [status, setStatus] = useState('processing')
+  const [message, setMessage] = useState('Processing your payment...')
 
   useEffect(() => {
-    if (orderId) loadOrder()
-  }, [orderId])
+    processPaymentReturn()
+  }, [])
 
-  const log = (...args) => {
-    if (process.env.NODE_ENV !== 'production') console.log(...args)
-  }
-
-  const loadOrder = async () => {
-    setLoading(true)
-    setErrMsg('')
+  const processPaymentReturn = async () => {
     try {
-      if (!orderId) {
-        setErrMsg('Missing order id in URL')
-        setOrder(null)
-        return
+      // Get stored order data
+      const pendingOrder = JSON.parse(localStorage.getItem('pending_order') || '{}')
+      
+      if (!pendingOrder.restaurant_id) {
+        throw new Error('Order data not found')
       }
 
-      const { data: rows, error: selError } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          created_at,
-          subtotal,
-          tax,
-          total_amount,
-          payment_status,
-          payment_method,
-          restaurant_id,
-          table_number
-        `)
-        .eq('id', orderId)
+      // Create the order now that payment is complete
+      const response = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pendingOrder,
+          payment_status: 'completed'
+        })
+      })
 
-      log('Order fetch result:', { rows, selError })
+      if (!response.ok) throw new Error('Failed to create order')
+      
+      const result = await response.json()
 
-      if (selError) {
-        setErrMsg(`Query failed: ${selError.message}`)
-        setOrder(null)
-        return
-      }
+      // Clear stored data
+      localStorage.removeItem('pending_order')
+      localStorage.removeItem(`cart_${pendingOrder.restaurant_id}_${pendingOrder.table_number}`)
 
-      if (!rows || rows.length === 0) {
-        setErrMsg('No order matches this ID')
-        setOrder(null)
-        return
-      }
-
-      const base = rows[0]
-
-      let restaurantName = 'Restaurant'
-      if (base.restaurant_id) {
-        const { data: restRows, error: restError } = await supabase
-          .from('restaurants')
-          .select('name')
-          .eq('id', base.restaurant_id)
-          .limit(1)
-
-        log('Restaurant fetch:', { restRows, restError })
-
-        if (!restError && Array.isArray(restRows) && restRows[0]?.name) {
-          restaurantName = restRows.name
-        }
-      }
-
-      setOrder({ ...base, restaurant_name: restaurantName })
-    } catch (e) {
-      if (process.env.NODE_ENV !== 'production') console.error('Load order error:', e)
-      setErrMsg('Unexpected error loading order')
-      setOrder(null)
-    } finally {
-      setLoading(false)
+      // Redirect to success
+      router.replace(`/order/success?id=${result.order_id}&method=online`)
+      
+    } catch (error) {
+      console.error('Payment processing failed:', error)
+      setStatus('error')
+      setMessage('Payment processing failed. Please contact the restaurant.')
     }
   }
 
-  if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center' }}>Loading order...</div>
-  }
-
-  if (!order) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <h2>Order not found</h2>
-        {errMsg && <p style={{ color: '#ef4444' }}>{errMsg}</p>}
-        <Link href="/" style={{ color: '#3b82f6', textDecoration: 'none' }}>Go Home</Link>
-      </div>
-    )
-  }
-
-  const paidOnline = order.payment_status === 'completed'
-
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Thank you, your order is placed!</h1>
-      <p>Restaurant: <strong>{order.restaurant_name}</strong></p>
-      <p>Table: <strong>{order.table_number}</strong></p>
-
-      <div style={{ marginTop: 20, padding: 20, background: '#f5f5f5', borderRadius: 6 }}>
-        <h2>Order Summary</h2>
-        <p>Order ID: <strong>{order.id}</strong></p>
-        <p>Placed At: <strong>{new Date(order.created_at).toLocaleString()}</strong></p>
-        <p>Subtotal: ₹{Number(order.subtotal).toFixed(2)}</p>
-        <p>Tax: ₹{Number(order.tax).toFixed(2)}</p>
-        <p><strong>Total: ₹{Number(order.total_amount).toFixed(2)}</strong></p>
+    <div className="callback-page">
+      <div className="callback-content">
+        <div className="spinner">
+          {status === 'processing' ? '⏳' : '❌'}
+        </div>
+        <h2>{status === 'processing' ? 'Processing Payment' : 'Payment Failed'}</h2>
+        <p>{message}</p>
+        
+        {status === 'error' && (
+          <button onClick={() => router.push('/')}>
+            Return to Menu
+          </button>
+        )}
       </div>
 
-      {paidOnline ? (
-        <Link
-          href={`/order/bill/${order.id}`}
-          style={{ display: 'inline-block', marginTop: 20, padding: '12px 24px', background: '#3b82f6', color: '#fff', borderRadius: 6, textDecoration: 'none' }}
-        >
-          View / Download Bill
-        </Link>
-      ) : (
-        <div style={{ marginTop: 20, padding: 20, background: '#fff', borderRadius: 6 }}>
-          <p>Your payment is pending. Please collect and pay at the counter.</p>
-        </div>
-      )}
-
-      <Link
-        href={`/order?r=${order.restaurant_id}&t=${order.table_number}`}
-        style={{ display: 'inline-block', marginTop: 40, padding: '12px 24px', background: '#fff', color: '#3b82f6', border: '1px solid #e5e7eb', borderRadius: 6, textDecoration: 'none' }}
-      >
-        🍽️ Back to Menu
-      </Link>
+      <style jsx>{`
+        .callback-page {
+          min-height: 100vh; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+          background: #f8f9fa; 
+          padding: 20px;
+        }
+        .callback-content {
+          text-align: center; 
+          background: #fff; 
+          padding: 40px 20px;
+          border-radius: 12px; 
+          max-width: 400px; 
+          width: 100%;
+        }
+        .spinner { font-size: 48px; margin-bottom: 20px; }
+        h2 { margin: 0 0 12px 0; color: #111827; }
+        p { color: #6b7280; margin-bottom: 20px; }
+        button {
+          background: #f59e0b; 
+          color: #fff; 
+          border: none;
+          padding: 12px 24px; 
+          border-radius: 8px; 
+          cursor: pointer;
+        }
+      `}</style>
     </div>
   )
 }

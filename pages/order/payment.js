@@ -74,7 +74,7 @@ export default function PaymentPage() {
         const orderPayload = {
           order_amount: totalAmount,
           order_currency: 'INR',
-          customer_name: 'Guest Customer',     // TODO: Replace with actual customer info if available
+          customer_name: 'Guest Customer',
           customer_email: 'guest@example.com',
           customer_phone: '9999999999'
         }
@@ -88,6 +88,27 @@ export default function PaymentPage() {
         const data = await resp.json()
         if (!resp.ok) throw new Error(data.error || 'Order creation failed')
 
+        // Store order data for post-payment processing
+        const orderData = {
+          restaurant_id: restaurantId,
+          restaurant_name: restaurant?.name,
+          table_number: tableNumber,
+          items: cart.map(i => ({
+            id: i.id,
+            name: i.name,
+            price: i.price,
+            quantity: i.quantity,
+            veg: i.veg || false
+          })),
+          subtotal: totalAmount,
+          tax: 0,
+          total_amount: totalAmount,
+          payment_method: 'online',
+          special_instructions: specialInstructions.trim(),
+          cashfree_order_id: data.order_id
+        }
+        localStorage.setItem('pending_order', JSON.stringify(orderData))
+
         // Load Cashfree SDK script if not loaded
         if (!window.Cashfree) {
           await new Promise((resolve) => {
@@ -98,14 +119,16 @@ export default function PaymentPage() {
           })
         }
 
-        const cashfree = window.Cashfree({ mode: process.env.NEXT_PUBLIC_CF_ENV || 'sandbox' })
-
+        // Use 'production' mode since you're using production keys
+        const cashfree = window.Cashfree({ mode: 'production' })
+        
         await cashfree.checkout({
           paymentSessionId: data.payment_session_id,
           redirectTarget: '_self'
         })
       }
     } catch (error) {
+      console.error('Payment error:', error)
       alert(`Payment failed: ${error.message}`)
     } finally {
       setLoading(false)
