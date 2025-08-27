@@ -7,21 +7,27 @@ export default function PaymentSuccess() {
   const [status, setStatus] = useState('checking')
   const [message, setMessage] = useState('Verifying payment status...')
 
+  // Helper to strip curly braces { and } from param if present
+  const sanitizeParam = (param) => param?.replace(/^{|}$/g, '')
+
   useEffect(() => {
-    if (order_id && payment_session_id) {
-      verifyPayment()
+    const cleanOrderId = sanitizeParam(order_id)
+    const cleanPaymentSessionId = sanitizeParam(payment_session_id)
+
+    if (cleanOrderId && cleanPaymentSessionId) {
+      verifyPayment(cleanOrderId, cleanPaymentSessionId)
     } else {
       setMessage('Missing payment identifiers, unable to verify payment.')
       setStatus('error')
     }
   }, [order_id, payment_session_id])
 
-  const verifyPayment = async () => {
+  const verifyPayment = async (cleanOrderId, cleanPaymentSessionId) => {
     try {
       const res = await fetch('/api/payments/verify-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id, payment_session_id })
+        body: JSON.stringify({ order_id: cleanOrderId, payment_session_id: cleanPaymentSessionId })
       })
       if (!res.ok) {
         throw new Error(`Verification failed (${res.status})`)
@@ -41,13 +47,11 @@ export default function PaymentSuccess() {
   }
 
   const handleReturnToMenu = () => {
-    // Read restaurantId and tableNumber from localStorage (set before payment)
     const restaurantId = localStorage.getItem('restaurantId')
     const tableNumber = localStorage.getItem('tableNumber')
     if (restaurantId && tableNumber) {
       router.push(`/order?r=${restaurantId}&t=${tableNumber}`)
     } else {
-      // Fallback to home or a generic menu page if needed
       router.push('/')
     }
   }
@@ -61,7 +65,7 @@ export default function PaymentSuccess() {
           <h2 style={{ color: status === 'success' ? 'green' : 'red' }}>
             {message}
           </h2>
-          <p>Order ID: {order_id}</p>
+          <p>Order ID: {sanitizeParam(order_id)}</p>
           <button onClick={handleReturnToMenu}>Return to Menu</button>
         </div>
       )}
