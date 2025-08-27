@@ -1,3 +1,5 @@
+// pages/order/payment.js
+
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 
@@ -33,14 +35,16 @@ export default function PaymentPage() {
         const json = await res.json()
         setRestaurant(json)
       }
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const handlePayment = async () => {
     setLoading(true)
     try {
       if (selectedPayment === 'cash') {
-        // Existing cash order flow
+        // Cash order flow
         const orderData = {
           restaurant_id: restaurantId,
           restaurant_name: restaurant?.name,
@@ -59,7 +63,6 @@ export default function PaymentPage() {
           special_instructions: specialInstructions.trim(),
           payment_status: 'pending'
         }
-
         const res = await fetch('/api/orders/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -70,25 +73,22 @@ export default function PaymentPage() {
         localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`)
         window.location.href = `/order/success?id=${result.order_id}&method=cash`
       } else {
-        // Online payment flow through Cashfree checkout
-        const orderPayload = {
-          order_amount: totalAmount,
-          order_currency: 'INR',
-          customer_name: 'Guest Customer',
-          customer_email: 'guest@example.com',
-          customer_phone: '9999999999'
-        }
-
-        // Call create-order API to get payment_session_id
+        // Online payment flow
         const resp = await fetch('/api/payments/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderPayload)
+          body: JSON.stringify({
+            order_amount: totalAmount,
+            order_currency: 'INR',
+            customer_name: 'Guest Customer',
+            customer_email: 'guest@example.com',
+            customer_phone: '9999999999'
+          })
         })
         const data = await resp.json()
         if (!resp.ok) throw new Error(data.error || 'Order creation failed')
 
-        // Store order data for post-payment processing
+        // Prepare order record for after-payment creation
         const orderData = {
           restaurant_id: restaurantId,
           restaurant_name: restaurant?.name,
@@ -107,11 +107,21 @@ export default function PaymentPage() {
           special_instructions: specialInstructions.trim(),
           cashfree_order_id: data.order_id
         }
-        localStorage.setItem('pending_order', JSON.stringify(orderData))
 
-        // Load Cashfree SDK script if not loaded
+        // Store pending order and session
+        localStorage.setItem('pending_order', JSON.stringify(orderData))
+        localStorage.setItem(
+          'payment_session',
+          JSON.stringify({
+            order_id: data.order_id,
+            session_id: data.payment_session_id,
+            amount: totalAmount
+          })
+        )
+
+        // Load Cashfree SDK
         if (!window.Cashfree) {
-          await new Promise((resolve) => {
+          await new Promise(resolve => {
             const s = document.createElement('script')
             s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js'
             s.onload = resolve
@@ -119,9 +129,7 @@ export default function PaymentPage() {
           })
         }
 
-        // Use 'production' mode since you're using production keys
         const cashfree = window.Cashfree({ mode: 'production' })
-        
         await cashfree.checkout({
           paymentSessionId: data.payment_session_id,
           redirectTarget: '_self'
@@ -163,7 +171,6 @@ export default function PaymentPage() {
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>+{cart.length - 3} more items</div>
           )}
         </div>
-
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
             <span>Final Total</span>
@@ -180,7 +187,7 @@ export default function PaymentPage() {
               type="radio"
               value={method.id}
               checked={selectedPayment === method.id}
-              onChange={(e) => setSelectedPayment(e.target.value)}
+              onChange={e => setSelectedPayment(e.target.value)}
             />
             <div className="pay-main">
               <div className="pay-left">
@@ -206,9 +213,7 @@ export default function PaymentPage() {
           disabled={loading}
           style={{ width: '100%', background: brandColor, color: '#fff', border: 'none', padding: 16, borderRadius: 8, fontSize: 18, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
         >
-          {loading ? 'Processing...' :
-            selectedPayment === 'cash' ? 'Place Order' :
-              `Pay ₹${totalAmount.toFixed(2)}`}
+          {loading ? 'Processing...' : (selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${totalAmount.toFixed(2)}`)}
         </button>
       </div>
 
@@ -247,13 +252,11 @@ export default function PaymentPage() {
           line-height: 1;
           width: 24px;
           text-align: center;
-          font-variant-emoji: text;
         }
         .pay-text {
           display: flex;
           flex-direction: column;
           gap: 2px;
-          min-width: 0;
         }
         .pay-name {
           font-size: 15px;
@@ -272,7 +275,6 @@ export default function PaymentPage() {
           color: #111827;
           flex: 0 0 auto;
           text-align: right;
-          min-width: 96px;
         }
         @media (max-width: 380px) {
           .pay-right { min-width: 84px; }
