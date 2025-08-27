@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       order_amount: Number(order_amount),
       order_currency,
       customer_details: {
-        customer_id: customer_email,
+        customer_id: 'guest_' + Date.now(),
         customer_name,
         customer_email,
         customer_phone
