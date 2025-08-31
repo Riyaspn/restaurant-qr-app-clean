@@ -1,6 +1,5 @@
 // components/Layout.js
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useRestaurant } from '../context/RestaurantContext';
 import {
@@ -58,8 +57,6 @@ export default function Layout({
           transition: grid-template-columns .18s ease;
           background: var(--bg, #f7f8fa);
         }
-
-        /* Hide sidebar completely on mobile screens */
         @media (max-width: 768px) {
           .main-wrapper {
             grid-template-columns: 1fr !important;
@@ -79,7 +76,6 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
         borderBottom: '1px solid #e5e7eb',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         padding: '0 16px',
         height: 64,
         position: 'sticky',
@@ -87,7 +83,7 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
         zIndex: 30,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
         {showSidebar && (
           <button
             aria-label="Toggle sidebar"
@@ -103,15 +99,13 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
               border: '1px solid #e5e7eb',
               background: '#fff',
               cursor: 'pointer',
+              marginRight: 12,
             }}
           >
             <FaBars color="#111827" />
           </button>
         )}
-        <Link
-          href="/"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img
             src="/cafeqr-logo.svg"
             alt="Cafe QR"
@@ -120,21 +114,17 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
             style={{ objectFit: 'contain', borderRadius: 4 }}
           />
           <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
-        </Link>
+        </div>
       </div>
       {!isCustomer && (
         <nav style={{ display: 'flex', gap: 24 }}>
-          <Link href="/faq" style={{ color: '#374151', textDecoration: 'none' }}>
-            FAQ
-          </Link>
+          <span style={{ color: '#374151', cursor: 'pointer' }}>FAQ</span>
         </nav>
       )}
-
       <style jsx>{`
-        /* Hide sidebar toggle on mobile */
         @media (max-width: 768px) {
           .sidebar-toggle {
-            display: none !important;
+            display: inline-flex !important;
           }
         }
       `}</style>
@@ -147,7 +137,6 @@ function Sidebar({ collapsed }) {
   const { restaurant } = useRestaurant();
   const hasAggregatorIntegration =
     Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
-
   const items = [
     { href: '/owner', label: 'Overview', icon: <FaHome /> },
     { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
@@ -160,7 +149,6 @@ function Sidebar({ collapsed }) {
     { href: '/owner/settings', label: 'Settings', icon: <FaCog /> },
     { href: '/owner/billing', label: 'Billing', icon: <FaFileInvoice /> },
   ];
-
   if (hasAggregatorIntegration) {
     items.push({
       href: '/owner/aggregator-poller',
@@ -168,7 +156,6 @@ function Sidebar({ collapsed }) {
       icon: <FaUtensils />,
     });
   }
-
   const itemStyle = (active) => ({
     display: 'flex',
     alignItems: 'center',
@@ -181,7 +168,6 @@ function Sidebar({ collapsed }) {
     justifyContent: collapsed ? 'center' : 'flex-start',
     transition: 'all .15s ease',
   });
-
   async function handleSignOut() {
     try {
       await signOutAndRedirect(router.replace);
@@ -189,7 +175,6 @@ function Sidebar({ collapsed }) {
       alert(`Sign out failed: ${err?.message || 'Unknown error'}`);
     }
   }
-
   return (
     <aside
       className="sidebar"
@@ -219,7 +204,6 @@ function Sidebar({ collapsed }) {
           );
         })}
       </nav>
-
       <button
         onClick={handleSignOut}
         title="Sign Out"
@@ -241,9 +225,7 @@ function Sidebar({ collapsed }) {
         <FaSignOutAlt />
         {!collapsed && <span>Sign Out</span>}
       </button>
-
       <style jsx>{`
-        /* Hide sidebar completely on mobile */
         @media (max-width: 768px) {
           .sidebar {
             display: none;
@@ -272,9 +254,9 @@ function Footer() {
       <span>🔒 Powered by The Online Wala</span>
       <span>•</span>
       <span>Secure payments by Razorpay</span>
-      <Link href="/privacy-policy" style={{ color: '#2563eb', textDecoration: 'underline' }}>
+      <span style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}>
         Privacy Policy
-      </Link>
+      </span>
     </footer>
   );
 }
