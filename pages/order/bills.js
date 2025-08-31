@@ -1,11 +1,32 @@
-//pages/order/bills.js
+// pages/order/bills.js
+
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../services/supabase'
 
+/**
+ * Prevent static generation for this page.
+ * Next.js will render this page on each request (SSR),
+ * so we can safely call client-side auth methods in useEffect.
+ */
+export async function getServerSideProps() {
+  return { props: {} }
+}
+
 export default function CustomerBills() {
-  const user = supabase.auth.user()
+  const [user, setUser] = useState(null)
   const [bills, setBills] = useState([])
 
+  // Fetch authenticated user once on the client
+  useEffect(() => {
+    let mounted = true
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return
+      setUser(data?.user || null)
+    })
+    return () => { mounted = false }
+  }, [])
+
+  // Once user is known, fetch their bills
   useEffect(() => {
     if (!user) return
     supabase
@@ -13,7 +34,9 @@ export default function CustomerBills() {
       .select('*')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false })
-      .then(res => setBills(res.data || []))
+      .then(({ data }) => {
+        setBills(data || [])
+      })
   }, [user])
 
   return (
@@ -24,11 +47,27 @@ export default function CustomerBills() {
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {bills.map(bill => (
-            <li key={bill.id} style={{ marginBottom: 16, padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+            <li
+              key={bill.id}
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                border: '1px solid #ddd',
+                borderRadius: 8
+              }}
+            >
               <strong>#{bill.order_id.slice(0, 8).toUpperCase()}</strong> &nbsp;
               <span>{new Date(bill.created_at).toLocaleString()}</span> &nbsp; • &nbsp;
               {bill.pdf_url ? (
-                <a href={bill.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: '#f59e0b', textDecoration: 'underline' }}>
+                <a
+                  href={bill.pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: '#f59e0b',
+                    textDecoration: 'underline'
+                  }}
+                >
                   Download / Print
                 </a>
               ) : (
