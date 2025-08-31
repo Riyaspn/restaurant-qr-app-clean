@@ -23,17 +23,17 @@ export default function OwnerReports() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100svh', background: '#f3f4f6' }}>
       <header style={{ background: '#fff', padding: 16, borderBottom: '1px solid #e5e7eb' }}>
-        <h1 style={{ margin: 0 }}>Reports</h1>
+        <h1 style={{ margin: 0, fontSize: 'clamp(20px,2.6vw,28px)' }}>Reports</h1>
       </header>
 
       <div style={{ maxWidth: 1000, margin: '16px auto', padding: '0 16px' }}>
         <Card padding={16} style={{ marginBottom: 16 }}>
           <h3 style={{ marginTop: 0 }}>GST Sales Report</h3>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label>From: <input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
-            <label>To: <input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
+            <label>From: <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ fontSize: 16 }} /></label> {/* iOS zoom guard [web:199][web:198][web:208] */}
+            <label>To: <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ fontSize: 16 }} /></label> {/* [web:199][web:198][web:208] */}
             <Button onClick={exportGstCsv}>Download CSV</Button>
           </div>
           <div className="muted" style={{ marginTop: 8 }}>
