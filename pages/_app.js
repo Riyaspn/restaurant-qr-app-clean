@@ -32,5 +32,4 @@ function MyApp({ Component, pageProps }) {
     </RestaurantProvider>
   );
 }
-
 export default MyApp;
