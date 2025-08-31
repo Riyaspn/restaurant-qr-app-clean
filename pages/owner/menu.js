@@ -39,7 +39,6 @@ export default function MenuPage() {
           .order('name')
         if (catsErr) throw catsErr
 
-        // Fetch only the columns we render/edit for better performance
         const { data: its, error: itsErr } = await supabase
           .from('menu_items')
           .select('id, name, category, price, hsn, tax_rate, status, veg, is_packaged_good, compensation_cess_rate')
@@ -113,7 +112,6 @@ export default function MenuPage() {
     }
   }
 
-  // Merge saved/edited item into local state
   const handleSaved = (updated) => {
     setItems(prev => {
       const idx = prev.findIndex(i => i.id === updated.id)
@@ -129,33 +127,33 @@ export default function MenuPage() {
   return (
     <div className="menu-page container" style={{ padding: '20px 0 40px' }}>
       <h1 className="h1">Menu Management</h1>
-
       {error && <Alert type="error">{error}</Alert>}
 
-      <div className="row wrap" style={{ margin: '16px 0', gap: 12 }}>
+      <div className="toolbar">
         <input
           className="input"
           placeholder="Search items..."
           value={filterText}
           onChange={e => setFilterText(e.target.value)}
-          style={{ flex: 1, minWidth: 200 }}
         />
         <select className="select" value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
           <option value="all">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
-        <label className="row" style={{ gap: 6 }}>
+        <label className="flag">
           <input type="checkbox" checked={vegOnly} onChange={e => setVegOnly(e.target.checked)} />
-          <span className="muted">Veg only</span>
+          <span>Veg only</span>
         </label>
-        <label className="row" style={{ gap: 6 }}>
+        <label className="flag">
           <input type="checkbox" checked={pkgOnly} onChange={e => setPkgOnly(e.target.checked)} />
-          <span className="muted">Packaged goods</span>
+          <span>Packaged goods</span>
         </label>
-        <Button onClick={() => setEditorItem({})}>Add New Item</Button>
-        <Button onClick={() => setShowLibrary(true)}>Add from Library</Button>
-        <Button variant="success" onClick={() => applyBulk('available')}>Mark Available</Button>
-        <Button variant="outline" onClick={() => applyBulk('out_of_stock')}>Mark Out of Stock</Button>
+        <div className="toolbar-cta">
+          <Button onClick={() => setEditorItem({})}>Add New Item</Button>
+          <Button onClick={() => setShowLibrary(true)}>Add from Library</Button>
+          <Button variant="success" onClick={() => applyBulk('available')}>Mark Available</Button>
+          <Button variant="outline" onClick={() => applyBulk('out_of_stock')}>Mark Out of Stock</Button>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0 }}>
@@ -174,7 +172,7 @@ export default function MenuPage() {
                 <th className="hide-sm">Cess %</th>
                 <th>Type</th>
                 <th>Status</th>
-                <th className="hide-sm">Actions</th>
+                <th className="hide-sm" style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -188,7 +186,7 @@ export default function MenuPage() {
                 return (
                   <tr key={item.id}>
                     <td><input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} /></td>
-                    <td>{item.name}</td>
+                    <td style={{ maxWidth: 240, overflowWrap: 'anywhere' }}>{item.name}</td>
                     <td className="hide-sm">{item.category || '—'}</td>
                     <td>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td className="hide-sm">{item.hsn || '—'}</td>
@@ -200,7 +198,7 @@ export default function MenuPage() {
                     <td>
                       <span className={`chip ${available ? 'chip--avail' : 'chip--out'}`}>{available ? 'Available' : 'Out of Stock'}</span>
                     </td>
-                    <td className="hide-sm">
+                    <td className="hide-sm" style={{ textAlign: 'right' }}>
                       <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
                         <Button size="sm" variant="outline" onClick={() => toggleStatus(item.id, item.status)}>
                           {available ? 'Mark Out of Stock' : 'Mark Available'}
@@ -234,8 +232,6 @@ export default function MenuPage() {
         item={editorItem?.id ? editorItem : null}
         restaurantId={restaurantId}
         onSaved={handleSaved}
-        // ItemEditor should support: name, price, category, veg, status
-        // and tax fields: hsn, tax_rate, is_packaged_good, compensation_cess_rate
       />
 
       <LibraryPicker
@@ -246,21 +242,47 @@ export default function MenuPage() {
       />
 
       <style jsx>{`
-        .table-scroll { width: 100%; overflow-x: auto; }
+        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .pill {
           display: inline-block;
           padding: 4px 10px;
           border-radius: 999px;
           font-size: 12px;
           background: #f3f4f6;
+          white-space: nowrap;
         }
         .pill--pkg { background: #ecfeff; color: #0369a1; }
         .pill--menu { background: #f5f3ff; color: #6d28d9; }
-        .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; }
+        .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; white-space: nowrap; }
         .chip--avail { background: #dcfce7; color: #166534; }
         .chip--out { background: #fee2e2; color: #991b1b; }
+
+        .toolbar {
+          display: grid;
+          grid-template-columns: minmax(0,1fr) 220px auto auto;
+          gap: 10px;
+          margin: 16px 0;
+          align-items: center;
+        }
+        .toolbar-cta {
+          display: flex; flex-wrap: wrap; gap: 8px;
+          grid-column: 1 / -1;
+        }
+        .flag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+        @media (max-width: 900px) {
+          .toolbar {
+            grid-template-columns: minmax(0,1fr) 160px;
+          }
+        }
         @media (max-width: 640px) {
           .hide-sm { display: none; }
+          .toolbar {
+            grid-template-columns: minmax(0,1fr);
+          }
+          .toolbar-cta > :global(button) {
+            flex: 1 1 auto;
+          }
           .table td, .table th { white-space: nowrap; }
         }
       `}</style>

@@ -1,4 +1,4 @@
-//pages/owner/orders.js
+// pages/owner/orders.js
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../services/supabase'
 import { useRequireAuth } from '../../lib/useRequireAuth'
@@ -64,13 +64,12 @@ export default function OrdersPage() {
       const orderIds = (ordersData || []).map((o) => o.id)
       let invMap = {}
       if (orderIds.length > 0) {
-        const { data: invoicesData /*, error: invErr*/ } = await supabase
+        const { data: invoicesData } = await supabase
           .from('invoices')
           .select('order_id, pdf_url')
           .in('order_id', orderIds)
         invoicesData?.forEach(i => { invMap[i.order_id] = i })
       }
-
       ordersData?.forEach(o => { o.invoice = invMap[o.id] || null })
 
       const grouped = { new: [], in_progress: [], ready: [], completed: [] }
@@ -134,7 +133,7 @@ export default function OrdersPage() {
       <header className="orders-header">
         <h1>Orders Dashboard</h1>
         <div className="header-actions">
-          <span>{liveCount} live orders</span>
+          <span className="muted">{liveCount} live orders</span>
           <Button variant="outline" onClick={loadOrders}>Refresh</Button>
         </div>
       </header>
@@ -153,6 +152,7 @@ export default function OrdersPage() {
         </div>
       ) : (
         <>
+          {/* Mobile segmented filters */}
           <div className="mobile-filters">
             {STATUSES.map(s => (
               <button
@@ -166,6 +166,7 @@ export default function OrdersPage() {
             ))}
           </div>
 
+          {/* Mobile list */}
           <div className="mobile-list">
             {mobileList.length === 0 ? (
               <Card padding={16} style={{ textAlign: 'center', color: '#6b7280' }}>
@@ -186,6 +187,7 @@ export default function OrdersPage() {
             )}
           </div>
 
+          {/* Desktop kanban */}
           <div className="kanban">
             {STATUSES.map((status) => (
               <Card key={status} padding={12}>
@@ -238,12 +240,14 @@ export default function OrdersPage() {
 
       <style jsx>{`
         .orders-wrap { padding: 12px 0 32px; }
+
         .orders-header {
           display: flex; justify-content: space-between; align-items: center;
-          margin: 0 8px 12px;
+          gap: 12px; margin: 0 8px 12px;
         }
-        .orders-header h1 { margin: 0; font-size: 1.5rem; }
-        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
+        .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
         .mobile-filters {
           display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
           gap: 8px; padding: 0 8px 10px;
@@ -251,26 +255,29 @@ export default function OrdersPage() {
         .chip {
           border: 1px solid #e5e7eb; border-radius: 999px; padding: 10px 12px;
           background: #fff; font-size: 12px; display: flex; gap: 6px; justify-content: center; align-items: center;
-          min-height: 44px;
+          min-height: 44px; white-space: nowrap;
         }
         .chip--active { background: #eef2ff; border-color: #c7d2fe; }
         .chip-count { background: #f3f4f6; padding: 0 6px; border-radius: 999px; font-size: 11px; }
         .mobile-list { display: grid; gap: 10px; padding: 0 8px; }
+
         .kanban {
           display: none;
           grid-template-columns: repeat(4, minmax(0,1fr));
           gap: 16px; padding: 12px;
         }
         .kanban-col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .pill { background: #f3f4f6; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+        .pill { background: #f3f4f6; padding: 4px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
         .kanban-col-body { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow: auto; }
         .empty-col { text-align: center; color: #9ca3af; padding: 20px; border: 1px dashed #e5e7eb; border-radius: 8px; }
+
         @media (min-width: 1024px) {
           .mobile-filters, .mobile-list { display: none; }
           .kanban { display: grid; }
           .orders-header { margin: 0 12px 16px; }
         }
-        :global(button) { min-height: 48px; }
+
+        :global(button) { min-height: 44px; }
       `}</style>
     </div>
   )
@@ -283,15 +290,17 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
 
   return (
     <Card padding={12} style={{ cursor: 'pointer' }} onClick={onSelect}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <strong>#{order.id.slice(0,8)}</strong>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <strong style={{ overflowWrap: 'anywhere' }}>#{order.id.slice(0,8)}</strong>
         <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
       </div>
+
       <div style={{ margin: '6px 0', color: '#111827', fontSize: 14 }}>
         {items.slice(0, 2).map((it, i) => <div key={i}>{it.quantity}× {it.name}</div>)}
         {items.length > 2 && <div style={{ color: '#9ca3af' }}>+{items.length - 2} more</div>}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
         <span style={{ fontWeight: 600 }}>{money(total)}</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
           {order.status === 'new' && (
@@ -314,6 +323,7 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
           )}
         </div>
       </div>
+
       <div style={{ height: 2, marginTop: 8, borderRadius: 2, background: statusColor, opacity: 0.2 }} />
     </Card>
   )
@@ -329,24 +339,27 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
   return (
     <div className="modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal__card" style={{ maxWidth: 520 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <h2 style={{ margin: 0 }}>Order #{order.id.slice(0,8)}</h2>
           <Button variant="outline" onClick={onClose}>×</Button>
         </div>
+
         <Card padding={16}>
           <div><strong>Time:</strong> {new Date(order.created_at).toLocaleString()}</div>
           <div><strong>Table:</strong> {order.table_number}</div>
           <div><strong>Payment:</strong> {order.payment_method}</div>
         </Card>
+
         <Card padding={16} style={{ marginTop: 12 }}>
           <h3 style={{ marginTop: 0 }}>Items</h3>
           {items.map((it, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span>{it.quantity}× {it.name}</span>
               <span>{money(it.quantity * it.price)}</span>
             </div>
           ))}
         </Card>
+
         <Card padding={16} style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal</span><span>{money(subtotal)}</span>
@@ -358,6 +371,7 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
             <span>Total</span><span>{money(total)}</span>
           </div>
         </Card>
+
         <div style={{ textAlign: 'right', marginTop: 12 }}>
           {!hasInvoice && order.status === 'ready' && (
             <Button onClick={() => onCompleteOrder(order.id, order.payment_method)} disabled={generatingInvoice === order.id}>
@@ -369,9 +383,16 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
           )}
         </div>
       </div>
+
       <style jsx>{`
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
-        .modal__card { background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .modal {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+          display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px;
+        }
+        .modal__card {
+          background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+          max-height: 92vh; overflow: auto;
+        }
       `}</style>
     </div>
   )
@@ -383,16 +404,15 @@ function ConfirmDialog({ title, message, confirmText, cancelText, onConfirm, onC
       <div className="modal__card" style={{ maxWidth: 420 }}>
         <h3 style={{ marginTop: 12 }}>{title}</h3>
         <p style={{ margin: '8px 0 16px', color: '#374151' }}>{message}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingBottom: 12, flexWrap: 'wrap' }}>
           <Button variant="outline" onClick={onCancel}>{cancelText}</Button>
           <Button onClick={onConfirm}>{confirmText}</Button>
         </div>
       </div>
       <style jsx>{`
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
-        .modal__card { background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .modal__card { background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 92vh; overflow: auto; }
       `}</style>
     </div>
   )
 }
-

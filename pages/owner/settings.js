@@ -9,7 +9,7 @@ import Card from '../../components/ui/Card'
 function Section({ title, icon, children }) {
   return (
     <Card padding={24}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 24 }}>{icon}</span>
         <h3 style={{ margin: 0, fontSize: 18 }}>{title}</h3>
       </div>
@@ -17,6 +17,7 @@ function Section({ title, icon, children }) {
     </Card>
   )
 }
+
 function Field({ label, required, children, hint }) {
   return (
     <div>
@@ -208,8 +209,8 @@ export default function SettingsPage() {
   if (loading) return <div>Loading settings…</div>
 
   return (
-    <div className="container" style={{ padding: '20px 0 40px' }}>
-      <h1>Restaurant Settings</h1>
+    <div className="container" style={{ padding: '20px 8px 40px' }}>
+      <h1 className="h1">Restaurant Settings</h1>
 
       {error && (
         <Card padding={12} style={{ background: '#fee2e2', borderColor: '#fecaca' }}>
@@ -224,7 +225,7 @@ export default function SettingsPage() {
 
       <form onSubmit={save} style={{ display: 'grid', gap: 24 }}>
         <Section title="Business Info" icon="🏢">
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Legal Name" required>
               <input className="input" value={form.legal_name} onChange={onChange('legal_name')} />
             </Field>
@@ -232,10 +233,10 @@ export default function SettingsPage() {
               <input className="input" value={form.restaurant_name} onChange={onChange('restaurant_name')} />
             </Field>
             <Field label="Phone" required>
-              <input className="input" type="tel" value={form.phone} onChange={onChange('phone')} />
+              <input className="input" type="tel" value={form.phone} onChange={onChange('phone')} style={{ fontSize: 16 }} /> {/* iOS no-zoom [web:199][web:198][web:208] */}
             </Field>
             <Field label="Support Email" required>
-              <input className="input" type="email" value={form.support_email} onChange={onChange('support_email')} />
+              <input className="input" type="email" value={form.support_email} onChange={onChange('support_email')} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
             </Field>
           </div>
         </Section>
@@ -244,38 +245,29 @@ export default function SettingsPage() {
           <label>
             <input type="checkbox" checked={form.gst_enabled} onChange={onChange('gst_enabled')} /> GST Registered
           </label>
-
           <label>
-            <input type="checkbox" checked={form.prices_include_tax} onChange={onChange('prices_include_tax')} /> Menu
-            prices include tax
+            <input type="checkbox" checked={form.prices_include_tax} onChange={onChange('prices_include_tax')} /> Menu prices include tax
           </label>
 
           {form.gst_enabled && (
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
               <Field label="GSTIN">
                 <input className="input" value={form.gstin} onChange={onChange('gstin')} placeholder="22AAAAA0000A1Z5" />
               </Field>
               <Field label="Default Tax Rate (%)" hint="Applied if item does not override its own tax rate">
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.default_tax_rate}
-                  onChange={onChange('default_tax_rate')}
-                />
+                <input className="input" type="number" min="0" step="0.01" value={form.default_tax_rate} onChange={onChange('default_tax_rate')} />
               </Field>
             </div>
           )}
         </Section>
 
         <Section title="Delivery Address" icon="📦">
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Recipient" required>
               <input className="input" value={form.shipping_name} onChange={onChange('shipping_name')} />
             </Field>
             <Field label="Contact" required>
-              <input className="input" type="tel" value={form.shipping_phone} onChange={onChange('shipping_phone')} />
+              <input className="input" type="tel" value={form.shipping_phone} onChange={onChange('shipping_phone')} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
             </Field>
           </div>
           <Field label="Address Line 1" required>
@@ -292,22 +284,15 @@ export default function SettingsPage() {
               <input className="input" value={form.shipping_state} onChange={onChange('shipping_state')} />
             </Field>
             <Field label="Pincode" required>
-              <input className="input" value={form.shipping_pincode} onChange={onChange('shipping_pincode')} />
+              <input className="input" value={form.shipping_pincode} onChange={onChange('shipping_pincode')} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
             </Field>
           </div>
         </Section>
 
         <Section title="Operations" icon="⚙️">
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Tables Count" required>
-              <input
-                className="input"
-                type="number"
-                min={originalTables || 0}
-                max="100"
-                value={form.tables_count}
-                onChange={onChange('tables_count')}
-              />
+              <input className="input" type="number" min={originalTables || 0} max="100" value={form.tables_count} onChange={onChange('tables_count')} />
               {originalTables > 0 && <div className="muted" style={{ fontSize: 12 }}>Current: {originalTables}</div>}
             </Field>
             <Field label="Table Prefix">
@@ -323,7 +308,7 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="Brand & Web" icon="🎨">
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Logo URL">
               <input className="input" type="url" value={form.brand_logo_url} onChange={onChange('brand_logo_url')} />
             </Field>
@@ -346,27 +331,29 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="Aggregator Integration Keys" icon="🔗">
-          <Field label="Swiggy API Key">
-            <input className="input" type="password" autoComplete="off" value={form.swiggy_api_key} onChange={onChange('swiggy_api_key')} />
-          </Field>
-          <Field label="Swiggy API Secret">
-            <input className="input" type="password" autoComplete="off" value={form.swiggy_api_secret} onChange={onChange('swiggy_api_secret')} />
-          </Field>
-          <Field label="Swiggy Webhook Secret">
-            <input className="input" type="password" autoComplete="off" value={form.swiggy_webhook_secret} onChange={onChange('swiggy_webhook_secret')} />
-          </Field>
-          <Field label="Zomato API Key">
-            <input className="input" type="password" autoComplete="off" value={form.zomato_api_key} onChange={onChange('zomato_api_key')} />
-          </Field>
-          <Field label="Zomato API Secret">
-            <input className="input" type="password" autoComplete="off" value={form.zomato_api_secret} onChange={onChange('zomato_api_secret')} />
-          </Field>
-          <Field label="Zomato Webhook Secret">
-            <input className="input" type="password" autoComplete="off" value={form.zomato_webhook_secret} onChange={onChange('zomato_webhook_secret')} />
-          </Field>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
+            <Field label="Swiggy API Key">
+              <input className="input" type="password" autoComplete="off" value={form.swiggy_api_key} onChange={onChange('swiggy_api_key')} />
+            </Field>
+            <Field label="Swiggy API Secret">
+              <input className="input" type="password" autoComplete="off" value={form.swiggy_api_secret} onChange={onChange('swiggy_api_secret')} />
+            </Field>
+            <Field label="Swiggy Webhook Secret">
+              <input className="input" type="password" autoComplete="off" value={form.swiggy_webhook_secret} onChange={onChange('swiggy_webhook_secret')} />
+            </Field>
+            <Field label="Zomato API Key">
+              <input className="input" type="password" autoComplete="off" value={form.zomato_api_key} onChange={onChange('zomato_api_key')} />
+            </Field>
+            <Field label="Zomato API Secret">
+              <input className="input" type="password" autoComplete="off" value={form.zomato_api_secret} onChange={onChange('zomato_api_secret')} />
+            </Field>
+            <Field label="Zomato Webhook Secret">
+              <input className="input" type="password" autoComplete="off" value={form.zomato_webhook_secret} onChange={onChange('zomato_webhook_secret')} />
+            </Field>
+          </div>
         </Section>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : isFirstTime ? 'Complete Setup' : 'Save Changes'}
           </Button>
