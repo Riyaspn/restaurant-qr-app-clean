@@ -11,50 +11,68 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Shell layout adjustments */
-@media (max-width: 768px) {
-  .shell-container {
-    flex-direction: column;
-  }
+/* Layout Shell */
+@media (max-width: 1024px) {
   .sidebar {
-    width: 80% !important;
+    width: 64px !important;
   }
   .main-content {
     padding: var(--pad-sm) !important;
   }
 }
 
-/* KPI grid responsiveness */
+@media (max-width: 768px) {
+  .shell-container {
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100% !important;
+    order: 1;
+  }
+  .main-content {
+    order: 2;
+  }
+}
+
+/* KPI Grid */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--gap);
 }
+
 @media (max-width: 1024px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 600px) {
-  .kpi-grid { grid-template-columns: 1fr; }
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-/* Two-column → single-column */
+@media (max-width: 600px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Two-Col Layout */
 .two-col {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: var(--gap);
 }
+
 @media (max-width: 900px) {
-  .two-col { grid-template-columns: 1fr; }
+  .two-col {
+    grid-template-columns: 1fr;
+  }
 }
 
-/* Table horizontal scroll */
+/* Table Horizontal Scroll */
 .table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-.table th, .table td {
-  padding: 10px;
-}
+
 @media (max-width: 480px) {
   .table th, .table td {
     padding: 8px 6px;
@@ -62,46 +80,78 @@ html, body {
   }
 }
 
-/* Orders board columns */
+/* Orders Board */
 .order-columns {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--gap);
 }
-@media (max-width: 1200px) { .order-columns { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 800px)  { .order-columns { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px)  { .order-columns { grid-template-columns: 1fr; } }
 
-/* Actions bar wrap */
+@media (max-width: 1200px) {
+  .order-columns {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .order-columns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .order-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Actions Bar */
 .actions-bar {
   display: flex;
   gap: var(--gap-sm);
   flex-wrap: wrap;
 }
+
 .actions-bar button,
 .actions-bar input[type="text"] {
   flex: 1 1 auto;
   min-width: 140px;
 }
+
 @media (max-width: 480px) {
-  .actions-bar button { width: 100%; }
+  .actions-bar button {
+    width: 100%;
+  }
 }
 
-/* Inputs full width on mobile */
+/* Inputs Full-Width on Mobile */
 @media (max-width: 600px) {
-  input, select, textarea { width: 100% !important; }
+  input, select, textarea {
+    width: 100% !important;
+  }
 }
 
-/* Modal full width on phones */
-.modal-card { width: 420px; }
+/* Modal Full Width on Phones */
 @media (max-width: 480px) {
-  .modal-card { width: calc(100% - 24px); margin: 0 12px; }
+  .modal__card {
+    width: calc(100% - 24px);
+    margin: 0 12px;
+  }
 }
 
-/* iOS safe area and scrolling */
-:root {
-  --safe-top: env(safe-area-inset-top);
-  --safe-bottom: env(safe-area-inset-bottom);
+/* Hide non-essential on small */
+@media (max-width: 768px) {
+  .hide-sm {
+    display: none !important;
+  }
 }
-.shell-header { padding-top: var(--safe-top); }
-.main-content { padding-bottom: calc(24px + var(--safe-bottom)); }
+
+/* Responsive typography */
+@media (max-width: 767px) {
+  h1 {
+    font-size: 1.5rem !important;
+  }
+  h2 {
+    font-size: 1.25rem !important;
+  }
+}
