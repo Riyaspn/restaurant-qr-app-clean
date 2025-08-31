@@ -136,19 +136,20 @@ export default function MenuPage() {
           placeholder="Search items..."
           value={filterText}
           onChange={e => setFilterText(e.target.value)}
-          style={{ fontSize: 16 }} /* iOS: prevent input zoom [14][12][10][15][16] */
+          style={{ fontSize: 16 }} /* iOS: prevent input zoom */
         />
         <select
           className="select category-select"
           value={filterCategory}
           onChange={e => setFilterCategory(e.target.value)}
-          style={{ fontSize: 16 }} /* [14][12][10][15][16] */
+          style={{ fontSize: 16 }}
         >
           <option value="all">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
 
-        <div className="checkbox-group">
+        {/* Checkboxes row */}
+        <div className="checkbox-row">
           <label className="flag">
             <input type="checkbox" checked={vegOnly} onChange={e => setVegOnly(e.target.checked)} />
             <span>Veg only</span>
@@ -277,86 +278,87 @@ export default function MenuPage() {
       />
 
       <style jsx>{`
-  .menu-page {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 8px 20px;
-  }
+        .menu-page {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 8px 20px;
+        }
 
-  .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  /* Badges */
-  .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #f3f4f6; white-space: nowrap; }
-  .pill--pkg { background: #ecfeff; color: #0369a1; }
-  .pill--menu { background: #f5f3ff; color: #6d28d9; }
+        /* Badges */
+        .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #f3f4f6; white-space: nowrap; }
+        .pill--pkg { background: #ecfeff; color: #0369a1; }
+        .pill--menu { background: #f5f3ff; color: #6d28d9; }
 
-  .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; white-space: nowrap; }
-  .chip--avail { background: #dcfce7; color: #166534; }
-  .chip--out { background: #fee2e2; color: #991b1b; }
+        .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; white-space: nowrap; }
+        .chip--avail { background: #dcfce7; color: #166534; }
+        .chip--out { background: #fee2e2; color: #991b1b; }
 
-  /* Toolbar - mobile first like Dashboard page */
-  .toolbar { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 16px; }
+        /* Toolbar - mobile first */
+        .toolbar { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 16px; }
+        .search-input, .category-select { width: 100%; }
 
-  .search-input, .category-select { width: 100%; }
+        /* Checkbox row: keep labels tight with checkboxes and prevent layout jump on check */
+        .checkbox-row {
+          display: flex;
+          justify-content: space-between;   /* left and right groups spread cleanly */
+          align-items: center;
+          gap: 12px;
+          min-height: 40px;                 /* stable row height */
+          padding: 0 2px;
+        }
+        .flag {
+          display: inline-grid;             /* grid keeps input + text aligned tightly */
+          grid-auto-flow: column;
+          align-items: center;
+          column-gap: 4px;                  /* tighter than 6px */
+          white-space: nowrap;
+          line-height: 1.2;                 /* avoid vertical shift on iOS when checked */
+        }
+        .flag input[type="checkbox"] {
+          margin: 0;                        /* remove default UA margins that caused jumps */
+          inline-size: 20px; block-size: 20px; /* consistent tick box size on iOS/Android */
+        }
 
-  /* Tighten the checkbox + label alignment */
-  .checkbox-group {
-    display: flex;
-    gap: 12px;              /* was 16px; tighter grouping */
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .flag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;               /* text sits closer to checkbox */
-    white-space: nowrap;
-    padding-inline: 0;      /* remove extra inline padding */
-  }
-  .flag input[type="checkbox"] {
-    margin: 0;              /* remove default checkbox margin on iOS */
-  }
+        .toolbar-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+        .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
-  .toolbar-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
-  .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        /* Default: mobile-only chunks hidden */
+        .only-sm { display: none; }
 
-  /* Default: mobile-only chunks hidden */
-  .only-sm { display: none; }
+        /* Small phones */
+        @media (max-width: 480px) {
+          .menu-page { padding: 0 6px 20px; }
+          .only-sm { display: flex !important; }
+          .hide-xs { display: none; }
+        }
 
-  /* Small phones: reduce page horizontal padding to fit neatly */
-  @media (max-width: 480px) {
-    .menu-page { padding: 0 6px 20px; }        /* tighter gutters on small phones */
-    .toolbar { padding: 0 2px; }               /* tiny inner breathing room */
-    .hide-xs { display: none; }
-    .only-sm { display: flex !important; }
-  }
+        /* Medium phones */
+        @media (max-width: 640px) {
+          .hide-sm { display: none; }
+          .table td, .table th { white-space: nowrap; padding: 10px 8px; font-size: 14px; }
+          .table thead th { position: sticky; top: 0; z-index: 2; background: #f9fafb; }
+        }
 
-  /* Medium phones */
-  @media (max-width: 640px) {
-    .hide-sm { display: none; }
-    .table td, .table th { white-space: nowrap; padding: 10px 8px; font-size: 14px; }
-    .table thead th { position: sticky; top: 0; z-index: 2; background: #f9fafb; }
-  }
+        /* Tablet and up */
+        @media (min-width: 641px) {
+          .toolbar {
+            display: grid;
+            grid-template-columns: 1fr 220px auto;
+            align-items: center;
+            gap: 12px;
+          }
+          .checkbox-row { grid-column: 3; justify-content: flex-start; gap: 16px; }
+          .toolbar-cta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
+        }
 
-  /* Tablet and up */
-  @media (min-width: 641px) {
-    .toolbar {
-      display: grid;
-      grid-template-columns: 1fr 220px auto;
-      align-items: center;
-      gap: 12px;
-    }
-    .checkbox-group { grid-column: 3; justify-self: start; }
-    .toolbar-cta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
-  }
-
-  /* Desktop */
-  @media (min-width: 900px) {
-    .toolbar { grid-template-columns: 1fr 240px auto auto; }
-    .checkbox-group { grid-column: auto; }
-  }
-`}</style>
-
+        /* Desktop */
+        @media (min-width: 900px) {
+          .toolbar { grid-template-columns: 1fr 240px auto auto; }
+          .checkbox-row { grid-column: auto; }
+        }
+      `}</style>
     </div>
   )
 }
