@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'restaurant_id is required' })
   }
 
-  // Compute today's date window (UTC)
+  // Build today’s UTC window
   const now = new Date()
   const yyyy = now.getUTCFullYear()
   const mm = String(now.getUTCMonth() + 1).padStart(2, '0')
@@ -26,33 +26,31 @@ export default async function handler(req, res) {
   const endUTC = `${today}T23:59:59Z`
 
   try {
-    // Prevent duplicate daily report
-    const { data: existing, error: existingErr } = await supabase
+    // Prevent duplicates
+    const { data: existing } = await supabase
       .from('billing_reports')
       .select('id')
       .eq('restaurant_id', restaurant_id)
       .eq('report_date', today)
       .maybeSingle()
-    if (existingErr) throw existingErr
     if (existing) {
       return res.status(200).json({ mailed: false, reason: 'already_sent' })
     }
 
-    // Fetch invoices for today
-    const { data: invoices = [], error: invErr } = await supabase
+    // Fetch invoices
+    const { data: invoices = [] } = await supabase
       .from('invoices')
       .select('invoice_no, order_id, payment_method, invoice_date, pdf_url, total_inc_tax')
       .eq('restaurant_id', restaurant_id)
       .gte('invoice_date', startUTC)
       .lte('invoice_date', endUTC)
-    if (invErr) throw invErr
 
     const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.total_inc_tax || 0), 0)
 
-    // Prepare email body
+    // Assemble email body
     const lines = invoices.map(inv => {
       const no = inv.invoice_no || '-'
-      const ord = inv.order_id ? inv.order_id.slice(0, 8).toUpperCase() : '—'
+      const ord = inv.order_id?.slice(0, 8).toUpperCase() || '—'
       const pm = inv.payment_method || '—'
       const amt = Number(inv.total_inc_tax || 0).toFixed(2)
       return `${no} • Order #${ord} • ${pm} • ₹${amt} • ${inv.pdf_url || '—'}`
@@ -66,12 +64,15 @@ export default async function handler(req, res) {
       lines.length ? lines.join('\n') : 'No invoices today'
     ].join('\n')
 
-    // Dynamically import email helper (optional)
+    // Dynamically require the mailer at runtime (Webpack won’t statically bundle this)
     let emailSent = false
     try {
-      const mailer = await import('../../lib/email')
-      if (mailer?.sendMail && process.env.OWNER_EMAIL) {
-        await mailer.sendMail({
+      const libPath = '../../lib/email'
+      // eslint-disable-next-line no-eval
+      const mailer = eval("require")(libPath)
+      const sendMail = mailer?.sendMail
+      if (typeof sendMail === 'function' && process.env.OWNER_EMAIL) {
+        await sendMail({
           to: process.env.OWNER_EMAIL,
           subject: `Daily Invoice Report – ${today}`,
           text: body
@@ -79,16 +80,19 @@ export default async function handler(req, res) {
         emailSent = true
       }
     } catch (e) {
-      console.warn('Mailer not found or failed, skipping email:', e.message)
+      console.warn('Mailer missing or failed, skipping email:', e.message)
     }
 
-    // Log that we’ve sent (or skipped) today’s report
-    const { error: logErr } = await supabase
+    // Log report
+    await supabase
       .from('billing_reports')
       .insert({ restaurant_id, report_date: today })
-    if (logErr) console.error('Failed to log billing_report:', logErr)
 
-    return res.status(200).json({ mailed: emailSent, count: invoices.length, total: totalRevenue })
+    return res.status(200).json({
+      mailed: emailSent,
+      count: invoices.length,
+      total: totalRevenue
+    })
   } catch (error) {
     console.error('send-daily-report error:', error)
     return res.status(500).json({ error: 'Internal server error' })
