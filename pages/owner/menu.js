@@ -129,17 +129,24 @@ export default function MenuPage() {
       <h1 className="h1">Menu Management</h1>
       {error && <Alert type="error">{error}</Alert>}
 
+      {/* Toolbar */}
       <div className="toolbar">
         <input
           className="input"
           placeholder="Search items..."
           value={filterText}
           onChange={e => setFilterText(e.target.value)}
+          style={{ minWidth: 0 }}
         />
-        <select className="select" value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+        <select
+          className="select"
+          value={filterCategory}
+          onChange={e => setFilterCategory(e.target.value)}
+        >
           <option value="all">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
+
         <label className="flag">
           <input type="checkbox" checked={vegOnly} onChange={e => setVegOnly(e.target.checked)} />
           <span>Veg only</span>
@@ -148,6 +155,7 @@ export default function MenuPage() {
           <input type="checkbox" checked={pkgOnly} onChange={e => setPkgOnly(e.target.checked)} />
           <span>Packaged goods</span>
         </label>
+
         <div className="toolbar-cta">
           <Button onClick={() => setEditorItem({})}>Add New Item</Button>
           <Button onClick={() => setShowLibrary(true)}>Add from Library</Button>
@@ -156,6 +164,7 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Table */}
       <div className="card" style={{ padding: 0 }}>
         <div className="table-scroll">
           <table className="table">
@@ -186,7 +195,18 @@ export default function MenuPage() {
                 return (
                   <tr key={item.id}>
                     <td><input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} /></td>
-                    <td style={{ maxWidth: 240, overflowWrap: 'anywhere' }}>{item.name}</td>
+                    <td style={{ maxWidth: 240, overflowWrap: 'anywhere' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>{item.name}</span>
+                        {/* Mobile-only inline actions */}
+                        <span className="only-sm" style={{ display: 'inline-flex', gap: 6 }}>
+                          <Button size="sm" variant="outline" onClick={() => setEditorItem(item)}>Edit</Button>
+                          <Button size="sm" variant="outline" onClick={() => toggleStatus(item.id, item.status)}>
+                            {available ? 'Out' : 'Avail'}
+                          </Button>
+                        </span>
+                      </div>
+                    </td>
                     <td className="hide-sm">{item.category || '—'}</td>
                     <td>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td className="hide-sm">{item.hsn || '—'}</td>
@@ -226,6 +246,7 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Modals */}
       <ItemEditor
         open={!!editorItem}
         onClose={() => setEditorItem(null)}
@@ -233,7 +254,6 @@ export default function MenuPage() {
         restaurantId={restaurantId}
         onSaved={handleSaved}
       />
-
       <LibraryPicker
         open={showLibrary}
         onClose={() => setShowLibrary(false)}
@@ -243,16 +263,14 @@ export default function MenuPage() {
 
       <style jsx>{`
         .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
         .pill {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: 999px;
-          font-size: 12px;
-          background: #f3f4f6;
-          white-space: nowrap;
+          display: inline-block; padding: 4px 10px; border-radius: 999px;
+          font-size: 12px; background: #f3f4f6; white-space: nowrap;
         }
         .pill--pkg { background: #ecfeff; color: #0369a1; }
         .pill--menu { background: #f5f3ff; color: #6d28d9; }
+
         .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; white-space: nowrap; }
         .chip--avail { background: #dcfce7; color: #166534; }
         .chip--out { background: #fee2e2; color: #991b1b; }
@@ -270,21 +288,22 @@ export default function MenuPage() {
         }
         .flag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 
+        /* Small desktop/tablet */
         @media (max-width: 900px) {
-          .toolbar {
-            grid-template-columns: minmax(0,1fr) 160px;
-          }
+          .toolbar { grid-template-columns: minmax(0,1fr) 160px; }
         }
+
+        /* Phones */
         @media (max-width: 640px) {
           .hide-sm { display: none; }
-          .toolbar {
-            grid-template-columns: minmax(0,1fr);
-          }
-          .toolbar-cta > :global(button) {
-            flex: 1 1 auto;
-          }
+          .only-sm { display: inline-flex !important; }
+          .toolbar { grid-template-columns: minmax(0,1fr); }
+          .toolbar-cta > :global(button) { flex: 1 1 auto; }
           .table td, .table th { white-space: nowrap; }
         }
+
+        /* Default: hidden mobile-only chunks */
+        .only-sm { display: none; }
       `}</style>
     </div>
   )
