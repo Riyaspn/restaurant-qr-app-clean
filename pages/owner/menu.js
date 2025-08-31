@@ -277,65 +277,86 @@ export default function MenuPage() {
       />
 
       <style jsx>{`
-        .menu-page {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 0 8px 20px;
-        }
+  .menu-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 8px 20px;
+  }
 
-        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-        /* Badges */
-        .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #f3f4f6; white-space: nowrap; }
-        .pill--pkg { background: #ecfeff; color: #0369a1; }
-        .pill--menu { background: #f5f3ff; color: #6d28d9; }
+  /* Badges */
+  .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #f3f4f6; white-space: nowrap; }
+  .pill--pkg { background: #ecfeff; color: #0369a1; }
+  .pill--menu { background: #f5f3ff; color: #6d28d9; }
 
-        .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; white-space: nowrap; }
-        .chip--avail { background: #dcfce7; color: #166534; }
-        .chip--out { background: #fee2e2; color: #991b1b; }
+  .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e5e7eb; white-space: nowrap; }
+  .chip--avail { background: #dcfce7; color: #166534; }
+  .chip--out { background: #fee2e2; color: #991b1b; }
 
-        /* Toolbar - mobile first like Dashboard page */
-        .toolbar { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 16px; }
-        .search-input, .category-select { width: 100%; }
-        .checkbox-group { display: flex; gap: 16px; flex-wrap: wrap; }
-        .flag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-        .toolbar-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
-        .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  /* Toolbar - mobile first like Dashboard page */
+  .toolbar { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 16px; }
 
-        /* Default: mobile-only chunks hidden */
-        .only-sm { display: none; }
+  .search-input, .category-select { width: 100%; }
 
-        /* Small phones */
-        @media (max-width: 480px) {
-          .hide-xs { display: none; }
-          .only-sm { display: flex !important; }
-        }
+  /* Tighten the checkbox + label alignment */
+  .checkbox-group {
+    display: flex;
+    gap: 12px;              /* was 16px; tighter grouping */
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;               /* text sits closer to checkbox */
+    white-space: nowrap;
+    padding-inline: 0;      /* remove extra inline padding */
+  }
+  .flag input[type="checkbox"] {
+    margin: 0;              /* remove default checkbox margin on iOS */
+  }
 
-        /* Medium phones */
-        @media (max-width: 640px) {
-          .hide-sm { display: none; }
-          .table td, .table th { white-space: nowrap; padding: 10px 8px; font-size: 14px; }
-          .table thead th { position: sticky; top: 0; z-index: 2; background: #f9fafb; }
-        }
+  .toolbar-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+  .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
-        /* Tablet and up */
-        @media (min-width: 641px) {
-          .toolbar {
-            display: grid;
-            grid-template-columns: 1fr 220px auto;
-            align-items: center;
-            gap: 12px;
-          }
-          .checkbox-group { grid-column: 3; }
-          .toolbar-cta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
-        }
+  /* Default: mobile-only chunks hidden */
+  .only-sm { display: none; }
 
-        /* Desktop */
-        @media (min-width: 900px) {
-          .toolbar { grid-template-columns: 1fr 240px auto auto; }
-          .checkbox-group { grid-column: auto; }
-        }
-      `}</style>
+  /* Small phones: reduce page horizontal padding to fit neatly */
+  @media (max-width: 480px) {
+    .menu-page { padding: 0 6px 20px; }        /* tighter gutters on small phones */
+    .toolbar { padding: 0 2px; }               /* tiny inner breathing room */
+    .hide-xs { display: none; }
+    .only-sm { display: flex !important; }
+  }
+
+  /* Medium phones */
+  @media (max-width: 640px) {
+    .hide-sm { display: none; }
+    .table td, .table th { white-space: nowrap; padding: 10px 8px; font-size: 14px; }
+    .table thead th { position: sticky; top: 0; z-index: 2; background: #f9fafb; }
+  }
+
+  /* Tablet and up */
+  @media (min-width: 641px) {
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr 220px auto;
+      align-items: center;
+      gap: 12px;
+    }
+    .checkbox-group { grid-column: 3; justify-self: start; }
+    .toolbar-cta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
+  }
+
+  /* Desktop */
+  @media (min-width: 900px) {
+    .toolbar { grid-template-columns: 1fr 240px auto auto; }
+    .checkbox-group { grid-column: auto; }
+  }
+`}</style>
+
     </div>
   )
 }
