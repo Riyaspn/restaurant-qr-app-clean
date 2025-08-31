@@ -26,7 +26,7 @@ export default function Layout({
 }) {
   if (hideChrome) return <main style={{ padding: 20 }}>{children}</main>;
 
-  const [collapsed, setCollapsed] = useState(false); // desktop collapse
+  const [collapsed, setCollapsed] = useState(false);   // desktop collapse
   const [mobileOpen, setMobileOpen] = useState(false); // mobile drawer
 
   useEffect(() => {
@@ -36,27 +36,37 @@ export default function Layout({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const handleHamburger = () => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      setMobileOpen(true);
+    } else {
+      setCollapsed((v) => !v);
+    }
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', minHeight: '100svh' }}>
       <Header
         isCustomer={showCustomerHeader}
         showSidebar={showSidebar}
-        onToggleSidebar={() => {
-          // If mobile, open overlay drawer; else toggle desktop collapse
-          if (window.innerWidth <= 768) setMobileOpen(true);
-          else setCollapsed((v) => !v);
-        }}
+        onHamburger={handleHamburger}
       />
 
       <div className="main-wrapper">
-        {showSidebar && <Sidebar collapsed={collapsed} />}
+        {/* Desktop/tablet sidebar only */}
+        {showSidebar && (
+          <div className="desktop-sidebar">
+            <Sidebar collapsed={collapsed} />
+          </div>
+        )}
+
         <main className="container main-content" style={{ paddingTop: 24, paddingBottom: 40 }}>
           {title && <h1 className="h1" style={{ marginBottom: 16 }}>{title}</h1>}
           {children}
         </main>
       </div>
 
-      {/* Mobile overlay drawer */}
+      {/* Mobile-only overlay drawer */}
       {showSidebar && (
         <>
           <div
@@ -79,11 +89,15 @@ export default function Layout({
           transition: grid-template-columns .18s ease;
           background: var(--bg, #f7f8fa);
         }
-        /* Hide fixed sidebar layout on phones; use overlay drawer instead */
+
+        /* Hide desktop sidebar on phones; use overlay drawer there */
+        .desktop-sidebar { display: block; }
         @media (max-width: 768px) {
           .main-wrapper { grid-template-columns: 1fr !important; }
+          .desktop-sidebar { display: none; }
         }
-        /* Drawer styles */
+
+        /* Drawer (mobile only) */
         .drawer-backdrop {
           position: fixed; inset: 0;
           background: rgba(0,0,0,0.35);
@@ -99,6 +113,7 @@ export default function Layout({
           z-index: 1000;
           padding: 12px;
           padding-top: calc(12px + env(safe-area-inset-top));
+          overflow-y: auto;
         }
         .drawer--open { transform: translateX(0); }
         @media (min-width: 769px) {
@@ -109,7 +124,7 @@ export default function Layout({
   );
 }
 
-function Header({ isCustomer, onToggleSidebar, showSidebar }) {
+function Header({ isCustomer, onHamburger, showSidebar }) {
   return (
     <header
       className="shell-header"
@@ -129,7 +144,7 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
         {showSidebar && (
           <button
             aria-label="Toggle sidebar"
-            onClick={onToggleSidebar}
+            onClick={onHamburger}
             className="sidebar-toggle"
             style={{
               display: 'inline-flex',
@@ -156,7 +171,7 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
             height={28}
             style={{ objectFit: 'contain', borderRadius: 4 }}
           />
-        <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
+          <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
         </div>
       </div>
 
@@ -174,6 +189,7 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
 function Sidebar({ collapsed }) {
   const router = useRouter();
   const { restaurant } = useRestaurant();
+
   const hasAggregatorIntegration =
     Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
 
@@ -263,7 +279,7 @@ function MobileSidebar({ onNavigate }) {
   const items = getNavItems(hasAggregatorIntegration);
 
   return (
-    <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <nav style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontWeight: 700, margin: '6px 6px 12px 6px', color: '#111827' }}>Owner Panel</div>
       {items.map((it) => (
         <Link
@@ -273,12 +289,11 @@ function MobileSidebar({ onNavigate }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            padding: '10px 12px',
+            gap: 12,
+            padding: '12px 12px',
             borderRadius: 8,
             color: '#374151',
             textDecoration: 'none',
-            background: 'transparent',
           }}
         >
           <span style={{ display: 'grid', placeItems: 'center', width: 18 }}>{it.icon}</span>
