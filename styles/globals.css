@@ -21,9 +21,9 @@ button {
 button:hover { background: var(--brand-600); }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Form Elements: keep ≥16px to prevent iOS auto-zoom */
+/* Form Elements (keep 16px to avoid iOS zoom) */
 input, select, textarea {
-  width: 100%; padding: 0.75rem; font-size: 16px; /* critical for iOS */ /* [2][1][9] */
+  width: 100%; padding: 0.75rem; font-size: 16px;
   border: 1px solid var(--border); border-radius: 4px; outline: none;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shadow: var(--focus); }
@@ -51,16 +51,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
   overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
 }
 
-/* Safe area for notched devices */
-.shell-header { padding-top: env(safe-area-inset-top); } /* [10][6][11] */
-.main-content { padding-bottom: calc(24px + env(safe-area-inset-bottom)); } /* [10][6][11] */
+/* Safe area */
+.shell-header { padding-top: env(safe-area-inset-top); }
+.main-content { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 
-/* Print Styles */
+/* Print */
 @media print {
   header, .sidebar { display: none !important; }
   .main-content { margin: 0; padding: 0; }
 }
-
-/* Drawer helpers */
-.drawer-button { font-size: 20px; }
-.drawer-backdrop { -webkit-tap-highlight-color: transparent; }
