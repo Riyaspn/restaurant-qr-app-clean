@@ -1,5 +1,5 @@
 // components/Layout.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useRestaurant } from '../context/RestaurantContext';
@@ -26,7 +26,8 @@ export default function Layout({
 }) {
   if (hideChrome) return <main style={{ padding: 20 }}>{children}</main>;
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false); // desktop collapse
+  const [mobileOpen, setMobileOpen] = useState(false); // mobile drawer
 
   useEffect(() => {
     const onResize = () => setCollapsed(window.innerWidth < 1160);
@@ -39,9 +40,14 @@ export default function Layout({
     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', minHeight: '100svh' }}>
       <Header
         isCustomer={showCustomerHeader}
-        onToggleSidebar={() => setCollapsed((v) => !v)}
         showSidebar={showSidebar}
+        onToggleSidebar={() => {
+          // If mobile, open overlay drawer; else toggle desktop collapse
+          if (window.innerWidth <= 768) setMobileOpen(true);
+          else setCollapsed((v) => !v);
+        }}
       />
+
       <div className="main-wrapper">
         {showSidebar && <Sidebar collapsed={collapsed} />}
         <main className="container main-content" style={{ paddingTop: 24, paddingBottom: 40 }}>
@@ -49,7 +55,23 @@ export default function Layout({
           {children}
         </main>
       </div>
+
+      {/* Mobile overlay drawer */}
+      {showSidebar && (
+        <>
+          <div
+            className="drawer-backdrop"
+            style={{ display: mobileOpen ? 'block' : 'none' }}
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className={`drawer ${mobileOpen ? 'drawer--open' : ''}`}>
+            <MobileSidebar onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </>
+      )}
+
       <Footer />
+
       <style jsx>{`
         .main-wrapper {
           display: grid;
@@ -57,10 +79,30 @@ export default function Layout({
           transition: grid-template-columns .18s ease;
           background: var(--bg, #f7f8fa);
         }
+        /* Hide fixed sidebar layout on phones; use overlay drawer instead */
         @media (max-width: 768px) {
-          .main-wrapper {
-            grid-template-columns: 1fr !important;
-          }
+          .main-wrapper { grid-template-columns: 1fr !important; }
+        }
+        /* Drawer styles */
+        .drawer-backdrop {
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,0.35);
+          z-index: 999;
+        }
+        .drawer {
+          position: fixed; top: 0; left: 0; bottom: 0;
+          width: min(80vw, 300px);
+          background: #f9fafb;
+          border-right: 1px solid #e5e7eb;
+          transform: translateX(-100%);
+          transition: transform .28s ease-out;
+          z-index: 1000;
+          padding: 12px;
+          padding-top: calc(12px + env(safe-area-inset-top));
+        }
+        .drawer--open { transform: translateX(0); }
+        @media (min-width: 769px) {
+          .drawer, .drawer-backdrop { display: none; }
         }
       `}</style>
     </div>
@@ -105,6 +147,7 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
             <FaBars color="#111827" />
           </button>
         )}
+        {/* Non-clickable logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img
             src="/cafeqr-logo.svg"
@@ -113,7 +156,7 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
             height={28}
             style={{ objectFit: 'contain', borderRadius: 4 }}
           />
-          <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
+        <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
         </div>
       </div>
 
@@ -124,12 +167,6 @@ function Header({ isCustomer, onToggleSidebar, showSidebar }) {
           </Link>
         </nav>
       )}
-
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .sidebar-toggle { display: inline-flex !important; }
-        }
-      `}</style>
     </header>
   );
 }
@@ -140,21 +177,7 @@ function Sidebar({ collapsed }) {
   const hasAggregatorIntegration =
     Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
 
-  const items = [
-    { href: '/owner', label: 'Overview', icon: <FaHome /> },
-    { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
-    { href: '/owner/orders', label: 'Orders', icon: <FaUtensils /> },
-    { href: '/owner/counter', label: 'Counter Sale', icon: <FaList /> },
-    { href: '/owner/inventory', label: 'Inventory', icon: <FaList /> },
-    { href: '/owner/availability', label: 'Availability', icon: <FaClock /> },
-    { href: '/owner/promotions', label: 'Promotions', icon: <FaTags /> },
-    { href: '/owner/analytics', label: 'Analytics', icon: <FaChartBar /> },
-    { href: '/owner/settings', label: 'Settings', icon: <FaCog /> },
-    { href: '/owner/billing', label: 'Billing', icon: <FaFileInvoice /> },
-  ];
-  if (hasAggregatorIntegration) {
-    items.push({ href: '/owner/aggregator-poller', label: 'Aggregator Orders', icon: <FaUtensils /> });
-  }
+  const items = getNavItems(hasAggregatorIntegration);
 
   const itemStyle = (active) => ({
     display: 'flex',
@@ -228,14 +251,61 @@ function Sidebar({ collapsed }) {
         <FaSignOutAlt />
         {!collapsed && <span>Sign Out</span>}
       </button>
-
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .sidebar { display: none; }
-        }
-      `}</style>
     </aside>
   );
+}
+
+function MobileSidebar({ onNavigate }) {
+  const { restaurant } = useRestaurant();
+  const hasAggregatorIntegration =
+    Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
+
+  const items = getNavItems(hasAggregatorIntegration);
+
+  return (
+    <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontWeight: 700, margin: '6px 6px 12px 6px', color: '#111827' }}>Owner Panel</div>
+      {items.map((it) => (
+        <Link
+          key={it.href}
+          href={it.href}
+          onClick={onNavigate}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderRadius: 8,
+            color: '#374151',
+            textDecoration: 'none',
+            background: 'transparent',
+          }}
+        >
+          <span style={{ display: 'grid', placeItems: 'center', width: 18 }}>{it.icon}</span>
+          <span>{it.label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function getNavItems(hasAggregatorIntegration) {
+  const items = [
+    { href: '/owner', label: 'Overview', icon: <FaHome /> },
+    { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
+    { href: '/owner/orders', label: 'Orders', icon: <FaUtensils /> },
+    { href: '/owner/counter', label: 'Counter Sale', icon: <FaList /> },
+    { href: '/owner/inventory', label: 'Inventory', icon: <FaList /> },
+    { href: '/owner/availability', label: 'Availability', icon: <FaClock /> },
+    { href: '/owner/promotions', label: 'Promotions', icon: <FaTags /> },
+    { href: '/owner/analytics', label: 'Analytics', icon: <FaChartBar /> },
+    { href: '/owner/settings', label: 'Settings', icon: <FaCog /> },
+    { href: '/owner/billing', label: 'Billing', icon: <FaFileInvoice /> },
+  ];
+  if (hasAggregatorIntegration) {
+    items.push({ href: '/owner/aggregator-poller', label: 'Aggregator Orders', icon: <FaUtensils /> });
+  }
+  return items;
 }
 
 function Footer() {
