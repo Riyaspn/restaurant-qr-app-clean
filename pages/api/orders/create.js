@@ -1,5 +1,4 @@
 // pages/api/orders/create.js
-
 import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
@@ -9,14 +8,12 @@ export default async function handler(req, res) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
   if (!supabaseUrl || !supabaseKey) {
     if (process.env.NODE_ENV !== 'production') {
       console.error('Missing env: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
     }
     return res.status(500).json({ error: 'Server configuration error' })
   }
-
   const supabase = createClient(supabaseUrl, supabaseKey)
 
   try {
@@ -24,8 +21,6 @@ export default async function handler(req, res) {
       restaurant_id,
       table_number,
       items,
-      subtotal,
-      total_amount,
       payment_method = 'cash',
       payment_status = 'pending',
       special_instructions = null,
@@ -36,6 +31,96 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
+    // First, get menu item details to know which are packaged
+    const itemIds = items.map(it => it.id).filter(Boolean)
+    const { data: menuItems, error: menuError } = await supabase
+      .from('menu_items')
+      .select('id, is_packaged_good, tax_rate')
+      .in('id', itemIds)
+    if (menuError) {
+      if (process.env.NODE_ENV !== 'production') console.error('Menu items fetch error:', menuError)
+      return res.status(500).json({ error: 'Failed to load menu items' })
+    }
+
+    // Load profile settings (used for service lines only)
+    const { data: profile, error: profileErr } = await supabase
+      .from('restaurant_profiles')
+      .select('gst_enabled, default_tax_rate, prices_include_tax')
+      .eq('restaurant_id', restaurant_id)
+      .maybeSingle()
+    if (profileErr) {
+      if (process.env.NODE_ENV !== 'production') console.error('Profile fetch error:', profileErr)
+      return res.status(500).json({ error: 'Failed to load settings' })
+    }
+
+    const gstEnabled = !!profile?.gst_enabled
+    const baseRate = Number(profile?.default_tax_rate ?? 5)
+    const serviceRate = gstEnabled ? baseRate : 0
+    const serviceInclude = gstEnabled ? !!profile?.prices_include_tax : false
+
+    // Totals
+    let subtotalEx = 0
+    let totalTax = 0
+    let totalInc = 0
+
+    // Build order_items with proper branching
+    const preparedItems = items.map((it) => {
+      const qty = Number(it.quantity ?? 1)
+      const unit = Number(it.price ?? 0)
+      
+      // Get menu item details
+      const menuItem = menuItems?.find(mi => mi.id === it.id)
+      const isPackaged = !!(menuItem?.is_packaged_good || it.is_packaged_good)
+      const itemTaxRate = Number(menuItem?.tax_rate ?? it.tax_rate ?? 0)
+
+      let unitEx, unitInc, lineEx, tax, lineInc, effectiveRate
+
+      if (isPackaged) {
+        // Packaged goods: MRP inclusive, use item's tax rate
+        effectiveRate = itemTaxRate
+        unitInc = unit
+        unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc
+        lineInc = unitInc * qty
+        lineEx = unitEx * qty
+        tax = lineInc - lineEx
+      } else {
+        // Service items: use restaurant profile
+        effectiveRate = serviceRate
+        if (serviceInclude) {
+          unitInc = unit
+          unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc
+          lineInc = unitInc * qty
+          lineEx = unitEx * qty
+          tax = lineInc - lineEx
+        } else {
+          unitEx = unit
+          lineEx = unitEx * qty
+          tax = (effectiveRate / 100) * lineEx
+          lineInc = lineEx + tax
+          unitInc = effectiveRate > 0 ? unitEx * (1 + effectiveRate / 100) : unitEx
+        }
+      }
+
+      subtotalEx += lineEx
+      totalTax += tax
+      totalInc += lineInc
+
+      return {
+        order_id: null,
+        menu_item_id: it.id,
+        quantity: qty,
+        price: unit,
+        item_name: it.name,
+        unit_price_ex_tax: Number(unitEx.toFixed(2)),
+        unit_price_inc_tax: Number(unitInc.toFixed(2)),
+        unit_tax_amount: Number((unitInc - unitEx).toFixed(2)),
+        tax_rate: effectiveRate,
+        hsn: it.hsn || null,
+        is_packaged_good: isPackaged
+      }
+    })
+
+    // Insert order with stamped totals
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert([{
@@ -44,35 +129,32 @@ export default async function handler(req, res) {
         status: 'new',
         payment_method,
         payment_status,
-        subtotal: Number(subtotal) || 0,
-        tax: 0,
-        total_amount: Number(total_amount) || 0,
         special_instructions,
-        restaurant_name
+        restaurant_name,
+        subtotal_ex_tax: Number(subtotalEx.toFixed(2)),
+        total_tax: Number(totalTax.toFixed(2)),
+        total_inc_tax: Number(totalInc.toFixed(2)),
+        total_amount: Number(totalInc.toFixed(2)),
+        prices_include_tax: serviceInclude,
+        gst_enabled: gstEnabled
       }])
       .select('id')
       .single()
-
     if (orderError) {
       if (process.env.NODE_ENV !== 'production') console.error('Order creation error:', orderError)
       return res.status(500).json({ error: 'Failed to create order' })
     }
 
-    const orderItems = items.map(item => ({
-      order_id: order.id,
-      menu_item_id: item.id,
-      quantity: Number(item.quantity) || 1,
-      price: Number(item.price) || 0,
-      item_name: item.name
-    }))
-
+    // Insert order items
+    const orderItems = preparedItems.map(oi => ({ ...oi, order_id: order.id }))
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems)
-
     if (itemsError) {
       if (process.env.NODE_ENV !== 'production') console.error('Order items error:', itemsError)
       await supabase.from('orders').delete().eq('id', order.id)
       return res.status(500).json({ error: 'Failed to create order items' })
     }
+
+    // Optional stock deduction unchanged...
 
     return res.status(200).json({
       success: true,

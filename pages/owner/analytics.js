@@ -1,131 +1,109 @@
 // pages/owner/analytics.js
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../../services/supabase';
-import { useRequireAuth } from '../../lib/useRequireAuth';
-import { useRestaurant } from '../../context/RestaurantContext';
-import Button from '../../components/ui/Button';
-import Card from '../../components/ui/Card';
+import React, { useEffect, useState } from 'react'
+import { supabase } from '../../services/supabase'
+import { useRequireAuth } from '../../lib/useRequireAuth'
+import { useRestaurant } from '../../context/RestaurantContext'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
 
 export default function AnalyticsPage() {
-  const { checking } = useRequireAuth();
-  const { restaurant, loading: restLoading } = useRestaurant();
-  
-  const [timeRange, setTimeRange] = useState('today');
+  const { checking } = useRequireAuth()
+  const { restaurant, loading: restLoading } = useRestaurant()
+
+  const [timeRange, setTimeRange] = useState('today')
   const [stats, setStats] = useState({
     orders: 0,
     revenue: 0,
     avgOrderValue: 0,
     topItems: [],
     hourlyData: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const restaurantId = restaurant?.id || '';
+  const restaurantId = restaurant?.id || ''
 
   useEffect(() => {
-    if (checking || restLoading || !restaurantId) return;
-    loadAnalytics();
-  }, [checking, restLoading, restaurantId, timeRange]);
+    if (checking || restLoading || !restaurantId) return
+    loadAnalytics()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checking, restLoading, restaurantId, timeRange])
 
   const loadAnalytics = async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true)
+    setError('')
     try {
-      const { start, end } = getDateRange(timeRange);
-      
-      // Get orders for the time range
+      const { start, end } = getDateRange(timeRange)
+
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, total, total_amount, created_at, status, items')
+        .select('id, total_amount, total_inc_tax, created_at, status, items')
         .eq('restaurant_id', restaurantId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
-        .neq('status', 'cancelled');
+        .neq('status', 'cancelled')
 
-      if (ordersError) throw ordersError;
+      if (ordersError) throw ordersError
+      const orderData = Array.isArray(orders) ? orders : []
 
-      const orderData = Array.isArray(orders) ? orders : [];
-      
-      // Calculate basic stats
-      const totalOrders = orderData.length;
-      const totalRevenue = orderData.reduce((sum, order) => 
-        sum + Number(order.total_amount ?? order.total ?? 0), 0
-      );
-      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      const totalOrders = orderData.length
+      // Prefer total_inc_tax (new column), fallback to total_amount
+      const totalRevenue = orderData.reduce((sum, o) =>
+        sum + Number(o.total_inc_tax ?? o.total_amount ?? 0), 0)
+      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
-      // Process top items (from JSONB items field)
-      const itemCounts = {};
-      orderData.forEach(order => {
-        if (Array.isArray(order.items)) {
-          order.items.forEach(item => {
-            const name = item.name || 'Unknown Item';
-            itemCounts[name] = (itemCounts[name] || 0) + (item.quantity || 1);
-          });
+      // Top items from compact JSON (fallback); if not present you can join order_items
+      const itemCounts = {}
+      orderData.forEach(o => {
+        if (Array.isArray(o.items)) {
+          o.items.forEach(it => {
+            const name = it.name || 'Unknown Item'
+            itemCounts[name] = (itemCounts[name] || 0) + (Number(it.quantity) || 1)
+          })
         }
-      });
-
+      })
       const topItems = Object.entries(itemCounts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5)
-        .map(([name, quantity]) => ({ name, quantity }));
+        .sort(([,a],[,b]) => b - a).slice(0, 5)
+        .map(([name, quantity]) => ({ name, quantity }))
 
-      // Generate hourly data for today
-      const hourlyData = generateHourlyData(orderData, timeRange === 'today');
+      const hourlyData = generateHourlyData(orderData, timeRange === 'today')
 
-      setStats({
-        orders: totalOrders,
-        revenue: totalRevenue,
-        avgOrderValue,
-        topItems,
-        hourlyData,
-      });
+      setStats({ orders: totalOrders, revenue: totalRevenue, avgOrderValue, topItems, hourlyData })
     } catch (e) {
-      setError(e.message || 'Failed to load analytics');
+      setError(e.message || 'Failed to load analytics')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const getDateRange = (range) => {
-    const now = new Date();
-    const start = new Date();
-    
+    const now = new Date()
+    const start = new Date()
     switch (range) {
-      case 'today':
-        start.setHours(0, 0, 0, 0);
-        return { start, end: now };
-      case 'week':
-        start.setDate(now.getDate() - 7);
-        return { start, end: now };
-      case 'month':
-        start.setDate(now.getDate() - 30);
-        return { start, end: now };
-      default:
-        start.setHours(0, 0, 0, 0);
-        return { start, end: now };
+      case 'today': start.setHours(0,0,0,0); return { start, end: now }
+      case 'week':  start.setDate(now.getDate() - 7); return { start, end: now }
+      case 'month': start.setDate(now.getDate() - 30); return { start, end: now }
+      default:      start.setHours(0,0,0,0); return { start, end: now }
     }
-  };
+  }
 
   const generateHourlyData = (orders, isToday) => {
-    if (!isToday) return [];
-    
-    const hourlyRevenue = new Array(24).fill(0);
-    orders.forEach(order => {
-      const hour = new Date(order.created_at).getHours();
-      hourlyRevenue[hour] += Number(order.total_amount ?? order.total ?? 0);
-    });
-
+    if (!isToday) return []
+    const hourlyRevenue = new Array(24).fill(0)
+    orders.forEach(o => {
+      const hour = new Date(o.created_at).getHours()
+      hourlyRevenue[hour] += Number(o.total_inc_tax ?? o.total_amount ?? 0)
+    })
     return hourlyRevenue.map((revenue, hour) => ({
-      hour: `${hour.toString().padStart(2, '0')}:00`,
+      hour: `${hour.toString().padStart(2,'0')}:00`,
       revenue: Math.round(revenue),
-    }));
-  };
+    }))
+  }
 
-  const formatCurrency = (amount) => `₹${Number(amount).toFixed(2)}`;
+  const formatCurrency = (n) => `₹${Number(n).toFixed(2)}`
 
-  if (checking || restLoading) return <div style={{ padding: 24 }}>Loading…</div>;
-  if (!restaurantId) return <div style={{ padding: 24 }}>No restaurant found</div>;
+  if (checking || restLoading) return <div style={{ padding: 24 }}>Loading…</div>
+  if (!restaurantId) return <div style={{ padding: 24 }}>No restaurant found</div>
 
   return (
     <>
@@ -136,24 +114,9 @@ export default function AnalyticsPage() {
             <p className="subtitle">Track your restaurant's performance</p>
           </div>
           <div className="time-filters">
-            <Button 
-              variant={timeRange === 'today' ? 'primary' : 'outline'} 
-              onClick={() => setTimeRange('today')}
-            >
-              Today
-            </Button>
-            <Button 
-              variant={timeRange === 'week' ? 'primary' : 'outline'} 
-              onClick={() => setTimeRange('week')}
-            >
-              7 Days
-            </Button>
-            <Button 
-              variant={timeRange === 'month' ? 'primary' : 'outline'} 
-              onClick={() => setTimeRange('month')}
-            >
-              30 Days
-            </Button>
+            <Button variant={timeRange === 'today' ? 'primary' : 'outline'} onClick={() => setTimeRange('today')}>Today</Button>
+            <Button variant={timeRange === 'week' ? 'primary' : 'outline'} onClick={() => setTimeRange('week')}>7 Days</Button>
+            <Button variant={timeRange === 'month' ? 'primary' : 'outline'} onClick={() => setTimeRange('month')}>30 Days</Button>
           </div>
         </div>
 
@@ -167,7 +130,6 @@ export default function AnalyticsPage() {
           <div style={{ textAlign: 'center', padding: 40 }}>Loading analytics…</div>
         ) : (
           <>
-            {/* KPI Cards */}
             <div className="kpi-grid">
               <Card padding="20px" className="kpi-card">
                 <div className="kpi-label">Total Orders</div>
@@ -184,7 +146,6 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="charts-grid">
-              {/* Top Items */}
               <Card padding="20px" className="chart-card">
                 <h3 className="chart-title">Top Items</h3>
                 {stats.topItems.length === 0 ? (
@@ -199,12 +160,7 @@ export default function AnalyticsPage() {
                           <div className="item-quantity">{item.quantity} orders</div>
                         </div>
                         <div className="item-bar-container">
-                          <div 
-                            className="item-bar" 
-                            style={{ 
-                              width: `${(item.quantity / stats.topItems[0].quantity) * 100}%` 
-                            }}
-                          ></div>
+                          <div className="item-bar" style={{ width: `${(item.quantity / stats.topItems[0].quantity) * 100}%` }} />
                         </div>
                       </div>
                     ))}
@@ -212,7 +168,6 @@ export default function AnalyticsPage() {
                 )}
               </Card>
 
-              {/* Hourly Revenue (Today only) */}
               {timeRange === 'today' && (
                 <Card padding="20px" className="chart-card">
                   <h3 className="chart-title">Hourly Revenue</h3>
@@ -220,29 +175,24 @@ export default function AnalyticsPage() {
                     <div className="empty-chart">No orders today</div>
                   ) : (
                     <div className="hourly-chart">
-                      {stats.hourlyData
-                        .filter(data => data.revenue > 0)
-                        .slice(0, 12) // Show first 12 hours with data
-                        .map(data => (
-                          <div key={data.hour} className="hour-bar">
-                            <div className="hour-label">{data.hour}</div>
-                            <div className="revenue-amount">₹{data.revenue}</div>
-                          </div>
-                        ))
-                      }
+                      {stats.hourlyData.filter(d => d.revenue > 0).slice(0, 12).map(d => (
+                        <div key={d.hour} className="hour-bar">
+                          <div className="hour-label">{d.hour}</div>
+                          <div className="revenue-amount">₹{d.revenue}</div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </Card>
               )}
             </div>
 
-            {/* Future Charts Placeholder */}
             <Card padding="20px" style={{ marginTop: 20 }}>
               <h3 style={{ marginTop: 0, color: '#6b7280' }}>Coming Soon</h3>
               <div style={{ color: '#9ca3af', fontSize: 14 }}>
                 • Sales trend charts<br/>
                 • Peak hours heatmap<br/>
-                • Customer demographics<br/>
+                • HSN- and tax-slab-wise summaries<br/>
                 • Order completion times<br/>
                 • Revenue forecasting
               </div>
@@ -284,5 +234,5 @@ export default function AnalyticsPage() {
         }
       `}</style>
     </>
-  );
+  )
 }

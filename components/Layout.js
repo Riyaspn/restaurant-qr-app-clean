@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useRestaurant } from '../context/RestaurantContext';
 import {
   FaBars,
   FaHome,
@@ -24,16 +25,16 @@ export default function Layout({
   showCustomerHeader = false,
 }) {
   if (hideChrome) return <main style={{ padding: 20 }}>{children}</main>;
-
+  
   const [collapsed, setCollapsed] = useState(false);
-
+  
   useEffect(() => {
     const onResize = () => setCollapsed(window.innerWidth < 1160);
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
+  
   return (
     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', minHeight: '100vh' }}>
       <Header
@@ -93,7 +94,6 @@ function Header({ isCustomer, onToggleSidebar }) {
         >
           <FaBars color="#111827" />
         </button>
-
         <Link
           href="/"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
@@ -108,7 +108,6 @@ function Header({ isCustomer, onToggleSidebar }) {
           <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
         </Link>
       </div>
-
       {!isCustomer && (
         <nav style={{ display: 'flex', gap: 24 }}>
           <Link href="/faq" style={{ color: '#374151', textDecoration: 'none' }}>
@@ -122,17 +121,32 @@ function Header({ isCustomer, onToggleSidebar }) {
 
 function Sidebar({ collapsed }) {
   const router = useRouter();
+  const { restaurant } = useRestaurant();
+
+  const hasAggregatorIntegration =
+    Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
 
   const items = [
     { href: '/owner', label: 'Overview', icon: <FaHome /> },
     { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
     { href: '/owner/orders', label: 'Orders', icon: <FaUtensils /> },
+    { href: '/owner/counter', label: 'Counter Sale', icon: <FaList /> },
+    { href: '/owner/inventory', label: 'Inventory', icon: <FaList /> },
     { href: '/owner/availability', label: 'Availability', icon: <FaClock /> },
     { href: '/owner/promotions', label: 'Promotions', icon: <FaTags /> },
     { href: '/owner/analytics', label: 'Analytics', icon: <FaChartBar /> },
     { href: '/owner/settings', label: 'Settings', icon: <FaCog /> },
     { href: '/owner/billing', label: 'Billing', icon: <FaFileInvoice /> },
   ];
+
+  // Conditionally add Aggregator Orders link
+  if (hasAggregatorIntegration) {
+    items.push({
+      href: '/owner/aggregator-poller',
+      label: 'Aggregator Orders',
+      icon: <FaUtensils />,
+    });
+  }
 
   const itemStyle = (active) => ({
     display: 'flex',
@@ -172,7 +186,6 @@ function Sidebar({ collapsed }) {
           Owner Panel
         </div>
       )}
-
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((it) => {
           const active = router.pathname === it.href || router.pathname.startsWith(it.href + '/');
@@ -184,7 +197,6 @@ function Sidebar({ collapsed }) {
           );
         })}
       </nav>
-
       <button
         onClick={handleSignOut}
         title="Sign Out"
@@ -226,7 +238,7 @@ function Footer() {
     >
       <span>🔒 Powered by The Online Wala</span>
       <span>•</span>
-      <span>Secure payments by Cashfree</span>
+      <span>Secure payments by Razorpay</span>
       <Link href="/privacy-policy" style={{ color: '#2563eb', textDecoration: 'underline' }}>
         Privacy Policy
       </Link>
