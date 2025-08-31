@@ -1,9 +1,0 @@
-{
-  "functions": {
-    "api/billing/generate-cron.js": {
-      "memory": 128,
-      "maxDuration": 10,
-      "schedule": "0 1 * * *"
-    }
-  }
-}
