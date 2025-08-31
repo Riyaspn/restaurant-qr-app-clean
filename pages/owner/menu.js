@@ -125,21 +125,20 @@ export default function MenuPage() {
   if (checking || loadingRestaurant || !restaurantId) return <p style={{ padding: 24 }}>Loading…</p>
 
   return (
-    <div className="menu-page container" style={{ padding: '20px 0 40px' }}>
+    <div className="menu-page">
       <h1 className="h1">Menu Management</h1>
       {error && <Alert type="error">{error}</Alert>}
 
       {/* Toolbar */}
       <div className="toolbar">
         <input
-          className="input"
+          className="input search-input"
           placeholder="Search items..."
           value={filterText}
           onChange={e => setFilterText(e.target.value)}
-          style={{ minWidth: 0 }}
         />
         <select
-          className="select"
+          className="select category-select"
           value={filterCategory}
           onChange={e => setFilterCategory(e.target.value)}
         >
@@ -147,14 +146,16 @@ export default function MenuPage() {
           {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
 
-        <label className="flag">
-          <input type="checkbox" checked={vegOnly} onChange={e => setVegOnly(e.target.checked)} />
-          <span>Veg only</span>
-        </label>
-        <label className="flag">
-          <input type="checkbox" checked={pkgOnly} onChange={e => setPkgOnly(e.target.checked)} />
-          <span>Packaged goods</span>
-        </label>
+        <div className="checkbox-group">
+          <label className="flag">
+            <input type="checkbox" checked={vegOnly} onChange={e => setVegOnly(e.target.checked)} />
+            <span>Veg only</span>
+          </label>
+          <label className="flag">
+            <input type="checkbox" checked={pkgOnly} onChange={e => setPkgOnly(e.target.checked)} />
+            <span>Packaged goods</span>
+          </label>
+        </div>
 
         <div className="toolbar-cta">
           <Button onClick={() => setEditorItem({})}>Add New Item</Button>
@@ -177,10 +178,10 @@ export default function MenuPage() {
                 <th className="hide-sm">Category</th>
                 <th>Price</th>
                 <th className="hide-sm">HSN</th>
-                <th>Tax %</th>
+                <th className="hide-xs">Tax %</th>
                 <th className="hide-sm">Cess %</th>
-                <th>Type</th>
-                <th>Status</th>
+                <th className="hide-xs">Type</th>
+                <th className="hide-xs">Status</th>
                 <th className="hide-sm" style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -195,27 +196,39 @@ export default function MenuPage() {
                 return (
                   <tr key={item.id}>
                     <td><input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} /></td>
-                    <td style={{ maxWidth: 240, overflowWrap: 'anywhere' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>{item.name}</span>
+                    <td style={{ maxWidth: 200 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{item.name}</span>
                         {/* Mobile-only inline actions */}
-                        <span className="only-sm" style={{ display: 'inline-flex', gap: 6 }}>
+                        <span className="only-sm mobile-actions">
                           <Button size="sm" variant="outline" onClick={() => setEditorItem(item)}>Edit</Button>
                           <Button size="sm" variant="outline" onClick={() => toggleStatus(item.id, item.status)}>
                             {available ? 'Out' : 'Avail'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={async () => {
+                              if (!confirm('Delete this item?')) return
+                              const { error } = await supabase.from('menu_items').delete().eq('id', item.id)
+                              if (error) setError(error.message)
+                              else setItems(prev => prev.filter(i => i.id !== item.id))
+                            }}
+                          >
+                            Del
                           </Button>
                         </span>
                       </div>
                     </td>
                     <td className="hide-sm">{item.category || '—'}</td>
-                    <td>₹{Number(item.price ?? 0).toFixed(2)}</td>
+                    <td style={{ fontWeight: 600 }}>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td className="hide-sm">{item.hsn || '—'}</td>
-                    <td>{item.tax_rate != null ? Number(item.tax_rate).toFixed(2) : '—'}</td>
+                    <td className="hide-xs">{item.tax_rate != null ? Number(item.tax_rate).toFixed(2) : '—'}</td>
                     <td className="hide-sm">{item.is_packaged_good ? Number(item.compensation_cess_rate ?? 0).toFixed(2) : '—'}</td>
-                    <td>
+                    <td className="hide-xs">
                       <span className={`pill ${item.is_packaged_good ? 'pill--pkg' : 'pill--menu'}`}>{typeBadge}</span>
                     </td>
-                    <td>
+                    <td className="hide-xs">
                       <span className={`chip ${available ? 'chip--avail' : 'chip--out'}`}>{available ? 'Available' : 'Out of Stock'}</span>
                     </td>
                     <td className="hide-sm" style={{ textAlign: 'right' }}>
@@ -262,8 +275,19 @@ export default function MenuPage() {
       />
 
       <style jsx>{`
-        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .menu-page { 
+          padding: 20px 8px 40px; 
+          max-width: 100%;
+          min-height: 100vh;
+        }
 
+        .table-scroll { 
+          width: 100%; 
+          overflow-x: auto; 
+          -webkit-overflow-scrolling: touch; 
+        }
+
+        /* Badges */
         .pill {
           display: inline-block; padding: 4px 10px; border-radius: 999px;
           font-size: 12px; background: #f3f4f6; white-space: nowrap;
@@ -275,35 +299,102 @@ export default function MenuPage() {
         .chip--avail { background: #dcfce7; color: #166534; }
         .chip--out { background: #fee2e2; color: #991b1b; }
 
+        /* Toolbar - mobile first */
         .toolbar {
-          display: grid;
-          grid-template-columns: minmax(0,1fr) 220px auto auto;
-          gap: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
           margin: 16px 0;
-          align-items: center;
         }
+        
+        .search-input {
+          width: 100%;
+        }
+        
+        .category-select {
+          width: 100%;
+        }
+        
+        .checkbox-group {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        
+        .flag { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 6px; 
+          white-space: nowrap; 
+        }
+
         .toolbar-cta {
-          display: flex; flex-wrap: wrap; gap: 8px;
-          grid-column: 1 / -1;
-        }
-        .flag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-
-        /* Small desktop/tablet */
-        @media (max-width: 900px) {
-          .toolbar { grid-template-columns: minmax(0,1fr) 160px; }
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 8px;
         }
 
-        /* Phones */
+        .mobile-actions {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        /* Default: mobile-only chunks hidden */
+        .only-sm { display: none; }
+
+        /* Small phones */
+        @media (max-width: 480px) {
+          .hide-xs { display: none; }
+          .only-sm { display: flex !important; }
+        }
+
+        /* Medium phones */
         @media (max-width: 640px) {
           .hide-sm { display: none; }
-          .only-sm { display: inline-flex !important; }
-          .toolbar { grid-template-columns: minmax(0,1fr); }
-          .toolbar-cta > :global(button) { flex: 1 1 auto; }
-          .table td, .table th { white-space: nowrap; }
+          .table td, .table th { 
+            white-space: nowrap; 
+            padding: 8px 6px;
+            font-size: 14px;
+          }
+          .table thead th { 
+            position: sticky; 
+            top: 0; 
+            z-index: 2; 
+            background: #f9fafb; 
+          }
         }
 
-        /* Default: hidden mobile-only chunks */
-        .only-sm { display: none; }
+        /* Tablet and up */
+        @media (min-width: 641px) {
+          .toolbar {
+            display: grid;
+            grid-template-columns: 1fr 200px auto;
+            align-items: center;
+            gap: 12px;
+          }
+          
+          .checkbox-group {
+            grid-column: 3;
+          }
+          
+          .toolbar-cta {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+          }
+        }
+
+        /* Desktop */
+        @media (min-width: 900px) {
+          .toolbar {
+            grid-template-columns: 1fr 220px auto auto;
+          }
+          
+          .checkbox-group {
+            grid-column: auto;
+          }
+        }
       `}</style>
     </div>
   )

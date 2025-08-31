@@ -40,15 +40,9 @@ export default function Layout({
       <Header
         isCustomer={showCustomerHeader}
         onToggleSidebar={() => setCollapsed((v) => !v)}
+        showSidebar={showSidebar}
       />
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: showSidebar ? (collapsed ? '64px 1fr' : '240px 1fr') : '1fr',
-          transition: 'grid-template-columns .18s ease',
-          background: 'var(--bg, #f7f8fa)',
-        }}
-      >
+      <div className="main-wrapper">
         {showSidebar && <Sidebar collapsed={collapsed} />}
         <main className="container main-content" style={{ paddingTop: 24, paddingBottom: 40 }}>
           {title && <h1 className="h1" style={{ marginBottom: 16 }}>{title}</h1>}
@@ -56,11 +50,27 @@ export default function Layout({
         </main>
       </div>
       <Footer />
+
+      <style jsx>{`
+        .main-wrapper {
+          display: grid;
+          grid-template-columns: ${showSidebar ? (collapsed ? '64px 1fr' : '240px 1fr') : '1fr'};
+          transition: grid-template-columns .18s ease;
+          background: var(--bg, #f7f8fa);
+        }
+
+        /* Hide sidebar completely on mobile screens */
+        @media (max-width: 768px) {
+          .main-wrapper {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-function Header({ isCustomer, onToggleSidebar }) {
+function Header({ isCustomer, onToggleSidebar, showSidebar }) {
   return (
     <header
       className="shell-header"
@@ -78,23 +88,26 @@ function Header({ isCustomer, onToggleSidebar }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          aria-label="Toggle sidebar"
-          onClick={onToggleSidebar}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            border: '1px solid #e5e7eb',
-            background: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          <FaBars color="#111827" />
-        </button>
+        {showSidebar && (
+          <button
+            aria-label="Toggle sidebar"
+            onClick={onToggleSidebar}
+            className="sidebar-toggle"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid #e5e7eb',
+              background: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            <FaBars color="#111827" />
+          </button>
+        )}
         <Link
           href="/"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
@@ -116,6 +129,15 @@ function Header({ isCustomer, onToggleSidebar }) {
           </Link>
         </nav>
       )}
+
+      <style jsx>{`
+        /* Hide sidebar toggle on mobile */
+        @media (max-width: 768px) {
+          .sidebar-toggle {
+            display: none !important;
+          }
+        }
+      `}</style>
     </header>
   );
 }
@@ -219,6 +241,15 @@ function Sidebar({ collapsed }) {
         <FaSignOutAlt />
         {!collapsed && <span>Sign Out</span>}
       </button>
+
+      <style jsx>{`
+        /* Hide sidebar completely on mobile */
+        @media (max-width: 768px) {
+          .sidebar {
+            display: none;
+          }
+        }
+      `}</style>
     </aside>
   );
 }
