@@ -136,11 +136,13 @@ export default function MenuPage() {
           placeholder="Search items..."
           value={filterText}
           onChange={e => setFilterText(e.target.value)}
+          style={{ fontSize: 16 }} /* iOS: prevent input zoom [14][12][10][15][16] */
         />
         <select
           className="select category-select"
           value={filterCategory}
           onChange={e => setFilterCategory(e.target.value)}
+          style={{ fontSize: 16 }} /* [14][12][10][15][16] */
         >
           <option value="all">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -196,9 +198,9 @@ export default function MenuPage() {
                 return (
                   <tr key={item.id}>
                     <td><input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} /></td>
-                    <td style={{ maxWidth: 200 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{item.name}</span>
+                    <td style={{ maxWidth: 220 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{item.name}</span>
                         {/* Mobile-only inline actions */}
                         <span className="only-sm mobile-actions">
                           <Button size="sm" variant="outline" onClick={() => setEditorItem(item)}>Edit</Button>
@@ -221,7 +223,7 @@ export default function MenuPage() {
                       </div>
                     </td>
                     <td className="hide-sm">{item.category || '—'}</td>
-                    <td style={{ fontWeight: 600 }}>₹{Number(item.price ?? 0).toFixed(2)}</td>
+                    <td style={{ fontWeight: 700 }}>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td className="hide-sm">{item.hsn || '—'}</td>
                     <td className="hide-xs">{item.tax_rate != null ? Number(item.tax_rate).toFixed(2) : '—'}</td>
                     <td className="hide-sm">{item.is_packaged_good ? Number(item.compensation_cess_rate ?? 0).toFixed(2) : '—'}</td>
@@ -232,7 +234,7 @@ export default function MenuPage() {
                       <span className={`chip ${available ? 'chip--avail' : 'chip--out'}`}>{available ? 'Available' : 'Out of Stock'}</span>
                     </td>
                     <td className="hide-sm" style={{ textAlign: 'right' }}>
-                      <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
+                      <div className="row" style={{ justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                         <Button size="sm" variant="outline" onClick={() => toggleStatus(item.id, item.status)}>
                           {available ? 'Mark Out of Stock' : 'Mark Available'}
                         </Button>
@@ -275,23 +277,16 @@ export default function MenuPage() {
       />
 
       <style jsx>{`
-        .menu-page { 
-          padding: 20px 8px 40px; 
-          max-width: 100%;
-          min-height: 100vh;
+        .menu-page {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 8px 20px;
         }
 
-        .table-scroll { 
-          width: 100%; 
-          overflow-x: auto; 
-          -webkit-overflow-scrolling: touch; 
-        }
+        .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
         /* Badges */
-        .pill {
-          display: inline-block; padding: 4px 10px; border-radius: 999px;
-          font-size: 12px; background: #f3f4f6; white-space: nowrap;
-        }
+        .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #f3f4f6; white-space: nowrap; }
         .pill--pkg { background: #ecfeff; color: #0369a1; }
         .pill--menu { background: #f5f3ff; color: #6d28d9; }
 
@@ -299,46 +294,13 @@ export default function MenuPage() {
         .chip--avail { background: #dcfce7; color: #166534; }
         .chip--out { background: #fee2e2; color: #991b1b; }
 
-        /* Toolbar - mobile first */
-        .toolbar {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin: 16px 0;
-        }
-        
-        .search-input {
-          width: 100%;
-        }
-        
-        .category-select {
-          width: 100%;
-        }
-        
-        .checkbox-group {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-        
-        .flag { 
-          display: inline-flex; 
-          align-items: center; 
-          gap: 6px; 
-          white-space: nowrap; 
-        }
-
-        .toolbar-cta {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 8px;
-        }
-
-        .mobile-actions {
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
+        /* Toolbar - mobile first like Dashboard page */
+        .toolbar { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 16px; }
+        .search-input, .category-select { width: 100%; }
+        .checkbox-group { display: flex; gap: 16px; flex-wrap: wrap; }
+        .flag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+        .toolbar-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+        .mobile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
         /* Default: mobile-only chunks hidden */
         .only-sm { display: none; }
@@ -352,48 +314,26 @@ export default function MenuPage() {
         /* Medium phones */
         @media (max-width: 640px) {
           .hide-sm { display: none; }
-          .table td, .table th { 
-            white-space: nowrap; 
-            padding: 8px 6px;
-            font-size: 14px;
-          }
-          .table thead th { 
-            position: sticky; 
-            top: 0; 
-            z-index: 2; 
-            background: #f9fafb; 
-          }
+          .table td, .table th { white-space: nowrap; padding: 10px 8px; font-size: 14px; }
+          .table thead th { position: sticky; top: 0; z-index: 2; background: #f9fafb; }
         }
 
         /* Tablet and up */
         @media (min-width: 641px) {
           .toolbar {
             display: grid;
-            grid-template-columns: 1fr 200px auto;
+            grid-template-columns: 1fr 220px auto;
             align-items: center;
             gap: 12px;
           }
-          
-          .checkbox-group {
-            grid-column: 3;
-          }
-          
-          .toolbar-cta {
-            grid-column: 1 / -1;
-            display: flex;
-            flex-wrap: wrap;
-          }
+          .checkbox-group { grid-column: 3; }
+          .toolbar-cta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
         }
 
         /* Desktop */
         @media (min-width: 900px) {
-          .toolbar {
-            grid-template-columns: 1fr 220px auto auto;
-          }
-          
-          .checkbox-group {
-            grid-column: auto;
-          }
+          .toolbar { grid-template-columns: 1fr 240px auto auto; }
+          .checkbox-group { grid-column: auto; }
         }
       `}</style>
     </div>
