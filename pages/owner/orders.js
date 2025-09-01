@@ -7,16 +7,11 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 
 const STATUSES = ['new', 'in_progress', 'ready', 'completed']
-// User-facing labels (mobile chips and column headers)
-const LABELS = {
-  new: 'New',
-  in_progress: 'Cooking',
-  ready: 'Ready',
-  completed: 'Done',
-}
+const LABELS = { new: 'New', in_progress: 'Cooking', ready: 'Ready', completed: 'Done' }
 const COLORS = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' }
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`
 const PAGE = 20
+const SHOW_DONE_COUNT = true // set false to hide count on Done chip
 
 function toDisplayItems(order) {
   if (Array.isArray(order?.items) && order.items.length) {
@@ -48,9 +43,7 @@ export default function OrdersPage() {
   const [generatingInvoice, setGeneratingInvoice] = useState(null)
   const [mobileFilter, setMobileFilter] = useState('new')
 
-  // Completed paging (history-lite on dashboard)
   const [completedPage, setCompletedPage] = useState(1)
-
   const restaurantId = restaurant?.id
 
   useEffect(() => {
@@ -67,7 +60,6 @@ export default function OrdersPage() {
       .eq('status', status)
 
     if (status === 'completed') {
-      // Newest first by created_at; show a page
       const from = 0
       const to = page * PAGE - 1
       const { data, error } = await base
@@ -77,7 +69,6 @@ export default function OrdersPage() {
       if (error) throw error
       return data || []
     } else {
-      // FIFO for active lanes (oldest first)
       const { data, error } = await base
         .order('created_at', { ascending: true })
         .order('id', { ascending: true })
@@ -97,18 +88,18 @@ export default function OrdersPage() {
         fetchBucket('completed', pageForCompleted),
       ])
 
-      // Fetch invoices for the currently displayed orders (full audit stays in DB)
+      // join invoice links for currently shown rows
       const allRows = [...newRows, ...inProgRows, ...readyRows, ...completedRows]
-      const orderIds = allRows.map((o) => o.id)
+      const orderIds = allRows.map(o => o.id)
       let invMap = {}
       if (orderIds.length) {
         const { data: invoicesData } = await supabase
           .from('invoices')
           .select('order_id, pdf_url')
           .in('order_id', orderIds)
-        invoicesData?.forEach((i) => { invMap[i.order_id] = i })
+        invoicesData?.forEach(i => { invMap[i.order_id] = i })
       }
-      const attachInvoice = (rows) => rows.map((o) => ({ ...o, invoice: invMap[o.id] || null }))
+      const attachInvoice = rows => rows.map(o => ({ ...o, invoice: invMap[o.id] || null }))
 
       setOrdersByStatus({
         new: attachInvoice(newRows),
@@ -124,9 +115,9 @@ export default function OrdersPage() {
   }
 
   async function loadMoreCompleted() {
-    const nextPage = completedPage + 1
-    setCompletedPage(nextPage)
-    await loadOrders(nextPage)
+    const next = completedPage + 1
+    setCompletedPage(next)
+    await loadOrders(next)
   }
 
   const liveCount =
@@ -206,25 +197,23 @@ export default function OrdersPage() {
         </div>
       ) : (
         <>
-          {/* Mobile segmented filters with compact labels + icons */}
+          {/* Mobile filters: Kampang compact chips, no emojis */}
           <div className="mobile-filters">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                className={`chip ${mobileFilter === s ? 'chip--active' : ''}`}
-                onClick={() => setMobileFilter(s)}
-                aria-label={`Filter ${LABELS[s]}`}
-              >
-                <span aria-hidden>
-                  {s === 'new' && '•'}
-                  {s === 'in_progress' && '⏲️'}
-                  {s === 'ready' && '✅'}
-                  {s === 'completed' && '📄'}
-                </span>
-                {LABELS[s]}
-                <span className="chip-count">{ordersByStatus[s]?.length || 0}</span>
-              </button>
-            ))}
+            {STATUSES.map((s) => {
+              const count = ordersByStatus[s]?.length || 0
+              const showCount = s === 'completed' ? (SHOW_DONE_COUNT ? count : 0) : count
+              return (
+                <button
+                  key={s}
+                  className={`chip ${mobileFilter === s ? 'chip--active' : ''}`}
+                  onClick={() => setMobileFilter(s)}
+                  aria-label={`Filter ${LABELS[s]}`}
+                >
+                  <span className="chip-label">{LABELS[s]}</span>
+                  <span className="chip-count">{showCount}</span>
+                </button>
+              )
+            })}
           </div>
 
           {/* Mobile list */}
@@ -316,46 +305,42 @@ export default function OrdersPage() {
       )}
 
       <style jsx>{`
+        /* Kampang page structure */
         .orders-wrap { padding: 12px 0 32px; }
         .orders-header {
           display: flex; justify-content: space-between; align-items: center;
-          gap: 12px; margin: 0 8px 12px;
+          gap: 12px; margin: 0 12px 14px;
         }
         .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
-        .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
+        /* Kampang chips: clean, rounded, bold counts; no emojis */
         .mobile-filters {
           display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
-          gap: 8px; padding: 0 8px 10px;
+          gap: 8px; padding: 0 12px 12px;
         }
-        /* Compact, high-contrast chips */
         .chip {
           border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          border-radius: 14px;
           padding: 10px 12px;
           background: #fff;
-          font-size: 13px;
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-          align-items: center;
-          min-height: 44px;
-          white-space: nowrap;
-          font-weight: 600;
-          color: #111827;
+          display: flex; gap: 8px; align-items: center; justify-content: center;
+          min-height: 44px; white-space: nowrap;
+          box-shadow: 0 1px 0 rgba(0,0,0,0.02);
         }
-        .chip--active { border-color: #c7d2fe; background: #eef2ff; }
+        .chip--active {
+          border-color: #c7d2fe;
+          background: #eef2ff;
+        }
+        .chip-label { font-weight: 600; color: #111827; font-size: 13px; }
         .chip-count {
-          background: #111827;
-          color: #fff;
-          padding: 0 6px;
-          border-radius: 999px;
-          font-size: 12px;
-          line-height: 20px;
+          background: #111827; color: #fff; border-radius: 999px;
+          padding: 0 8px; line-height: 20px; font-size: 12px; font-weight: 700;
         }
 
-        .mobile-list { display: grid; gap: 10px; padding: 0 8px; }
+        .mobile-list { display: grid; gap: 10px; padding: 0 12px; }
 
+        /* Kanban (desktop) */
         .kanban {
           display: none;
           grid-template-columns: repeat(4, minmax(0,1fr));
@@ -369,7 +354,7 @@ export default function OrdersPage() {
         @media (min-width: 1024px) {
           .mobile-filters, .mobile-list { display: none; }
           .kanban { display: grid; }
-          .orders-header { margin: 0 12px 16px; }
+          .orders-header { margin: 0 16px 16px; }
         }
 
         :global(button) { min-height: 44px; }
@@ -378,22 +363,53 @@ export default function OrdersPage() {
   )
 }
 
+/* Order tile (Kampang card) with table number added */
 function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order)
   const hasInvoice = order?.invoice?.pdf_url
   const total = Number(order?.total_inc_tax ?? order?.total_amount ?? 0)
+  const table = order?.table_number
+
   return (
-    <Card padding={12} style={{ cursor: 'pointer' }} onClick={onSelect}>
+    <Card
+      padding={12}
+      style={{
+        cursor: 'pointer',
+        borderRadius: 12,
+        boxShadow: '0 1px 2px rgba(0,0,0,.04)',
+        border: '1px solid #eef2f7',
+      }}
+      onClick={onSelect}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <strong style={{ overflowWrap: 'anywhere' }}>#{order.id.slice(0,8)}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowWrap: 'anywhere' }}>
+          <strong>#{order.id.slice(0,8)}</strong>
+          {table && (
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#334155',
+                background: '#f1f5f9',
+                border: '1px solid #e2e8f0',
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}
+            >
+              Table {table}
+            </span>
+          )}
+        </div>
         <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
       </div>
-      <div style={{ margin: '6px 0', color: '#111827', fontSize: 14 }}>
+
+      <div style={{ margin: '8px 0', color: '#111827', fontSize: 14 }}>
         {items.slice(0, 2).map((it, i) => <div key={i}>{it.quantity}× {it.name}</div>)}
         {items.length > 2 && <div style={{ color: '#9ca3af' }}>+{items.length - 2} more</div>}
       </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
-        <span style={{ fontWeight: 600 }}>{money(total)}</span>
+        <span style={{ fontWeight: 700, fontSize: 16 }}>{money(total)}</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
           {order.status === 'new' && (
             <Button size="sm" onClick={() => onStatusChange(order.id, 'in_progress')}>Start</Button>
@@ -415,7 +431,8 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
           )}
         </div>
       </div>
-      <div style={{ height: 2, marginTop: 8, borderRadius: 2, background: statusColor, opacity: 0.2 }} />
+
+      <div style={{ height: 2, marginTop: 10, borderRadius: 2, background: statusColor, opacity: 0.2 }} />
     </Card>
   )
 }
@@ -426,6 +443,8 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
   const subtotal = Number(order?.subtotal_ex_tax ?? order?.subtotal ?? 0)
   const tax = Number(order?.total_tax ?? order?.tax_amount ?? 0)
   const total = Number(order?.total_inc_tax ?? order?.total_amount ?? 0)
+  const table = order?.table_number
+
   return (
     <div className="modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal__card" style={{ maxWidth: 520 }}>
@@ -433,11 +452,13 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
           <h2 style={{ margin: 0 }}>Order #{order.id.slice(0,8)}</h2>
           <Button variant="outline" onClick={onClose}>×</Button>
         </div>
+
         <Card padding={16}>
           <div><strong>Time:</strong> {new Date(order.created_at).toLocaleString()}</div>
-          <div><strong>Table:</strong> {order.table_number}</div>
+          <div><strong>Table:</strong> {table ?? '—'}</div>
           <div><strong>Payment:</strong> {order.payment_method}</div>
         </Card>
+
         <Card padding={16} style={{ marginTop: 12 }}>
           <h3 style={{ marginTop: 0 }}>Items</h3>
           {items.map((it, i) => (
@@ -447,6 +468,7 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
             </div>
           ))}
         </Card>
+
         <Card padding={16} style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal</span><span>{money(subtotal)}</span>
@@ -454,10 +476,11 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Tax</span><span>{money(tax)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, marginTop: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: 6 }}>
             <span>Total</span><span>{money(total)}</span>
           </div>
         </Card>
+
         <div style={{ textAlign: 'right', marginTop: 12 }}>
           {!hasInvoice && order.status === 'ready' && (
             <Button onClick={() => onCompleteOrder(order.id, order.payment_method)} disabled={generatingInvoice === order.id}>
@@ -471,7 +494,7 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
       </div>
       <style jsx>{`
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
-        .modal__card { background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 92vh; overflow: auto; }
+        .modal__card { background: #fff; width: 100%; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); max-height: 92vh; overflow: auto; }
       `}</style>
     </div>
   )
@@ -490,7 +513,7 @@ function ConfirmDialog({ title, message, confirmText, cancelText, onConfirm, onC
       </div>
       <style jsx>{`
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
-        .modal__card { background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 92vh; overflow: auto; }
+        .modal__card { background: #fff; width: 100%; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); max-height: 92vh; overflow: auto; }
       `}</style>
     </div>
   )
