@@ -10,6 +10,7 @@ const STATUSES = ['new', 'in_progress', 'ready', 'completed']
 const LABELS = { new: 'New', in_progress: 'In Progress', ready: 'Ready', completed: 'Completed' }
 const COLORS = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' }
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`
+const PAGE = 20
 
 function toDisplayItems(order) {
   if (Array.isArray(order?.items) && order.items.length) {
@@ -41,40 +42,73 @@ export default function OrdersPage() {
   const [generatingInvoice, setGeneratingInvoice] = useState(null)
   const [mobileFilter, setMobileFilter] = useState('new')
 
+  const [completedPage, setCompletedPage] = useState(1)
+
   const restaurantId = restaurant?.id
 
   useEffect(() => {
     if (!restaurantId || checking || restLoading) return
-    loadOrders()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setCompletedPage(1)
+    loadOrders(1)
   }, [restaurantId, checking, restLoading])
 
-  async function loadOrders() {
+  async function fetchBucket(status, page = 1) {
+    const base = supabase
+      .from('orders')
+      .select('*, order_items(*, menu_items(name))')
+      .eq('restaurant_id', restaurantId)
+      .eq('status', status)
+
+    if (status === 'completed') {
+      const from = 0
+      const to = page * PAGE - 1
+      const { data, error } = await base
+        .order('completed_at', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: false })
+        .range(from, to)
+      if (error) throw error
+      return data || []
+    } else {
+      const { data, error } = await base
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+      if (error) throw error
+      return data || []
+    }
+  }
+
+  async function loadOrders(pageForCompleted = completedPage) {
     setLoading(true)
     setError('')
     try {
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*, order_items(*, menu_items(name))')
-        .eq('restaurant_id', restaurantId)
-        .in('status', STATUSES)
-        .order('created_at', { ascending: true })
-      if (ordersError) throw ordersError
+      const [newRows, inProgRows, readyRows, completedRows] = await Promise.all([
+        fetchBucket('new'),
+        fetchBucket('in_progress'),
+        fetchBucket('ready'),
+        fetchBucket('completed', pageForCompleted),
+      ])
 
-      const orderIds = (ordersData || []).map((o) => o.id)
+      // Fetch invoices for visible orders
+      const allRows = [...newRows, ...inProgRows, ...readyRows, ...completedRows]
+      const orderIds = allRows.map((o) => o.id)
       let invMap = {}
-      if (orderIds.length > 0) {
+      if (orderIds.length) {
         const { data: invoicesData } = await supabase
           .from('invoices')
           .select('order_id, pdf_url')
           .in('order_id', orderIds)
-        invoicesData?.forEach(i => { invMap[i.order_id] = i })
+        invoicesData?.forEach((i) => {
+          invMap[i.order_id] = i
+        })
       }
-      ordersData?.forEach(o => { o.invoice = invMap[o.id] || null })
+      const attachInvoice = (rows) => rows.map((o) => ({ ...o, invoice: invMap[o.id] || null }))
 
-      const grouped = { new: [], in_progress: [], ready: [], completed: [] }
-      for (const o of ordersData || []) grouped[STATUSES.includes(o.status) ? o.status : 'new'].push(o)
-      setOrdersByStatus(grouped)
+      setOrdersByStatus({
+        new: attachInvoice(newRows),
+        in_progress: attachInvoice(inProgRows),
+        ready: attachInvoice(readyRows),
+        completed: attachInvoice(completedRows),
+      })
     } catch (e) {
       setError(e.message || 'Failed to load orders')
     } finally {
@@ -82,13 +116,27 @@ export default function OrdersPage() {
     }
   }
 
-  const liveCount = (ordersByStatus.new?.length || 0) + (ordersByStatus.in_progress?.length || 0) + (ordersByStatus.ready?.length || 0)
+  async function loadMoreCompleted() {
+    const nextPage = completedPage + 1
+    setCompletedPage(nextPage)
+    await loadOrders(nextPage)
+  }
+
+  const liveCount =
+    (ordersByStatus.new?.length || 0) +
+    (ordersByStatus.in_progress?.length || 0) +
+    (ordersByStatus.ready?.length || 0)
 
   const updateStatus = async (id, status) => {
     try {
-      const { error } = await supabase.from('orders').update({ status }).eq('id', id).eq('restaurant_id', restaurantId)
+      const { error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', id)
+        .eq('restaurant_id', restaurantId)
       if (error) throw error
-      loadOrders()
+      // Keep current paging for completed
+      await loadOrders()
     } catch (e) {
       setError(e.message || 'Failed to update order')
     }
@@ -115,7 +163,7 @@ export default function OrdersPage() {
         const j = await resp.json().catch(() => ({}))
         throw new Error(j.error || 'Invoice generation failed')
       }
-      loadOrders()
+      await loadOrders()
     } catch (e) {
       setError(e.message || 'Failed to complete order')
     } finally {
@@ -134,7 +182,7 @@ export default function OrdersPage() {
         <h1>Orders Dashboard</h1>
         <div className="header-actions">
           <span className="muted">{liveCount} live orders</span>
-          <Button variant="outline" onClick={loadOrders}>Refresh</Button>
+          <Button variant="outline" onClick={() => { setCompletedPage(1); loadOrders(1); }}>Refresh</Button>
         </div>
       </header>
 
@@ -154,7 +202,7 @@ export default function OrdersPage() {
         <>
           {/* Mobile segmented filters */}
           <div className="mobile-filters">
-            {STATUSES.map(s => (
+            {STATUSES.map((s) => (
               <button
                 key={s}
                 className={`chip ${mobileFilter === s ? 'chip--active' : ''}`}
@@ -173,7 +221,7 @@ export default function OrdersPage() {
                 No {LABELS[mobileFilter].toLowerCase()}
               </Card>
             ) : (
-              mobileList.map(o => (
+              mobileList.map((o) => (
                 <OrderCard
                   key={o.id}
                   order={o}
@@ -184,6 +232,12 @@ export default function OrdersPage() {
                   generatingInvoice={generatingInvoice}
                 />
               ))
+            )}
+
+            {mobileFilter === 'completed' && (ordersByStatus.completed?.length || 0) >= PAGE && (
+              <div style={{ padding: '8px', display: 'flex', justifyContent: 'center' }}>
+                <Button variant="outline" onClick={loadMoreCompleted}>Load more</Button>
+              </div>
             )}
           </div>
 
@@ -199,7 +253,7 @@ export default function OrdersPage() {
                   {(ordersByStatus[status] || []).length === 0 ? (
                     <div className="empty-col">No {LABELS[status].toLowerCase()}</div>
                   ) : (
-                    ordersByStatus[status].map(o => (
+                    ordersByStatus[status].map((o) => (
                       <OrderCard
                         key={o.id}
                         order={o}
@@ -210,6 +264,11 @@ export default function OrdersPage() {
                         generatingInvoice={generatingInvoice}
                       />
                     ))
+                  )}
+                  {status === 'completed' && (ordersByStatus.completed?.length || 0) >= PAGE && (
+                    <div style={{ paddingTop: 8 }}>
+                      <Button variant="outline" onClick={loadMoreCompleted}>Load more</Button>
+                    </div>
                   )}
                 </div>
               </Card>
@@ -240,14 +299,12 @@ export default function OrdersPage() {
 
       <style jsx>{`
         .orders-wrap { padding: 12px 0 32px; }
-
         .orders-header {
           display: flex; justify-content: space-between; align-items: center;
           gap: 12px; margin: 0 8px 12px;
         }
         .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
         .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
         .mobile-filters {
           display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
           gap: 8px; padding: 0 8px 10px;
@@ -260,7 +317,6 @@ export default function OrdersPage() {
         .chip--active { background: #eef2ff; border-color: #c7d2fe; }
         .chip-count { background: #f3f4f6; padding: 0 6px; border-radius: 999px; font-size: 11px; }
         .mobile-list { display: grid; gap: 10px; padding: 0 8px; }
-
         .kanban {
           display: none;
           grid-template-columns: repeat(4, minmax(0,1fr));
@@ -270,13 +326,11 @@ export default function OrdersPage() {
         .pill { background: #f3f4f6; padding: 4px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
         .kanban-col-body { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow: auto; }
         .empty-col { text-align: center; color: #9ca3af; padding: 20px; border: 1px dashed #e5e7eb; border-radius: 8px; }
-
         @media (min-width: 1024px) {
           .mobile-filters, .mobile-list { display: none; }
           .kanban { display: grid; }
           .orders-header { margin: 0 12px 16px; }
         }
-
         :global(button) { min-height: 44px; }
       `}</style>
     </div>
@@ -287,19 +341,16 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
   const items = toDisplayItems(order)
   const hasInvoice = order?.invoice?.pdf_url
   const total = Number(order?.total_inc_tax ?? order?.total_amount ?? 0)
-
   return (
     <Card padding={12} style={{ cursor: 'pointer' }} onClick={onSelect}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <strong style={{ overflowWrap: 'anywhere' }}>#{order.id.slice(0,8)}</strong>
         <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
       </div>
-
       <div style={{ margin: '6px 0', color: '#111827', fontSize: 14 }}>
         {items.slice(0, 2).map((it, i) => <div key={i}>{it.quantity}× {it.name}</div>)}
         {items.length > 2 && <div style={{ color: '#9ca3af' }}>+{items.length - 2} more</div>}
       </div>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
         <span style={{ fontWeight: 600 }}>{money(total)}</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
@@ -323,7 +374,6 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
           )}
         </div>
       </div>
-
       <div style={{ height: 2, marginTop: 8, borderRadius: 2, background: statusColor, opacity: 0.2 }} />
     </Card>
   )
@@ -335,7 +385,6 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
   const subtotal = Number(order?.subtotal_ex_tax ?? order?.subtotal ?? 0)
   const tax = Number(order?.total_tax ?? order?.tax_amount ?? 0)
   const total = Number(order?.total_inc_tax ?? order?.total_amount ?? 0)
-
   return (
     <div className="modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal__card" style={{ maxWidth: 520 }}>
@@ -343,13 +392,11 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
           <h2 style={{ margin: 0 }}>Order #{order.id.slice(0,8)}</h2>
           <Button variant="outline" onClick={onClose}>×</Button>
         </div>
-
         <Card padding={16}>
           <div><strong>Time:</strong> {new Date(order.created_at).toLocaleString()}</div>
           <div><strong>Table:</strong> {order.table_number}</div>
           <div><strong>Payment:</strong> {order.payment_method}</div>
         </Card>
-
         <Card padding={16} style={{ marginTop: 12 }}>
           <h3 style={{ marginTop: 0 }}>Items</h3>
           {items.map((it, i) => (
@@ -359,7 +406,6 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
             </div>
           ))}
         </Card>
-
         <Card padding={16} style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal</span><span>{money(subtotal)}</span>
@@ -371,7 +417,6 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
             <span>Total</span><span>{money(total)}</span>
           </div>
         </Card>
-
         <div style={{ textAlign: 'right', marginTop: 12 }}>
           {!hasInvoice && order.status === 'ready' && (
             <Button onClick={() => onCompleteOrder(order.id, order.payment_method)} disabled={generatingInvoice === order.id}>
@@ -383,7 +428,6 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
           )}
         </div>
       </div>
-
       <style jsx>{`
         .modal {
           position: fixed; inset: 0; background: rgba(0,0,0,0.35);
