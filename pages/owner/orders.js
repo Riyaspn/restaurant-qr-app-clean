@@ -60,15 +60,17 @@ export default function OrdersPage() {
       .eq('status', status)
 
     if (status === 'completed') {
+      // Newest first using created_at (no completed_at in schema)
       const from = 0
       const to = page * PAGE - 1
       const { data, error } = await base
-        .order('completed_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .range(from, to)
       if (error) throw error
       return data || []
     } else {
+      // FIFO for active lanes
       const { data, error } = await base
         .order('created_at', { ascending: true })
         .order('id', { ascending: true })
@@ -88,7 +90,6 @@ export default function OrdersPage() {
         fetchBucket('completed', pageForCompleted),
       ])
 
-      // Fetch invoices for visible orders
       const allRows = [...newRows, ...inProgRows, ...readyRows, ...completedRows]
       const orderIds = allRows.map((o) => o.id)
       let invMap = {}
@@ -97,9 +98,7 @@ export default function OrdersPage() {
           .from('invoices')
           .select('order_id, pdf_url')
           .in('order_id', orderIds)
-        invoicesData?.forEach((i) => {
-          invMap[i.order_id] = i
-        })
+        invoicesData?.forEach((i) => { invMap[i.order_id] = i })
       }
       const attachInvoice = (rows) => rows.map((o) => ({ ...o, invoice: invMap[o.id] || null }))
 
@@ -135,7 +134,6 @@ export default function OrdersPage() {
         .eq('id', id)
         .eq('restaurant_id', restaurantId)
       if (error) throw error
-      // Keep current paging for completed
       await loadOrders()
     } catch (e) {
       setError(e.message || 'Failed to update order')
@@ -429,14 +427,8 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
         </div>
       </div>
       <style jsx>{`
-        .modal {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.35);
-          display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px;
-        }
-        .modal__card {
-          background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-          max-height: 92vh; overflow: auto;
-        }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
+        .modal__card { background: #fff; width: 100%; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 92vh; overflow: auto; }
       `}</style>
     </div>
   )

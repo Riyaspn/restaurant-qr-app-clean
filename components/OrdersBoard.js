@@ -21,12 +21,12 @@ export default function OrdersBoard({ restaurantId }) {
       try {
         const buckets = { ...DEFAULT_BUCKETS }
 
-        // Fetch each bucket independently to control sorting
         const fetchBucket = async (status) => {
           const base = supabase.from('orders').select('*').eq('restaurant_id', restaurantId).eq('status', status)
           if (status === 'completed') {
+            // Newest first by created_at
             const { data, error } = await base
-              .order('completed_at', { ascending: false, nullsFirst: false })
+              .order('created_at', { ascending: false })
               .order('id', { ascending: false })
               .range(0, PAGE - 1)
             if (error) throw error
@@ -58,8 +58,6 @@ export default function OrdersBoard({ restaurantId }) {
   const updateStatus = async (order, next) => {
     if (!STATUSES.includes(next)) return
     const id = order.id
-
-    // optimistic remove from all, add to target
     setOrders((prev) => {
       const copy = { ...DEFAULT_BUCKETS }
       STATUSES.forEach((s) => { copy[s] = prev[s].filter((o) => o.id !== id) })
@@ -67,10 +65,8 @@ export default function OrdersBoard({ restaurantId }) {
       copy[next] = [updated, ...copy[next]]
       return copy
     })
-
     const { error } = await supabase.from('orders').update({ status: next }).eq('id', id)
     if (error) {
-      // fallback reload
       const { data } = await supabase.from('orders').select('*').eq('restaurant_id', restaurantId)
       const rows = Array.isArray(data) ? data : []
       const grouped = { ...DEFAULT_BUCKETS }
@@ -78,10 +74,9 @@ export default function OrdersBoard({ restaurantId }) {
         const key = STATUSES.includes(String(o.status)) ? String(o.status) : 'new'
         grouped[key].push(o)
       })
-      // Sort completed newest first, limit 20
       grouped.completed.sort((a, b) => {
-        const ta = a.completed_at ? new Date(a.completed_at).getTime() : 0
-        const tb = b.completed_at ? new Date(b.completed_at).getTime() : 0
+        const tb = new Date(b.created_at).getTime()
+        const ta = new Date(a.created_at).getTime()
         if (tb !== ta) return tb - ta
         return String(b.id).localeCompare(String(a.id))
       })
