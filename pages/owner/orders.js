@@ -7,7 +7,13 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 
 const STATUSES = ['new', 'in_progress', 'ready', 'completed']
-const LABELS = { new: 'New', in_progress: 'In Progress', ready: 'Ready', completed: 'Completed' }
+// User-facing labels (mobile chips and column headers)
+const LABELS = {
+  new: 'New',
+  in_progress: 'Cooking',
+  ready: 'Ready',
+  completed: 'Done',
+}
 const COLORS = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' }
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`
 const PAGE = 20
@@ -42,6 +48,7 @@ export default function OrdersPage() {
   const [generatingInvoice, setGeneratingInvoice] = useState(null)
   const [mobileFilter, setMobileFilter] = useState('new')
 
+  // Completed paging (history-lite on dashboard)
   const [completedPage, setCompletedPage] = useState(1)
 
   const restaurantId = restaurant?.id
@@ -60,7 +67,7 @@ export default function OrdersPage() {
       .eq('status', status)
 
     if (status === 'completed') {
-      // Newest first using created_at (no completed_at in schema)
+      // Newest first by created_at; show a page
       const from = 0
       const to = page * PAGE - 1
       const { data, error } = await base
@@ -70,7 +77,7 @@ export default function OrdersPage() {
       if (error) throw error
       return data || []
     } else {
-      // FIFO for active lanes
+      // FIFO for active lanes (oldest first)
       const { data, error } = await base
         .order('created_at', { ascending: true })
         .order('id', { ascending: true })
@@ -90,6 +97,7 @@ export default function OrdersPage() {
         fetchBucket('completed', pageForCompleted),
       ])
 
+      // Fetch invoices for the currently displayed orders (full audit stays in DB)
       const allRows = [...newRows, ...inProgRows, ...readyRows, ...completedRows]
       const orderIds = allRows.map((o) => o.id)
       let invMap = {}
@@ -198,7 +206,7 @@ export default function OrdersPage() {
         </div>
       ) : (
         <>
-          {/* Mobile segmented filters */}
+          {/* Mobile segmented filters with compact labels + icons */}
           <div className="mobile-filters">
             {STATUSES.map((s) => (
               <button
@@ -207,7 +215,14 @@ export default function OrdersPage() {
                 onClick={() => setMobileFilter(s)}
                 aria-label={`Filter ${LABELS[s]}`}
               >
-                {LABELS[s]} <span className="chip-count">{ordersByStatus[s]?.length || 0}</span>
+                <span aria-hidden>
+                  {s === 'new' && '•'}
+                  {s === 'in_progress' && '⏲️'}
+                  {s === 'ready' && '✅'}
+                  {s === 'completed' && '📄'}
+                </span>
+                {LABELS[s]}
+                <span className="chip-count">{ordersByStatus[s]?.length || 0}</span>
               </button>
             ))}
           </div>
@@ -264,9 +279,14 @@ export default function OrdersPage() {
                     ))
                   )}
                   {status === 'completed' && (ordersByStatus.completed?.length || 0) >= PAGE && (
-                    <div style={{ paddingTop: 8 }}>
-                      <Button variant="outline" onClick={loadMoreCompleted}>Load more</Button>
-                    </div>
+                    <>
+                      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                        Showing latest {(ordersByStatus.completed || []).length} completed orders
+                      </div>
+                      <div style={{ paddingTop: 8 }}>
+                        <Button variant="outline" onClick={loadMoreCompleted}>Load more</Button>
+                      </div>
+                    </>
                   )}
                 </div>
               </Card>
@@ -303,18 +323,39 @@ export default function OrdersPage() {
         }
         .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
         .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
         .mobile-filters {
           display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
           gap: 8px; padding: 0 8px 10px;
         }
+        /* Compact, high-contrast chips */
         .chip {
-          border: 1px solid #e5e7eb; border-radius: 999px; padding: 10px 12px;
-          background: #fff; font-size: 12px; display: flex; gap: 6px; justify-content: center; align-items: center;
-          min-height: 44px; white-space: nowrap;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 10px 12px;
+          background: #fff;
+          font-size: 13px;
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          align-items: center;
+          min-height: 44px;
+          white-space: nowrap;
+          font-weight: 600;
+          color: #111827;
         }
-        .chip--active { background: #eef2ff; border-color: #c7d2fe; }
-        .chip-count { background: #f3f4f6; padding: 0 6px; border-radius: 999px; font-size: 11px; }
+        .chip--active { border-color: #c7d2fe; background: #eef2ff; }
+        .chip-count {
+          background: #111827;
+          color: #fff;
+          padding: 0 6px;
+          border-radius: 999px;
+          font-size: 12px;
+          line-height: 20px;
+        }
+
         .mobile-list { display: grid; gap: 10px; padding: 0 8px; }
+
         .kanban {
           display: none;
           grid-template-columns: repeat(4, minmax(0,1fr));
@@ -324,11 +365,13 @@ export default function OrdersPage() {
         .pill { background: #f3f4f6; padding: 4px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
         .kanban-col-body { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow: auto; }
         .empty-col { text-align: center; color: #9ca3af; padding: 20px; border: 1px dashed #e5e7eb; border-radius: 8px; }
+
         @media (min-width: 1024px) {
           .mobile-filters, .mobile-list { display: none; }
           .kanban { display: grid; }
           .orders-header { margin: 0 12px 16px; }
         }
+
         :global(button) { min-height: 44px; }
       `}</style>
     </div>
