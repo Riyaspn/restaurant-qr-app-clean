@@ -7,10 +7,10 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [list, setList] = useState([]);
-  const [cats, setCats] = useState([]);
+  const [cats, setCats] = useState([]);       // [{id,name}]
   const [q, setQ] = useState('');
   const [vegOnly, setVegOnly] = useState(false);
-  const [cat, setCat] = useState('all');
+  const [cat, setCat] = useState('all');      // category_id filter
   const [selected, setSelected] = useState({}); // id -> price
 
   // Packaged/tax defaults
@@ -18,7 +18,7 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
   const [defaultTax, setDefaultTax] = useState(0);
   const [defaultCess, setDefaultCess] = useState(0);
 
-  // Reset form each time it opens
+  // Reset on open
   useEffect(() => {
     if (!open) return;
     setSelected({});
@@ -30,16 +30,16 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
     setDefaultCess(0);
   }, [open]);
 
-  // Lock background scroll on open (iOS-friendly)
+  // Lock background scroll on iOS while modal open
   useEffect(() => {
     if (!open) return;
     document.body.classList.add('modal-open');
     return () => document.body.classList.remove('modal-open');
-  }, [open]); // [9]
+  }, [open]); // [web:254]
 
-  // Load categories and library items
+  // Load categories (global + restaurant) and library items
   useEffect(() => {
-    if (!open) return;
+    if (!open || !restaurantId) return;
     const load = async () => {
       setLoading(true);
       setError('');
@@ -47,8 +47,9 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
         const { data: categories, error: catErr } = await supabase
           .from('categories')
           .select('id,name')
-          .eq('is_global', true)
-          .order('name');
+          .or(`is_global.eq.true,restaurant_id.eq.${restaurantId}`)
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true });
         if (catErr) throw catErr;
 
         const { data: items, error: libErr } = await supabase
@@ -65,7 +66,7 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
       }
     };
     load();
-  }, [open]);
+  }, [open, restaurantId]);
 
   // Filters
   const filtered = useMemo(() => {
@@ -105,13 +106,14 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
       const rows = ids.map(id => {
         const it = list.find(x => x.id === id);
         const price = Number(selected[id] ?? it?.default_price ?? 0);
-        const catName = cats.find(c => c.id === it?.category_id)?.name || null;
+        // Resolve category name via categories table (1:1 with Add Item / filter)
+        const catName = cats.find(c => c.id === it?.category_id)?.name || 'main';
         return {
           restaurant_id: restaurantId,
           name: it?.name || '',
           price: Number.isFinite(price) ? price : 0,
           veg: !!it?.veg,
-          category: catName,
+          category: catName, // write the canonical name for grouping
           is_available: true,
           description: it?.description ?? null,
           image_url: it?.image_url ?? null,
@@ -126,8 +128,8 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
         .from('menu_items')
         .insert(rows)
         .select('id, name, price, category, veg, status, hsn, tax_rate, is_packaged_good, compensation_cess_rate, image_url, description');
-
       if (error) throw error;
+
       onAdded?.(data || []);
       onClose?.();
     } catch (e) {
@@ -142,13 +144,11 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
   return (
     <div className="lib-overlay" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose?.()}>
       <div className="lib-card">
-        {/* Sticky header */}
         <div className="lib-head">
           <h2 style={{ margin: 0, fontSize: 20 }}>Add from Library</h2>
           <Button size="sm" variant="outline" onClick={onClose} disabled={loading}>Close</Button>
         </div>
 
-        {/* Filters */}
         <div className="lib-filters">
           <div className="filters-row">
             <input
@@ -210,7 +210,6 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
           )}
         </div>
 
-        {/* Scrollable body */}
         <div className="lib-body">
           {loading ? (
             <div className="card" style={{ padding: 16 }}>Loading…</div>
@@ -264,7 +263,6 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
           )}
         </div>
 
-        {/* Sticky footer */}
         <div className="lib-foot">
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button onClick={addSelected} disabled={loading}>{loading ? 'Adding…' : 'Add Selected'}</Button>
@@ -272,28 +270,23 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
       </div>
 
       <style jsx>{`
-        /* Overlay */
         .lib-overlay {
           position: fixed; inset: 0;
           background: rgba(0,0,0,0.45);
           z-index: 1000;
           display: grid; place-items: center;
           padding: env(safe-area-inset-top) 8px calc(8px + env(safe-area-inset-bottom)) 8px;
-          overscroll-behavior: contain; /* avoid rubber-band */ /* [8] */
+          overscroll-behavior: contain;
         }
-
-        /* Card constrained to viewport */
         .lib-card {
           width: min(100%, 740px);
-          max-height: 90vh;                 /* critical on iOS */ /* [6] */
+          max-height: 90vh;
           background: #fff;
           border-radius: 12px;
           box-shadow: 0 20px 60px rgba(0,0,0,.25);
           display: flex; flex-direction: column;
           overflow: hidden;
         }
-
-        /* Sticky areas */
         .lib-head {
           position: sticky; top: 0; z-index: 2;
           display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -301,36 +294,18 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
         }
         .lib-filters { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; background: #fff; }
         .filters-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
-        @media (max-width: 480px) {
-          .filters-row { grid-template-columns: 1fr auto; }
-        }
-
+        @media (max-width: 480px) { .filters-row { grid-template-columns: 1fr auto; } }
         .flag { display: inline-grid; grid-auto-flow: column; align-items: center; column-gap: 6px; white-space: nowrap; }
         .flag input[type="checkbox"] { margin: 0; inline-size: 20px; block-size: 20px; }
-
         .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
         .field span { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
-
-        /* Scrollable content body */
-        .lib-body {
-          overflow: auto; -webkit-overflow-scrolling: touch;
-          padding: 0 14px 14px 14px;
-        }
-
+        .lib-body { overflow: auto; -webkit-overflow-scrolling: touch; padding: 0 14px 14px 14px; }
         .truncate { display: inline-block; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         @media (max-width: 640px) { .truncate { max-width: 160px; } }
-
         .table { width: 100%; border-collapse: collapse; background: #fff; }
         .table th, .table td { padding: 10px; border-bottom: 1px solid #f3f4f6; text-align: left; white-space: nowrap; }
         .table thead th { position: sticky; top: 0; z-index: 1; background: #f9fafb; }
-
-        /* Sticky footer */
-        .lib-foot {
-          position: sticky; bottom: 0;
-          padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-          border-top: 1px solid #e5e7eb; background: #fff;
-          display: flex; gap: 8px; justify-content: flex-end;
-        }
+        .lib-foot { position: sticky; bottom: 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid #e5e7eb; background: #fff; display: flex; gap: 8px; justify-content: flex-end; }
       `}</style>
     </div>
   );

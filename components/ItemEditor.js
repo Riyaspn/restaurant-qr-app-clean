@@ -5,10 +5,14 @@ import { supabase } from '../services/supabase'
 export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
   const isEdit = !!item?.id
 
+  // Categories (global + restaurant)
+  const [cats, setCats] = useState([])           // [{id,name}]
+  const [loadingCats, setLoadingCats] = useState(false)
+
   // Form state
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
-  const [category, setCategory] = useState(item?.category || 'main')
+  const [category, setCategory] = useState(item?.category || 'main') // store the name
   const [status, setStatus] = useState(item?.status || 'available')
   const [veg, setVeg] = useState(item?.veg ?? true)
 
@@ -20,6 +24,29 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+
+  // Load categories the same way as Menu/Library
+  useEffect(() => {
+    if (!open || !restaurantId) return
+    const loadCats = async () => {
+      setLoadingCats(true)
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id,name')
+          .or(`is_global.eq.true,restaurant_id.eq.${restaurantId}`)
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true })
+        if (error) throw error
+        setCats(data || [])
+      } catch (e) {
+        // silent; keep manual entry fallback
+      } finally {
+        setLoadingCats(false)
+      }
+    }
+    loadCats()
+  }, [open, restaurantId])
 
   useEffect(() => {
     setName(item?.name || '')
@@ -46,26 +73,43 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
   if (!open) return null
 
+  // Create a new restaurant-scoped category quickly
+  const createCategory = async () => {
+    const newName = prompt('New category name')
+    const cleaned = (newName || '').trim()
+    if (!cleaned) return
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert([{ name: cleaned, is_global: false, restaurant_id: restaurantId }])
+        .select('id,name')
+        .single()
+      if (error) throw error
+      setCats(prev => [...prev, data].sort((a,b) => a.name.localeCompare(b.name)))
+      setCategory(data.name) // select immediately
+    } catch (e) {
+      onError?.(e?.message || 'Failed to create category')
+    }
+  }
+
   const save = async (e) => {
     e.preventDefault()
     setErr('')
     if (!canSubmit) {
       return onError?.('Please fill required fields with valid values.')
     }
-
     const numericPrice = Number(price)
     const payload = {
       name: name.trim(),
       price: numericPrice,
-      category: String(category || 'main').trim(),
+      category: String(category || 'main').trim(), // write the canonical name
       status,
       veg: !!veg,
       hsn: hsn?.trim() || null,
-      tax_rate: Number(taxRate || 0),                 // per-item tax; used for packaged goods or overrides [2][1]
-      is_packaged_good: !!isPackaged,                 // goods vs restaurant service [2][1]
-      compensation_cess_rate: Number(cessRate || 0),  // for aerated/fizzy beverages, etc. [1][2]
+      tax_rate: Number(taxRate || 0),
+      is_packaged_good: !!isPackaged,
+      compensation_cess_rate: Number(cessRate || 0),
     }
-
     try {
       setSaving(true)
       if (isEdit) {
@@ -115,7 +159,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
     >
       <form onSubmit={save} className="modal-card" style={{ background: '#fff', width: '100%', maxWidth: 420, padding: 16, borderRadius: 8 }}>
         <h3 id="menu-item-editor-title" style={{ marginTop: 0 }}>{isEdit ? 'Edit Item' : 'Add Item'}</h3>
-
         {err && (
           <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#991b1b', padding: 8, borderRadius: 6, marginBottom: 10 }}>
             {err}
@@ -132,9 +175,29 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
             <div style={label}>Price</div>
             <input type="number" step="0.01" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required style={input} />
           </label>
+
           <label style={{ display: 'block' }}>
             <div style={label}>Category</div>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} style={input} placeholder="e.g., beverages" />
+            {/* If categories loaded, show a select; else fallback to text input */}
+            {cats.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6 }}>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  style={{ ...input, height: 36 }}
+                >
+                  {/* options by name to keep menu_items.category as name */}
+                  {cats.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+                <button type="button" onClick={createCategory} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4 }}>
+                  + New
+                </button>
+              </div>
+            ) : (
+              <input value={category} onChange={(e) => setCategory(e.target.value)} style={input} placeholder="e.g., beverages" />
+            )}
           </label>
         </div>
 
@@ -147,7 +210,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
               <option value="paused">paused</option>
             </select>
           </label>
-
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 }}>
             <input type="checkbox" checked={veg} onChange={(e) => setVeg(e.target.checked)} />
             <span style={{ ...label, margin: 0 }}>Veg</span>
@@ -184,7 +246,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
               placeholder={isPackaged ? 'e.g., 28' : 'e.g., 5 or 18'}
             />
           </label>
-
           <label style={{ display: 'block' }}>
             <div style={label}>Cess %</div>
             <input
