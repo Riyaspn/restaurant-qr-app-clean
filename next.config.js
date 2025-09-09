@@ -2,20 +2,28 @@
 const isNative = process.env.NATIVE_BUILD === '1';
 
 const nextConfig = {
-  output: isNative ? 'export' : undefined,  // only export for native builds [web:463][web:470]
+  // Produce static out/ only for native (Capacitor) builds
+  output: isNative ? 'export' : undefined,            // Next 14+ replacement for `next export` [web:710][web:711],
+  images: { unoptimized: true },                      // Needed for static export without Image Optimization API [web:708],
   reactStrictMode: true,
+  trailingSlash: true,
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  images: { unoptimized: true },
-  trailingSlash: true,
-  // Optional: redirect dynamic/SSR routes to a static placeholder during native export
+
+  webpack: (config, { webpack }) => {
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        'process.env.NATIVE_BUILD': JSON.stringify(isNative ? '1' : '')
+      })
+    );
+    return config;
+  },
+
   async redirects() {
     if (!isNative) return [];
-    return [
-      { source: '/order/bills', destination: '/faq', permanent: false },        // temporary [web:463]
-      { source: '/restaurants/:id', destination: '/site', permanent: false },   // temporary [web:463]
-    ];
-  },
+    // When packaged as a native app, land on owner/orders
+    return [{ source: '/', destination: '/owner/orders', permanent: false }];
+  }
 };
 
 module.exports = nextConfig;

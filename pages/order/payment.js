@@ -1,60 +1,104 @@
 // pages/order/payment.js
-
-import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useRouter } from 'next/router';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../../services/supabase';
 
 export default function PaymentPage() {
-  const router = useRouter()
-  const { r: restaurantId, t: tableNumber, total } = router.query
-  const [restaurant, setRestaurant] = useState(null)
-  const [cart, setCart] = useState([])
-  const [selectedPayment, setSelectedPayment] = useState('cash')
-  const [loading, setLoading] = useState(false)
-  const [specialInstructions, setSpecialInstructions] = useState('')
-  const totalAmount = parseFloat(total) || 0
+  const router = useRouter();
+  const { r: restaurantId, t: tableNumber, total } = router.query;
 
+  const [restaurant, setRestaurant] = useState(null);
+  const [cart, setCart] = useState([]);
+  const [selectedPayment, setSelectedPayment] = useState('cash'); // 'cash' | 'upi' | 'card'
+  const [loading, setLoading] = useState(false);
+  const [specialInstructions, setSpecialInstructions] = useState('');
+
+  // Derive total from query or cart fallback
+  const totalAmount = useMemo(() => {
+    const q = Number(total);
+    if (Number.isFinite(q) && q > 0) return q;
+    return cart.reduce(
+      (sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0),
+      0
+    );
+  }, [total, cart]);
+
+  // Load restaurant metadata from Supabase
   useEffect(() => {
-    if (restaurantId) loadRestaurantData()
-  }, [restaurantId])
+    if (restaurantId) loadRestaurantData();
+  }, [restaurantId]);
 
+  // Load cart from localStorage
   useEffect(() => {
     if (restaurantId && tableNumber) {
-      const stored = localStorage.getItem(`cart_${restaurantId}_${tableNumber}`)
-      if (stored) {
-        try {
-          setCart(JSON.parse(stored))
-        } catch {}
+      try {
+        const stored = localStorage.getItem(`cart_${restaurantId}_${tableNumber}`);
+        if (stored) setCart(JSON.parse(stored) || []);
+      } catch (e) {
+        console.error('Failed to parse cart JSON', e);
       }
     }
-  }, [restaurantId, tableNumber])
+  }, [restaurantId, tableNumber]);
 
+  // Updated: query Supabase directly for restaurant metadata
   const loadRestaurantData = async () => {
     try {
-      const res = await fetch(`/api/restaurants/${restaurantId}`)
-      if (res.ok) {
-        const json = await res.json()
-        setRestaurant(json)
-      }
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('id, name, online_paused, restaurant_profiles(brand_color, phone)')
+        .eq('id', restaurantId)
+        .single();
+      if (!error && data) setRestaurant(data);
     } catch (e) {
-      console.error(e)
+      console.error(e);
     }
-  }
+  };
+
+  // Small helper to send owner notification without blocking UI
+  const notifyOwner = async (payload) => {
+    try {
+      await fetch('/api/notify-owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      // Do not block payment flow on PN failure
+      console.warn('notify-owner failed', e);
+    }
+  };
 
   const handlePayment = async () => {
-    setLoading(true)
+    if (loading) return;
+
+    // Basic guards so button doesn’t appear to “do nothing”
+    if (!restaurantId || !tableNumber) {
+      alert('Missing restaurant or table information.');
+      return;
+    }
+    if (!cart?.length) {
+      alert('Cart is empty.');
+      return;
+    }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      alert('Invalid total amount.');
+      return;
+    }
+
+    setLoading(true);
     try {
+      // CASH PAYMENT FLOW
       if (selectedPayment === 'cash') {
-        // Cash order flow
         const orderData = {
           restaurant_id: restaurantId,
-          restaurant_name: restaurant?.name,
+          restaurant_name: restaurant?.name || null,
           table_number: tableNumber,
           items: cart.map(i => ({
             id: i.id,
             name: i.name,
-            price: i.price,
-            quantity: i.quantity,
-            veg: i.veg || false
+            price: Number(i.price) || 0,
+            quantity: Number(i.quantity) || 1,
+            veg: !!i.veg
           })),
           subtotal: totalAmount,
           tax: 0,
@@ -62,100 +106,127 @@ export default function PaymentPage() {
           payment_method: 'cash',
           special_instructions: specialInstructions.trim(),
           payment_status: 'pending'
-        }
+        };
+
+        // Create order in Supabase (server calculates tax/lines)
         const res = await fetch('/api/orders/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result?.error || 'Failed to create order');
+
+        // Ensure owner gets alert immediately on new order
+        await notifyOwner({
+          restaurantId,
+          orderId: result.order_id || result.id,
+          orderItems: orderData.items
+        });
+
+        // Cleanup and redirect
+        localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
+        // Persist context for "Order more" path on success screen
+        localStorage.setItem('restaurantId', restaurantId);
+        localStorage.setItem('tableNumber', tableNumber);
+        window.location.href = `/order/success?id=${result.order_id || result.id}&method=cash`;
+        return;
+      }
+
+      // ONLINE PAYMENT FLOW (UPI/CARD)
+      // Create order session on server
+      const resp = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_amount: totalAmount,
+          order_currency: 'INR',
+          customer_name: 'Guest Customer',
+          customer_email: 'guest@example.com',
+          customer_phone: '9999999999'
         })
-        if (!res.ok) throw new Error('Failed to create order')
-        const result = await res.json()
-        localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`)
-        window.location.href = `/order/success?id=${result.order_id}&method=cash`
-      } else {
-        // Online payment flow
-        const resp = await fetch('/api/payments/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_amount: totalAmount,
-            order_currency: 'INR',
-            customer_name: 'Guest Customer',
-            customer_email: 'guest@example.com',
-            customer_phone: '9999999999'
-          })
-        })
-        const data = await resp.json()
-        if (!resp.ok) throw new Error(data.error || 'Order creation failed')
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || data?.details?.message || 'Order session creation failed');
 
-        // Prepare order record for after-payment creation
-        const orderData = {
-          restaurant_id: restaurantId,
-          restaurant_name: restaurant?.name,
-          table_number: tableNumber,
-          items: cart.map(i => ({
-            id: i.id,
-            name: i.name,
-            price: i.price,
-            quantity: i.quantity,
-            veg: i.veg || false
-          })),
-          subtotal: totalAmount,
-          tax: 0,
-          total_amount: totalAmount,
-          payment_method: 'online',
-          special_instructions: specialInstructions.trim(),
-          cashfree_order_id: data.order_id
-        }
+      // Persist pending order for webhook/return_url completion
+      const pendingOrder = {
+        restaurant_id: restaurantId,
+        restaurant_name: restaurant?.name || null,
+        table_number: tableNumber,
+        items: cart.map(i => ({
+          id: i.id,
+          name: i.name,
+          price: Number(i.price) || 0,
+          quantity: Number(i.quantity) || 1,
+          veg: !!i.veg
+        })),
+        subtotal: totalAmount,
+        tax: 0,
+        total_amount: totalAmount,
+        payment_method: 'online',
+        special_instructions: specialInstructions.trim(),
+        payment_status: 'pending',
+        cashfree_order_id: data.order_id
+      };
+      localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
+      localStorage.setItem('payment_session', JSON.stringify({
+        order_id: data.order_id,
+        session_id: data.payment_session_id,
+        amount: totalAmount
+      }));
 
-        // Store pending order and session
-        localStorage.setItem('pending_order', JSON.stringify(orderData))
-        localStorage.setItem(
-          'payment_session',
-          JSON.stringify({
-            order_id: data.order_id,
-            session_id: data.payment_session_id,
-            amount: totalAmount
-          })
-        )
+      // PRE-PAYMENT alert so the owner dashboard can prepare
+      // This does not block the flow if PN is delayed
+      notifyOwner({
+        restaurantId,
+        orderId: data.order_id,
+        orderItems: pendingOrder.items
+      });
 
-        // Load Cashfree SDK
-        if (!window.Cashfree) {
-          await new Promise(resolve => {
-            const s = document.createElement('script')
-            s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js'
-            s.onload = resolve
-            document.body.appendChild(s)
-          })
-        }
+      // Load Cashfree SDK and open checkout
+      if (!window.Cashfree) {
+        await new Promise(resolve => {
+          const s = document.createElement('script');
+          s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+          s.onload = resolve;
+          s.onerror = resolve; // fail open; server return_url can still complete
+          document.body.appendChild(s);
+        });
+      }
 
-        const cashfree = window.Cashfree({ mode: 'production' })
+      if (window.Cashfree) {
+        const cashfree = window.Cashfree({ mode: 'production' });
         await cashfree.checkout({
           paymentSessionId: data.payment_session_id,
           redirectTarget: '_self'
-        })
+        });
+      } else {
+        // Fallback: if SDK didn’t load, redirect to a hosted page if configured later
+        alert('Payment gateway not available. Please try again.');
       }
     } catch (error) {
-      console.error('Payment error:', error)
-      alert(`Payment failed: ${error.message}`)
+      console.error('Payment error:', error);
+      alert(`Payment failed: ${error?.message || 'Unknown error'}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b'
+  // ==== UI (kept minimal; plug into existing styles/layout) ====
+  const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b';
   const paymentMethods = [
     { id: 'cash', name: 'Pay at Counter', icon: '💵' },
     { id: 'upi', name: 'UPI Payment', icon: '📱' },
     { id: 'card', name: 'Card Payment', icon: '💳' }
-  ]
+  ];
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa', paddingBottom: 120 }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: '#fff', borderBottom: '1px solid #e5e7eb' }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}>←</button>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, flex: 1, textAlign: 'center' }}>Payment</h1>
-        <div style={{ fontSize: 14, fontWeight: 600, color: brandColor }}>₹{totalAmount.toFixed(2)}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: brandColor }}>₹{Number(totalAmount || 0).toFixed(2)}</div>
       </header>
 
       <div style={{ background: '#fff', padding: 20, marginBottom: 8 }}>
@@ -164,7 +235,7 @@ export default function PaymentPage() {
           {cart.slice(0, 3).map(item => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14, color: '#374151' }}>
               <span>{item.quantity}x {item.name}</span>
-              <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+              <span>₹{((Number(item.price) || 0) * (Number(item.quantity) || 0)).toFixed(2)}</span>
             </div>
           ))}
           {cart.length > 3 && (
@@ -174,7 +245,7 @@ export default function PaymentPage() {
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
             <span>Final Total</span>
-            <span>₹{totalAmount.toFixed(2)}</span>
+            <span>₹{Number(totalAmount || 0).toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -197,7 +268,7 @@ export default function PaymentPage() {
                   {method.id === 'cash' && <div className="pay-note">Pay at counter</div>}
                 </div>
               </div>
-              <div className="pay-right">₹{totalAmount.toFixed(2)}</div>
+              <div className="pay-right">₹{Number(totalAmount || 0).toFixed(2)}</div>
             </div>
           </label>
         ))}
@@ -205,15 +276,26 @@ export default function PaymentPage() {
 
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: 16, background: '#fff', borderTop: '1px solid #e5e7eb' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 14, color: '#374151' }}>
-          <span>💰 Total: ₹{totalAmount.toFixed(2)}</span>
+          <span>💰 Total: ₹{Number(totalAmount || 0).toFixed(2)}</span>
           <span>⏱️ Ready in 20 mins</span>
         </div>
         <button
           onClick={handlePayment}
           disabled={loading}
-          style={{ width: '100%', background: brandColor, color: '#fff', border: 'none', padding: 16, borderRadius: 8, fontSize: 18, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
+          style={{
+            width: '100%',
+            background: brandColor,
+            color: '#fff',
+            border: 'none',
+            padding: 16,
+            borderRadius: 8,
+            fontSize: 18,
+            fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.6 : 1
+          }}
         >
-          {loading ? 'Processing...' : (selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${totalAmount.toFixed(2)}`)}
+          {loading ? 'Processing...' : (selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${Number(totalAmount || 0).toFixed(2)}`)}
         </button>
       </div>
 
@@ -281,5 +363,5 @@ export default function PaymentPage() {
         }
       `}</style>
     </div>
-  )
+  );
 }

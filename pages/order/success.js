@@ -1,200 +1,218 @@
 // pages/order/success.js
-import { useRouter } from 'next/router'
-import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../../services/supabase'
+
+import { useRouter } from 'next/router';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '../../services/supabase';
 
 export default function OrderSuccess() {
-  const router = useRouter()
-  const { id: orderId, method } = router.query
+  const router = useRouter();
+  const { id: orderId, method } = router.query;
 
-  const [loading, setLoading] = useState(true)
-  const [order, setOrder] = useState(null)
-  const [error, setError] = useState('')
-  const [checkingInvoice, setCheckingInvoice] = useState(false)
-  const [timer, setTimer] = useState(120) // countdown in seconds
-  const channelRef = useRef(null)
+  const [loading, setLoading]     = useState(true);
+  const [order, setOrder]         = useState(null);
+  const [error, setError]         = useState('');
+  const [checkingInvoice, setCheckingInvoice] = useState(false);
+  const [timer, setTimer]         = useState(120);
+  const [invoiceArrived, setInvoiceArrived] = useState(false);
+  const subscriptionRef = useRef(null);
 
-  // Initial fetch of order and invoice
+  // 1. Fetch order & invoice
   useEffect(() => {
-    if (!orderId) return
-    let cancelled = false
+    if (!orderId) return;
+    let cancelled = false;
 
-    async function fetchData() {
-      setLoading(true)
+    (async () => {
+      setLoading(true);
       try {
-        const { data: orderData, error: orderErr } = await supabase
+        const { data: o, error: e } = await supabase
           .from('orders')
           .select('*')
           .eq('id', orderId)
-          .single()
-        if (orderErr || !orderData) throw orderErr || new Error('Order not found')
+          .single();
+        if (e || !o) throw e || new Error('Order not found');
 
-        const { data: invoiceData } = await supabase
+        const { data: inv } = await supabase
           .from('invoices')
           .select('*')
           .eq('order_id', orderId)
-          .single()
+          .single();
 
         if (!cancelled) {
-          setOrder({ ...orderData, invoice: invoiceData || null })
+          setOrder({ ...o, invoice: inv || null });
+          if (inv?.pdf_url) setInvoiceArrived(true);
         }
-      } catch (e) {
-        if (!cancelled) setError('Failed to load order details')
+      } catch {
+        if (!cancelled) setError('Failed to load order details');
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoading(false);
       }
-    }
+    })();
 
-    fetchData()
-    return () => { cancelled = true }
-  }, [orderId])
+    return () => { cancelled = true; };
+  }, [orderId]);
 
-  // Realtime subscription to invoice changes
+  // 2. Real-time subscription for invoice arrival
   useEffect(() => {
-    if (!orderId) return
+    if (!orderId) return;
 
-    // Unsubscribe if exists
-    if (channelRef.current) {
-      channelRef.current.unsubscribe()
-      channelRef.current = null
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
     }
 
     const channel = supabase
-      .channel(`order-invoice-${orderId}`)
+      .channel(`invoice-${orderId}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'invoices',
         filter: `order_id=eq.${orderId}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          const inv = payload.new
-          setOrder(prev => prev ? { ...prev, invoice: inv } : prev)
-        }
+      }, ({ new: inv }) => {
+        setOrder(prev => prev ? { ...prev, invoice: inv } : prev);
+        if (inv?.pdf_url) setInvoiceArrived(true);
       })
-      .subscribe()
+      .subscribe();
 
-    channelRef.current = channel
-    return () => {
-      channelRef.current.unsubscribe()
-      channelRef.current = null
-    }
-  }, [orderId])
+    subscriptionRef.current = channel;
+    return () => { channel.unsubscribe(); };
+  }, [orderId]);
 
-  // Manual invoice check
+  // 3. Manual invoice check
   const checkForInvoice = async () => {
-    if (!orderId || checkingInvoice) return
-    setCheckingInvoice(true)
+    if (!orderId || checkingInvoice) return;
+    setCheckingInvoice(true);
+
     try {
       const { data: inv } = await supabase
         .from('invoices')
         .select('*')
         .eq('order_id', orderId)
-        .single()
-      if (inv) setOrder(prev => prev ? { ...prev, invoice: inv } : prev)
+        .single();
+      if (inv) {
+        setOrder(prev => prev ? { ...prev, invoice: inv } : prev);
+        setInvoiceArrived(Boolean(inv.pdf_url));
+      }
     } catch {
       // ignore
     } finally {
-      setCheckingInvoice(false)
+      setCheckingInvoice(false);
     }
-  }
+  };
 
-  // Countdown timer and auto-close logic
+  // 4. Countdown and conditional redirect to thank-you
   useEffect(() => {
+    if (!invoiceArrived) return;
+
+    // Only start countdown after invoice arrives
+    const id = setTimeout(() => {
+      router.push('/order/thank-you');
+    }, 5000);  // wait 5 seconds after invoice arrival
+
+    return () => clearTimeout(id);
+  }, [invoiceArrived, router]);
+
+  // 5. Close or countdown before invoice
+  useEffect(() => {
+    if (invoiceArrived) return;
+
     if (timer <= 0) {
-      window.close()
-      window.location.href = 'pages/order/thank-you'
-      return
+      // keep window open until invoice
+      setTimer(0);
+      return;
     }
-    const id = setTimeout(() => setTimer(timer - 1), 1000)
-    return () => clearTimeout(id)
-  }, [timer])
+    const id = setTimeout(() => setTimer(t => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [timer, invoiceArrived]);
 
-  if (!orderId) return <div style={{ padding: 20 }}>No order found.</div>
-  if (loading) return <div style={{ padding: 20 }}>Loading order details...</div>
-  if (error) return <div style={{ padding: 20, color: 'red' }}>{error}</div>
+  // 6. Handle "Order More Items" redirection to menu
+  const handleMore = () => {
+    const rId = order?.restaurant_id;
+    if (rId) {
+      router.push(`/order?restaurant=${rId}`);
+    } else {
+      router.push('/');
+    }
+  };
 
-  const invoiceUrl = order?.invoice?.pdf_url || null
-  const isCompleted = order?.status === 'completed'
-  const amount = Number(order?.total_inc_tax ?? order?.total_amount ?? 0)
+  if (!orderId) return <div style={{ padding: 20 }}>No order found.</div>;
+  if (loading)   return <div style={{ padding: 20 }}>Loading order details...</div>;
+  if (error)     return <div style={{ padding: 20, color: 'red' }}>{error}</div>;
+
+  const invoiceUrl = order.invoice?.pdf_url;
+  const isCompleted = order.status === 'completed';
+  const amount = Number(order.total_inc_tax ?? order.total_amount ?? 0);
 
   return (
     <div style={{ maxWidth: 600, margin: '3rem auto', padding: '0 1rem', textAlign: 'center' }}>
       <h1>Thank you for your order!</h1>
-      <p>Your order #{order.id.slice(0, 8).toUpperCase()} has been successfully placed.</p>
+      <p>Your order #{order.id.slice(0,8).toUpperCase()} has been placed.</p>
       <p>Payment Method: <strong>{method || order.payment_method}</strong></p>
       <p>Total Amount: <strong>₹{amount.toFixed(2)}</strong></p>
 
-      <div style={{ margin: '20px 0', padding: '16px', background: '#f3f4f6', borderRadius: '8px' }}>
-        <p><strong>Order Status:</strong> {order.status?.replace('_', ' ').toUpperCase()}</p>
+      <div style={{ margin: '20px 0', padding: 16, background: '#f3f4f6', borderRadius: 8 }}>
+        <p><strong>Order Status:</strong> {order.status.replace('_',' ').toUpperCase()}</p>
 
-        {invoiceUrl ? (
+        { invoiceUrl ? (
           <div>
-            <p style={{ color: 'green', margin: '10px 0' }}>✅ Your bill is ready!</p>
-            <a
-              href={invoiceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-block',
-                padding: '12px 24px',
-                background: '#059669',
-                color: '#fff',
-                borderRadius: 8,
-                textDecoration: 'none',
-                margin: '10px'
-              }}
-            >
+            <p style={{ color:'green' }}>✅ Your bill is ready!</p>
+            <a href={invoiceUrl} target="_blank" rel="noopener noreferrer"
+               style={{
+                 display:'inline-block',
+                 padding:'12px 24px',
+                 background:'#059669',
+                 color:'#fff',
+                 borderRadius:8,
+                 textDecoration:'none',
+                 margin:'10px'
+               }}>
               📄 View / Download Bill
             </a>
+            <p style={{ color:'#6b7280', marginTop:8 }}>
+              Redirecting to thank-you page shortly…
+            </p>
           </div>
         ) : isCompleted ? (
           <div>
-            <p style={{ color: '#f59e0b', margin: '6px 0' }}>Bill is being generated…</p>
-            <button
-              onClick={checkForInvoice}
-              disabled={checkingInvoice}
+            <p style={{ color:'#f59e0b' }}>Bill is being generated…</p>
+            <button onClick={checkForInvoice} disabled={checkingInvoice}
               style={{
-                padding: '8px 16px',
-                background: '#f59e0b',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: checkingInvoice ? 'not-allowed' : 'pointer',
-                opacity: checkingInvoice ? 0.6 : 1
-              }}
-            >
-              {checkingInvoice ? 'Checking…' : 'Check for Bill'}
+                padding:'8px 16px',
+                background:'#f59e0b',
+                color:'#fff',
+                border:'none',
+                borderRadius:4,
+                cursor:checkingInvoice?'not-allowed':'pointer',
+                opacity: checkingInvoice?0.6:1
+              }}>
+              { checkingInvoice ? 'Checking…' : 'Check for Bill' }
             </button>
+            <p style={{ marginTop:20, color:'#6b7280' }}>
+              If your bill does not appear, please wait or refresh.
+            </p>
           </div>
         ) : (
-          <p style={{ color: '#6b7280' }}>Your bill will be available once the order is marked completed and payment is confirmed.</p>
+          <p style={{ color:'#6b7280' }}>
+            Your bill will be available once the restaurant completes the order.
+          </p>
         )}
 
-        <p style={{ marginTop: 20, color: '#6b7280' }}>
-          This window will close in {timer} second{timer !== 1 ? 's' : ''}.
-        </p>
+        {!invoiceArrived && (
+          <p style={{ marginTop:20, color:'#6b7280' }}>
+            Window closes in {timer} second{timer !== 1 ? 's' : ''}.
+          </p>
+        )}
       </div>
 
-      <button
-        onClick={() => {
-          const rId = typeof window !== 'undefined' && localStorage.getItem('restaurantId')
-          const tNum = typeof window !== 'undefined' && localStorage.getItem('tableNumber')
-          if (rId && tNum) router.push(`/order?r=${rId}&t=${tNum}`)
-          else router.push('/')
-        }}
+      <button onClick={handleMore}
         style={{
-          padding: '12px 24px',
-          background: '#3b82f6',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          marginTop: '20px'
-        }}
-      >
+          padding:'12px 24px',
+          background:'#3b82f6',
+          color:'#fff',
+          border:'none',
+          borderRadius:8,
+          cursor:'pointer'
+        }}>
         Order More Items
       </button>
     </div>
-  )
+  );
 }
