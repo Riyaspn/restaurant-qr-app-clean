@@ -1,4 +1,12 @@
+// pages/api/invoices/generate.js
 import { InvoiceService } from '../../../services/invoiceService'
+import { createClient } from '@supabase/supabase-js'
+
+// Use service role for secure server-side reads
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -11,10 +19,32 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Attempt to create a new invoice
     const result = await InvoiceService.createInvoiceFromOrder(order_id)
-    res.status(200).json(result)
+    return res.status(200).json({ pdf_url: result?.pdf_url })
   } catch (error) {
+    // If an invoice already exists, return its URL instead of 500
+    const msg = error?.message || ''
+    const isDuplicate =
+      error?.code === '23505' ||
+      msg.includes('duplicate key value violates unique constraint') ||
+      msg.includes('invoices_order_id_key')
+
+    if (isDuplicate) {
+      const { data, error: fetchErr } = await supabase
+        .from('invoices')
+        .select('pdf_url')
+        .eq('order_id', order_id)
+        .single()
+
+      if (fetchErr) {
+        console.error('Error fetching existing invoice:', fetchErr)
+        return res.status(500).json({ error: fetchErr.message })
+      }
+      return res.status(200).json({ pdf_url: data?.pdf_url || null })
+    }
+
     console.error('Invoice generation error:', error)
-    res.status(500).json({ error: error.message || 'Failed to generate invoice' })
+    return res.status(500).json({ error: msg || 'Failed to generate invoice' })
   }
 }
