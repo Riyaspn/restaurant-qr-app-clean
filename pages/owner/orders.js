@@ -159,12 +159,12 @@ window.removeEventListener('click', unlockAudio, { capture: true });
 if (!restaurantId) return;
 
 const channel = supabase
-.channel(orders-${restaurantId})
+.channel('orders-${restaurantId}')
 .on('postgres_changes', {
 event: 'INSERT',
 schema: 'public',
 table: 'orders',
-filter: restaurant_id=eq.${restaurantId}
+filter: 'restaurant_id=eq.${restaurantId}'
 }, async () => {
 if ('Notification' in window && Notification.permission === 'granted') {
 new Notification('🔔 New Order!');
