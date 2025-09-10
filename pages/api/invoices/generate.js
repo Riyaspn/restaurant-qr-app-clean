@@ -2,7 +2,6 @@
 import { InvoiceService } from '../../../services/invoiceService'
 import { createClient } from '@supabase/supabase-js'
 
-// Use service role for secure server-side reads
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -14,34 +13,36 @@ export default async function handler(req, res) {
   }
 
   const { order_id } = req.body
-  if (!order_id) {
-    return res.status(400).json({ error: 'Order ID is required' })
+  if (!order_id || typeof order_id !== 'string') {
+    return res.status(400).json({ error: 'Valid Order ID is required' })
   }
 
   try {
-    // Attempt to create a new invoice
     const result = await InvoiceService.createInvoiceFromOrder(order_id)
     return res.status(200).json({ pdf_url: result?.pdf_url })
   } catch (error) {
-    // If an invoice already exists, return its URL instead of 500
     const msg = error?.message || ''
-    const isDuplicate =
+    const isDuplicate = 
       error?.code === '23505' ||
       msg.includes('duplicate key value violates unique constraint') ||
       msg.includes('invoices_order_id_key')
 
     if (isDuplicate) {
-      const { data, error: fetchErr } = await supabase
-        .from('invoices')
-        .select('pdf_url')
-        .eq('order_id', order_id)
-        .single()
+      try {
+        const { data, error: fetchErr } = await supabase
+          .from('invoices')
+          .select('pdf_url')
+          .eq('order_id', order_id)
+          .single()
 
-      if (fetchErr) {
-        console.error('Error fetching existing invoice:', fetchErr)
-        return res.status(500).json({ error: fetchErr.message })
+        if (fetchErr) {
+          console.error('Error fetching existing invoice:', fetchErr)
+          return res.status(500).json({ error: 'Could not retrieve existing invoice' })
+        }
+        return res.status(200).json({ pdf_url: data?.pdf_url })
+      } catch (fetchError) {
+        return res.status(500).json({ error: 'Invoice retrieval failed' })
       }
-      return res.status(200).json({ pdf_url: data?.pdf_url || null })
     }
 
     console.error('Invoice generation error:', error)
