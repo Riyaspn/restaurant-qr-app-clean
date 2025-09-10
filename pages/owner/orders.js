@@ -156,8 +156,8 @@ window.removeEventListener('click', unlockAudio, { capture: true });
   }, [restaurantId]);
 
   useEffect(() => {
-    if (!restaurantId) return;
-    const channel = supabase
+if (!restaurantId) return;
+const channel = supabase
 .channel(orders-${restaurantId})
 .on('postgres_changes', {
 event: 'INSERT',
@@ -165,7 +165,7 @@ schema: 'public',
 table: 'orders',
 filter: restaurant_id=eq.${restaurantId}
 }, async () => {
-if (Notification.permission === 'granted') {
+if ('Notification' in window && Notification.permission === 'granted') {
 new Notification('🔔 New Order!');
 }
 notificationAudioRef.current?.play().catch(() => {});
@@ -181,6 +181,10 @@ invoice: prev.new.find(p => p.id === o.id)?.invoice || null
 }, 250);
 })
 .subscribe();
+
+return () => supabase.removeChannel(channel);
+}, [restaurantId]);
+
 
     return () => supabase.removeChannel(channel);
   }, [restaurantId]);
