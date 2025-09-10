@@ -51,6 +51,38 @@ export default function OrdersPage() {
     a.load();
     notificationAudioRef.current = a;
   }, []);
+  // Request browser notification permission once at mount
+useEffect(() => {
+if (typeof window !== 'undefined' && 'Notification' in window) {
+if (Notification.permission === 'default') {
+Notification.requestPermission().catch(() => {});
+}
+}
+}, []);
+
+// Prime/unlock audio on first user interaction (mobile autoplay guard)
+useEffect(() => {
+function unlockAudio() {
+const a = notificationAudioRef.current;
+if (!a) return;
+const wasMuted = a.muted;
+a.muted = true; // ensure allowed
+a.play().catch(() => {}); // try play to unlock
+a.pause();
+a.currentTime = 0;
+a.muted = wasMuted; // restore
+window.removeEventListener('touchstart', unlockAudio, { capture: true });
+window.removeEventListener('click', unlockAudio, { capture: true });
+}
+window.addEventListener('touchstart', unlockAudio, { capture: true, once: true });
+window.addEventListener('click', unlockAudio, { capture: true, once: true });
+return () => {
+window.removeEventListener('touchstart', unlockAudio, { capture: true });
+window.removeEventListener('click', unlockAudio, { capture: true });
+};
+}, []);
+
+
 
   async function fetchBucket(status, page = 1) {
     let q = supabase
@@ -126,27 +158,29 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!restaurantId) return;
     const channel = supabase
-      .channel(`orders-${restaurantId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'orders',
-        filter: `restaurant_id=eq.${restaurantId}`
-      }, async () => {
-        if (Notification.permission === 'granted') {
-          new Notification('🔔 New Order!');
-        }
-        notificationAudioRef.current?.play().catch(() => {});
-        const newOrders = await fetchBucket('new');
-        setOrdersByStatus(prev => ({
-          ...prev,
-          new: newOrders.map(o => ({
-            ...o,
-            invoice: prev.new.find(p => p.id === o.id)?.invoice || null
-          }))
-        }));
-      })
-      .subscribe();
+.channel(orders-${restaurantId})
+.on('postgres_changes', {
+event: 'INSERT',
+schema: 'public',
+table: 'orders',
+filter: restaurant_id=eq.${restaurantId}
+}, async () => {
+if (Notification.permission === 'granted') {
+new Notification('🔔 New Order!');
+}
+notificationAudioRef.current?.play().catch(() => {});
+setTimeout(async () => {
+const newOrders = await fetchBucket('new');
+setOrdersByStatus(prev => ({
+...prev,
+new: newOrders.map(o => ({
+...o,
+invoice: prev.new.find(p => p.id === o.id)?.invoice || null
+}))
+}));
+}, 250);
+})
+.subscribe();
 
     return () => supabase.removeChannel(channel);
   }, [restaurantId]);
@@ -421,11 +455,7 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
           {new Date(order.created_at).toLocaleTimeString()}
         </span>
       </div>
-      <div style={{ margin:'8px 0', fontSize:14 }}>
-        {items.map((it,i) => (
-          <div key={i}>{it.quantity}× {it.name}</div>
-        ))}
-      </div>
+      <div style={{ margin:'8px 0', fontSize:14 }}> {items.map((it,i) => ( <div key={i}>{it.quantity}× {it.name}</div> ))} </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontSize:16, fontWeight:700 }}>{money(total)}</span>
         <div style={{ display:'flex', gap:6 }} onClick={e=>e.stopPropagation()}>
