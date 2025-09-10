@@ -157,6 +157,7 @@ window.removeEventListener('click', unlockAudio, { capture: true });
 
   useEffect(() => {
 if (!restaurantId) return;
+
 const channel = supabase
 .channel(orders-${restaurantId})
 .on('postgres_changes', {
@@ -185,9 +186,6 @@ invoice: prev.new.find(p => p.id === o.id)?.invoice || null
 return () => supabase.removeChannel(channel);
 }, [restaurantId]);
 
-
-    return () => supabase.removeChannel(channel);
-  }, [restaurantId]);
 
   const updateStatus = async (id, next) => {
     try {
