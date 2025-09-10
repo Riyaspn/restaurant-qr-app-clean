@@ -38,7 +38,7 @@ export default function OrdersPage() {
   const restaurantId = restaurant?.id;
   const userEmail = user?.email;
 
-  // Debug: verify context timings
+ 
   useEffect(() => {
     console.log('Restaurant context debug:', {
       restaurant,
