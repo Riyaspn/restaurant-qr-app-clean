@@ -17,8 +17,12 @@ export class InvoiceService {
         .eq('order_id', orderId)
         .maybeSingle()
       if (!existingErr && existing) {
-        return { invoiceId: existing.id, invoiceNo: existing.invoice_no, pdfUrl: existing.pdf_url }
-      } [attached_file:1]
+        return {
+          invoiceId: existing.id,
+          invoiceNo: existing.invoice_no,
+          pdfUrl: existing.pdf_url
+        }
+      }
 
       // 1) Order with items
       const { data: order, error: orderError } = await supabase
@@ -27,7 +31,7 @@ export class InvoiceService {
         .eq('id', orderId)
         .single()
       if (orderError || !order) throw new Error(`Order ${orderId} not found`)
-      const rawItems = order.order_items || [] [attached_file:3]
+      const rawItems = order.order_items || []
 
       // 2) Restaurant + profile
       const { data: restaurant, error: restErr } = await supabase
@@ -40,15 +44,14 @@ export class InvoiceService {
         .from('restaurant_profiles')
         .select('*')
         .eq('restaurant_id', order.restaurant_id)
-        .maybeSingle() [attached_file:3]
+        .maybeSingle()
 
       // Effective flags for restaurant service items
       const gstEnabled = (order.gst_enabled ?? profile?.gst_enabled) ?? false
       const baseRate = Number(profile?.default_tax_rate ?? 5)
-      const effectiveServiceRate = gstEnabled ? baseRate : 0
       const servicePricesIncludeTax = gstEnabled
         ? (order.prices_include_tax ?? profile?.prices_include_tax ?? true)
-        : false [attached_file:3]
+        : false
 
       // 3) Normalize items with packaged branching
       const enrichedItems = rawItems.map(oi => {
@@ -62,11 +65,9 @@ export class InvoiceService {
         if (isPackaged) {
           unitResolved = unitIncStamped || legacy
         } else {
-          if (servicePricesIncludeTax) {
-            unitResolved = unitIncStamped || legacy
-          } else {
-            unitResolved = unitExStamped || legacy
-          }
+          unitResolved = servicePricesIncludeTax
+            ? (unitIncStamped || legacy)
+            : (unitExStamped || legacy)
         }
         return {
           name: oi.item_name || oi.name || 'Item',
@@ -76,12 +77,12 @@ export class InvoiceService {
           hsn: oi.hsn || '',
           isPackaged
         }
-      }) [attached_file:3]
+      })
 
       // 4) Compute totals with same branching
       const computed = enrichedItems.reduce((acc, it) => {
         const r = it.taxRate / 100
-        if (it.isPackaged) {
+        if (it.isPackaged || servicePricesIncludeTax) {
           const inc = it.unitResolved * it.qty
           const ex  = r > 0 ? inc / (1 + r) : inc
           const tax = inc - ex
@@ -89,31 +90,21 @@ export class InvoiceService {
           acc.tax += tax
           acc.total += inc
         } else {
-          if (servicePricesIncludeTax) {
-            const inc = it.unitResolved * it.qty
-            const ex  = r > 0 ? inc / (1 + r) : inc
-            const tax = inc - ex
-            acc.subtotal += ex
-            acc.tax += tax
-            acc.total += inc
-          } else {
-            const ex  = it.unitResolved * it.qty
-            const tax = r * ex
-            const inc = ex + tax
-            acc.subtotal += ex
-            acc.tax += tax
-            acc.total += inc
-          }
+          const ex  = it.unitResolved * it.qty
+          const tax = r * ex
+          const inc = ex + tax
+          acc.subtotal += ex
+          acc.tax += tax
+          acc.total += inc
         }
         return acc
-      }, { subtotal: 0, tax: 0, total: 0 }) [attached_file:3]
+      }, { subtotal: 0, tax: 0, total: 0 })
 
       const subtotalEx = Number(order.subtotal_ex_tax ?? order.subtotal ?? computed.subtotal)
       const totalTax   = Number(order.total_tax ?? order.tax_amount ?? computed.tax)
-      const totalInc   = Number(order.total_inc_tax ?? order.total_amount ?? computed.total) [attached_file:3]
+      const totalInc   = Number(order.total_inc_tax ?? order.total_amount ?? computed.total)
 
       // 5) Create or fetch invoice header via UPSERT to avoid unique-constraint errors
-      // NOTE: onConflict requires a unique index/constraint on "order_id" (you already have invoices_order_id_key)
       const { data: inv, error: invError } = await supabase
         .from('invoices')
         .upsert({
@@ -135,21 +126,15 @@ export class InvoiceService {
         }, { onConflict: 'order_id' })
         .select()
         .single()
-      if (invError || !inv) throw new Error(invError?.message || 'Failed to create invoice') [attached_file:1]
+      if (invError || !inv) throw new Error(invError?.message || 'Failed to create invoice')
 
-      // 6) Insert invoice line items (idempotent-ish): clear and re-insert to avoid duplicates
-      // If you prefer not to delete, you could upsert with a composite key (invoice_id, line_no)
+      // 6) Recreate invoice line items to avoid duplicates
       await supabase.from('invoice_items').delete().eq('invoice_id', inv.id)
       let lineNo = 1
       for (const it of enrichedItems) {
         const r = it.taxRate / 100
         let ex, inc, tax, unitExResolved
-        if (it.isPackaged) {
-          inc = it.unitResolved * it.qty
-          ex  = r > 0 ? inc / (1 + r) : inc
-          tax = inc - ex
-          unitExResolved = r > 0 ? it.unitResolved / (1 + r) : it.unitResolved
-        } else if (servicePricesIncludeTax) {
+        if (it.isPackaged || servicePricesIncludeTax) {
           inc = it.unitResolved * it.qty
           ex  = r > 0 ? inc / (1 + r) : inc
           tax = inc - ex
@@ -172,9 +157,9 @@ export class InvoiceService {
           line_total_ex_tax: Number(ex.toFixed(2)),
           line_total_inc_tax: Number(inc.toFixed(2))
         })
-      } [attached_file:1]
+      }
 
-      // 7) Generate PDF and update invoice with URL (safe to run multiple times)
+      // 7) Generate PDF and update invoice with URL
       const pdfPayload = {
         invoice: {
           invoice_no: inv.invoice_no,
@@ -201,7 +186,8 @@ export class InvoiceService {
           address: [
             profile?.shipping_address_line1,
             profile?.shipping_address_line2,
-            [profile?.shipping_city, profile?.shipping_state, profile?.shipping_pincode].filter(Boolean).join(' ')
+            [profile?.shipping_city, profile?.shipping_state, profile?.shipping_pincode]
+              .filter(Boolean).join(' ')
           ].filter(Boolean).join(', '),
           gstin: profile?.gstin || '',
           phone: profile?.phone || '',
@@ -210,7 +196,7 @@ export class InvoiceService {
       }
       const { pdfUrl } = await generateBillPdf(pdfPayload)
       await supabase.from('invoices').update({ pdf_url: pdfUrl }).eq('id', inv.id)
-      return { invoiceId: inv.id, invoiceNo: inv.invoice_no, pdfUrl } [attached_file:1]
+      return { invoiceId: inv.id, invoiceNo: inv.invoice_no, pdfUrl }
     } catch (error) {
       console.error('Invoice generation error:', error)
       throw error
