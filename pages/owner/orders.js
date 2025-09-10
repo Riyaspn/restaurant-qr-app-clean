@@ -36,7 +36,6 @@ export default function OrdersPage() {
   const { checking, user } = useRequireAuth();
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
-  const userEmail = user?.email;
 
   const [ordersByStatus, setOrdersByStatus] = useState({ new: [], in_progress: [], ready: [], completed: [] });
   const [completedPage, setCompletedPage] = useState(1);
@@ -159,12 +158,7 @@ export default function OrdersPage() {
       const { pdf_url } = await resp.json();
 
       if (pdf_url) {
-        if (Capacitor.isNativePlatform()) {
-          const { Browser } = await import('@capacitor/browser');
-          await Browser.open({ url: pdf_url });
-        } else {
-          window.open(pdf_url, '_blank', 'noopener,noreferrer');
-        }
+        window.open(pdf_url, '_blank', 'noopener,noreferrer');
       }
       loadOrders();
     } catch (e) {
@@ -321,13 +315,13 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order.invoice?.pdf_url);
   const subtotal = Number(order.subtotal_ex_tax ?? order.subtotal ?? 0);
-  const tax = Number(order.total_tax ?? order.tax_amount ?? 0);
-  const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
+  const tax      = Number(order.total_tax ?? order.tax_amount ?? 0);
+  const total    = Number(order.total_inc_tax ?? order.total_amount ?? 0);
 
   return (
     <div className="modal" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal__card">
-        <div style={{display:'flex',justifyContent:'space-between'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <h2>Order #{order.id.slice(0,8)}</h2>
           <Button variant="outline" onClick={onClose}>×</Button>
         </div>
@@ -364,7 +358,7 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
         </div>
       </div>
       <style jsx>{`
-        .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;alignItems:center;justifyContent:center;z-index:50;padding:12px;}
+        .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px;}
         .modal__card {background:#fff;width:100%;max-width:520px;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:auto;}
       `}</style>
     </div>
@@ -384,7 +378,7 @@ function ConfirmDialog({ title, message, confirmText, cancelText, onConfirm, onC
         </div>
       </div>
       <style jsx>{`
-        .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;alignItems:center;justifyContent:center;z-index:50;padding:12px;}
+        .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px;}
         .modal__card {background:#fff;padding:16px;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,0.15);}
       `}</style>
     </div>
