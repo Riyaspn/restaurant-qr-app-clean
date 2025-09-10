@@ -46,7 +46,7 @@ export default function OrdersPage() {
       loading: restLoading,
       user: user?.email
     });
-  }, [restaurant, restaurantId, restLoading, user]); [web:116][web:120]
+  }, [restaurant, restaurantId, restLoading, user]);
 
   const [ordersByStatus, setOrdersByStatus] = useState({
     new: [], in_progress: [], ready: [], completed: []
