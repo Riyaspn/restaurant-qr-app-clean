@@ -78,13 +78,13 @@ export default function OrdersPage() {
       setCompletedPage(1);
       loadOrders(1);
     }
-  }, [restaurantId]); [web:116]
+  }, [restaurantId]);
 
   useEffect(() => {
     const handler = () => loadOrders();
     document.addEventListener('reload-orders', handler);
     return () => document.removeEventListener('reload-orders', handler);
-  }, []); [web:116]
+  }, []);
 
   useEffect(() => {
     if (!restaurantId || !userEmail || checking || restLoading) return;
@@ -114,7 +114,7 @@ export default function OrdersPage() {
     } else {
       setupWebPush();
     }
-  }, [restaurantId, userEmail, checking, restLoading]); [web:116]
+  }, [restaurantId, userEmail, checking, restLoading]);
 
   useEffect(() => {
     if (!restaurantId || restaurantId === 'undefined') return;
@@ -136,7 +136,7 @@ export default function OrdersPage() {
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [restaurantId]); [web:116]
+  }, [restaurantId]);
 
   async function fetchBucket(status, page=1) {
     let q = supabase.from('orders')
