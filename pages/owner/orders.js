@@ -156,35 +156,37 @@ window.removeEventListener('click', unlockAudio, { capture: true });
   }, [restaurantId]);
 
   useEffect(() => {
-if (!restaurantId) return;
+  if (!restaurantId) return;
 
-const channel = supabase
-.channel('orders-${restaurantId}')
-.on('postgres_changes', {
-event: 'INSERT',
-schema: 'public',
-table: 'orders',
-filter: 'restaurant_id=eq.${restaurantId}'
-}, async () => {
-if ('Notification' in window && Notification.permission === 'granted') {
-new Notification('🔔 New Order!');
-}
-notificationAudioRef.current?.play().catch(() => {});
-setTimeout(async () => {
-const newOrders = await fetchBucket('new');
-setOrdersByStatus(prev => ({
-...prev,
-new: newOrders.map(o => ({
-...o,
-invoice: prev.new.find(p => p.id === o.id)?.invoice || null
-}))
-}));
-}, 250);
-})
-.subscribe();
+  const channel = supabase
+    .channel(`orders-${restaurantId}`)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'orders',
+      filter: `restaurant_id=eq.${restaurantId}`
+    }, async () => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🔔 New Order!');
+      }
+      notificationAudioRef.current?.play().catch(() => {});
+      // Small delay to ensure row-level JOINs are available
+      setTimeout(async () => {
+        const newOrders = await fetchBucket('new');
+        setOrdersByStatus(prev => ({
+          ...prev,
+          new: newOrders.map(o => ({
+            ...o,
+            invoice: prev.new.find(p => p.id === o.id)?.invoice || null
+          }))
+        }));
+      }, 250);
+    })
+    .subscribe();
 
-return () => supabase.removeChannel(channel);
+  return () => supabase.removeChannel(channel);
 }, [restaurantId]);
+
 
 
   const updateStatus = async (id, next) => {
