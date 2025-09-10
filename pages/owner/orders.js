@@ -65,7 +65,7 @@ export default function OrdersPage() {
     const a = new Audio('/notification-sound.mp3');
     a.load();
     notificationAudioRef.current = a;
-  }, []); [web:115]
+  }, []);
 
   const mobileList = useMemo(
     () => ordersByStatus[mobileFilter] || [],
