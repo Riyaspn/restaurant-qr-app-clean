@@ -1,5 +1,5 @@
 // pages/owner/orders.js
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
@@ -46,7 +46,7 @@ export default function OrdersPage() {
       loading: restLoading,
       user: user?.email
     });
-  }, [restaurant, restaurantId, restLoading, user]);
+  }, [restaurant, restaurantId, restLoading, user]); [web:116][web:120]
 
   const [ordersByStatus, setOrdersByStatus] = useState({
     new: [], in_progress: [], ready: [], completed: []
@@ -59,6 +59,14 @@ export default function OrdersPage() {
   const [confirm, setConfirm] = useState({ open: false, orderId: null });
   const [generatingInvoice, setGeneratingInvoice] = useState(null);
 
+  // Preload notification sound once to avoid Android decode delays
+  const notificationAudioRef = useRef(null);
+  useEffect(() => {
+    const a = new Audio('/notification-sound.mp3');
+    a.load();
+    notificationAudioRef.current = a;
+  }, []); [web:115]
+
   const mobileList = useMemo(
     () => ordersByStatus[mobileFilter] || [],
     [ordersByStatus, mobileFilter]
@@ -70,13 +78,13 @@ export default function OrdersPage() {
       setCompletedPage(1);
       loadOrders(1);
     }
-  }, [restaurantId]);
+  }, [restaurantId]); [web:116]
 
   useEffect(() => {
     const handler = () => loadOrders();
     document.addEventListener('reload-orders', handler);
     return () => document.removeEventListener('reload-orders', handler);
-  }, []);
+  }, []); [web:116]
 
   useEffect(() => {
     if (!restaurantId || !userEmail || checking || restLoading) return;
@@ -106,7 +114,7 @@ export default function OrdersPage() {
     } else {
       setupWebPush();
     }
-  }, [restaurantId, userEmail, checking, restLoading]);
+  }, [restaurantId, userEmail, checking, restLoading]); [web:116]
 
   useEffect(() => {
     if (!restaurantId || restaurantId === 'undefined') return;
@@ -122,12 +130,13 @@ export default function OrdersPage() {
             icon:'/favicon.ico', badge:'/favicon.ico', tag:`order-${o.id}`
           });
         }
-        new Audio('/notification-sound.mp3').play().catch(()=>{});
+        // use preloaded audio to avoid Android playback delay
+        notificationAudioRef.current?.play().catch(()=>{});
         setOrdersByStatus(prev => ({ ...prev, new: [o, ...(prev.new||[])] }));
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [restaurantId]);
+  }, [restaurantId]); [web:116]
 
   async function fetchBucket(status, page=1) {
     let q = supabase.from('orders')
@@ -160,31 +169,31 @@ export default function OrdersPage() {
         fetchBucket('ready'),
         fetchBucket('completed', page)
       ]);
-        const all = [...n,i,r,c];
-        const ids = all.map(o => o.id).filter(Boolean);
-        let invMap = {};
-        if (ids.length) {
-          const { data: invs } = await supabase
-            .from('invoices')
-            .select('order_id,pdf_url')
-            .in('order_id', ids);
-          (invs||[]).forEach(inv => invMap[inv.order_id] = inv.pdf_url);
-        }
-        const attach = rows => rows.map(o => ({
-          ...o,
-          invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null
-        }));
-        setOrdersByStatus({
-          new: attach(n),
-          in_progress: attach(i),
-          ready: attach(r),
-          completed: attach(c)
-        });
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+      const all = [...n,i,r,c];
+      const ids = all.map(o => o.id).filter(Boolean);
+      let invMap = {};
+      if (ids.length) {
+        const { data: invs } = await supabase
+          .from('invoices')
+          .select('order_id,pdf_url')
+          .in('order_id', ids);
+        (invs||[]).forEach(inv => invMap[inv.order_id] = inv.pdf_url);
       }
+      const attach = rows => rows.map(o => ({
+        ...o,
+        invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null
+      }));
+      setOrdersByStatus({
+        new: attach(n),
+        in_progress: attach(i),
+        ready: attach(r),
+        completed: attach(c)
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const loadMoreCompleted = () => {
@@ -294,6 +303,7 @@ export default function OrdersPage() {
                 onStatusChange={updateStatus}
                 onComplete={initiateComplete}
                 generatingInvoice={generatingInvoice}
+                setOrdersByStatus={setOrdersByStatus}
               />
             ))}
             {mobileFilter==='completed'&&(ordersByStatus.completed?.length||0)>=PAGE&&(
@@ -320,6 +330,7 @@ export default function OrdersPage() {
                           onStatusChange={updateStatus}
                           onComplete={initiateComplete}
                           generatingInvoice={generatingInvoice}
+                          setOrdersByStatus={setOrdersByStatus}
                         />
                       ))
                   }
@@ -381,11 +392,68 @@ export default function OrdersPage() {
 }
 
 // OrderCard Component
-function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, generatingInvoice }) {
+function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, generatingInvoice, setOrdersByStatus }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
   const table = order.table_number;
+
+  // Single place to open invoice quickly (Android-friendly)
+  const openOrGenerateInvoice = async () => {
+    // 1) Open tab immediately on user gesture to avoid popup blocks
+    const win = window.open('about:blank');
+
+    try {
+      // If we already have a URL, just navigate
+      if (hasInvoice && order.invoice?.pdf_url) {
+        if (win) win.location = order.invoice.pdf_url;
+        // no need to reload state
+        return;
+      }
+
+      // 2) Request generation; server should be idempotent and return existing invoice if present
+      const resp = await fetch('/api/invoices/generate', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ order_id: order.id })
+      });
+
+      if (!resp.ok) {
+        if (win) win.close();
+        throw new Error('Invoice gen failed');
+      }
+
+      const { pdf_url } = await resp.json();
+
+      // 3) Navigate the pre-opened tab to the PDF URL
+      if (pdf_url && win) {
+        win.location = pdf_url;
+      } else {
+        if (win) win.close();
+      }
+
+      // 4) Optimistically inject URL into local state to avoid full reload
+      if (pdf_url) {
+        setOrdersByStatus(prev => {
+          const inject = rows => rows.map(o => o.id === order.id ? { ...o, invoice: { pdf_url } } : o);
+          return {
+            new: inject(prev.new || []),
+            in_progress: inject(prev.in_progress || []),
+            ready: inject(prev.ready || []),
+            completed: inject(prev.completed || []),
+          };
+        });
+      }
+
+      // 5) Light refresh after a short delay (avoid heavy 4-bucket reload each time)
+      setTimeout(() => {
+        document.dispatchEvent(new CustomEvent('reload-orders'));
+      }, 1200);
+    } catch (err) {
+      console.error('Generate/Open bill error', err);
+    }
+  };
+
   return (
     <Card padding={12} style={{
       cursor:'pointer',borderRadius:12,boxShadow:'0 1px 2px rgba(0,0,0,0.04)',border:'1px solid #eef2f7'
@@ -406,35 +474,18 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}} onClick={e=>e.stopPropagation()}>
           {order.status==='new' && <Button size="sm" onClick={()=>onStatusChange(order.id,'in_progress')}>Start</Button>}
           {order.status==='in_progress' && <Button size="sm" variant="success" onClick={()=>onStatusChange(order.id,'ready')}>Ready</Button>}
-          {order.status==='ready' && !hasInvoice && <Button size="sm" onClick={()=>onComplete(order.id,order.payment_method)} disabled={generatingInvoice===order.id}>{generatingInvoice===order.id?'Processing…':'Done'}</Button>}
-          {hasInvoice && <Button size="sm" variant="outline" onClick={()=>window.open(order.invoice.pdf_url,'_blank')}>Bill</Button>}
+          {order.status==='ready' && !hasInvoice && (
+            <Button size="sm" onClick={()=>onComplete(order.id,order.payment_method)} disabled={generatingInvoice===order.id}>
+              {generatingInvoice===order.id?'Processing…':'Done'}
+            </Button>
+          )}
+          {hasInvoice && (
+            <Button size="sm" variant="outline" onClick={openOrGenerateInvoice}>
+              Bill
+            </Button>
+          )}
           {!hasInvoice && order.status==='completed' && (
-            <Button size="sm" onClick={async()=>{
-              const win = window.open('about:blank');
-              try {
-                const resp = await fetch('/api/invoices/generate', {
-                  method:'POST',
-                  headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({ order_id: order.id })
-                });
-                if (resp.ok) {
-                  const { pdf_url } = await resp.json();
-                  if (pdf_url && win) {
-                    win.location = pdf_url;
-                    // After opening the PDF, refresh orders shortly after to avoid stale UI on return
-                    setTimeout(() => document.dispatchEvent(new CustomEvent('reload-orders')), 1500);
-                  } else {
-                    if (win) win.close();
-                  }
-                } else {
-                  if (win) win.close();
-                  throw new Error('Invoice gen failed');
-                }
-              } catch (err) {
-                if (win) win.close();
-                console.error('Generate bill error', err);
-              }
-            }} disabled={generatingInvoice===order.id}>
+            <Button size="sm" onClick={openOrGenerateInvoice} disabled={generatingInvoice===order.id}>
               {generatingInvoice===order.id?'Processing…':'Generate Bill'}
             </Button>
           )}
