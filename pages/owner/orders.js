@@ -7,7 +7,6 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { getToken } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../../lib/firebaseClient';
-import { Capacitor } from '@capacitor/core';
 import { PushNotificationService } from '../../services/pushNotifications';
 
 // Constants
