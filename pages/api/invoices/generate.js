@@ -1,4 +1,6 @@
-// pages/api/invoices/generate.js
+//pages/api/invoices/generate.js
+
+
 import { InvoiceService } from '../../../services/invoiceService'
 import { createClient } from '@supabase/supabase-js'
 
@@ -22,27 +24,25 @@ export default async function handler(req, res) {
     return res.status(200).json({ pdf_url: result?.pdf_url })
   } catch (error) {
     const msg = error?.message || ''
-    const isDuplicate = 
+    const isDuplicate =
       error?.code === '23505' ||
       msg.includes('duplicate key value violates unique constraint') ||
       msg.includes('invoices_order_id_key')
 
     if (isDuplicate) {
-      try {
-        const { data, error: fetchErr } = await supabase
-          .from('invoices')
-          .select('pdf_url')
-          .eq('order_id', order_id)
-          .single()
+      // Fetch and return existing invoice
+      const { data, error: fetchErr } = await supabase
+        .from('invoices')
+        .select('pdf_url')
+        .eq('order_id', order_id)
+        .single()
 
-        if (fetchErr) {
-          console.error('Error fetching existing invoice:', fetchErr)
-          return res.status(500).json({ error: 'Could not retrieve existing invoice' })
-        }
-        return res.status(200).json({ pdf_url: data?.pdf_url })
-      } catch (fetchError) {
-        return res.status(500).json({ error: 'Invoice retrieval failed' })
+      if (fetchErr) {
+        console.error('Error fetching existing invoice:', fetchErr)
+        return res.status(500).json({ error: 'Could not retrieve existing invoice' })
       }
+
+      return res.status(200).json({ pdf_url: data?.pdf_url })
     }
 
     console.error('Invoice generation error:', error)

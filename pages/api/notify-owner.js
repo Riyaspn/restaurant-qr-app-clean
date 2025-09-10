@@ -1,4 +1,6 @@
-// pages/api/notify-owner.js
+//pages/api/notify-owner.js
+
+
 import admin from 'firebase-admin'
 import { createClient } from '@supabase/supabase-js'
 
@@ -25,7 +27,9 @@ const supabase = createClient(
 )
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
   try {
     const { restaurantId, orderId, orderItems } = req.body || {}
@@ -34,7 +38,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing restaurantId or orderId' })
     }
 
-    // Fetch device tokens for the restaurant
+    // Fetch device tokens
     const { data: rows, error: fetchErr } = await supabase
       .from('push_subscription_restaurants')
       .select('device_token')
@@ -46,7 +50,7 @@ export default async function handler(req, res) {
     }
 
     const tokens = (rows || [])
-      .map(r => r?.device_token)
+      .map(r => r.device_token)
       .filter(Boolean)
 
     if (!tokens.length) {
@@ -78,7 +82,6 @@ export default async function handler(req, res) {
     }
 
     const response = await admin.messaging().sendMulticast(message)
-
     return res.status(200).json({
       successCount: response.successCount,
       failureCount: response.failureCount
