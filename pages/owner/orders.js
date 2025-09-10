@@ -38,6 +38,16 @@ export default function OrdersPage() {
   const restaurantId = restaurant?.id;
   const userEmail = user?.email;
 
+  // Debug: verify context timings
+  useEffect(() => {
+    console.log('Restaurant context debug:', {
+      restaurant,
+      restaurantId,
+      loading: restLoading,
+      user: user?.email
+    });
+  }, [restaurant, restaurantId, restLoading, user]);
+
   const [ordersByStatus, setOrdersByStatus] = useState({
     new: [], in_progress: [], ready: [], completed: []
   });
@@ -53,6 +63,14 @@ export default function OrdersPage() {
     () => ordersByStatus[mobileFilter] || [],
     [ordersByStatus, mobileFilter]
   );
+
+  // Load orders when restaurantId is ready
+  useEffect(() => {
+    if (restaurantId && restaurantId !== 'undefined') {
+      setCompletedPage(1);
+      loadOrders(1);
+    }
+  }, [restaurantId]);
 
   useEffect(() => {
     const handler = () => loadOrders();
@@ -91,7 +109,7 @@ export default function OrdersPage() {
   }, [restaurantId, userEmail, checking, restLoading]);
 
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId || restaurantId === 'undefined') return;
     const channel = supabase
       .channel(`orders-${restaurantId}`)
       .on('postgres_changes',{
@@ -128,40 +146,45 @@ export default function OrdersPage() {
   }
 
   async function loadOrders(page=completedPage) {
+    // CRITICAL: Don't load orders if restaurant isn't ready
+    if (!restaurantId || restaurantId === 'undefined') {
+      console.warn('Cannot load orders: restaurantId not ready', { restaurantId, restaurant });
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       const [n,i,r,c] = await Promise.all([
         fetchBucket('new'),
-        fetchBucket('in_progress'),
+        fetchBucket('in_progress'), 
         fetchBucket('ready'),
         fetchBucket('completed', page)
       ]);
-      const all = [...n,i,r,c];
-      const ids = all.map(o => o.id).filter(Boolean);
-      let invMap = {};
-      if (ids.length) {
-        const { data: invs } = await supabase
-          .from('invoices')
-          .select('order_id,pdf_url')
-          .in('order_id', ids);
-        (invs||[]).forEach(inv => invMap[inv.order_id] = inv.pdf_url);
+        const all = [...n,i,r,c];
+        const ids = all.map(o => o.id).filter(Boolean);
+        let invMap = {};
+        if (ids.length) {
+          const { data: invs } = await supabase
+            .from('invoices')
+            .select('order_id,pdf_url')
+            .in('order_id', ids);
+          (invs||[]).forEach(inv => invMap[inv.order_id] = inv.pdf_url);
+        }
+        const attach = rows => rows.map(o => ({
+          ...o,
+          invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null
+        }));
+        setOrdersByStatus({
+          new: attach(n),
+          in_progress: attach(i),
+          ready: attach(r),
+          completed: attach(c)
+        });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
       }
-      const attach = rows => rows.map(o => ({
-        ...o,
-        invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null
-      }));
-      setOrdersByStatus({
-        new: attach(n),
-        in_progress: attach(i),
-        ready: attach(r),
-        completed: attach(c)
-      });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
   }
 
   const loadMoreCompleted = () => {
@@ -217,7 +240,16 @@ export default function OrdersPage() {
         <h1>Orders Dashboard</h1>
         <div className="header-actions">
           <span className="muted">{liveCount} live orders</span>
-          <Button variant="outline" onClick={()=>{setCompletedPage(1);loadOrders(1);}}>Refresh</Button>
+          <Button
+            variant="outline"
+            onClick={()=>{
+              if (!restaurantId || restaurantId === 'undefined') return;
+              setCompletedPage(1);
+              loadOrders(1);
+            }}
+          >
+            Refresh
+          </Button>
         </div>
       </header>
 
@@ -354,7 +386,6 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
   const table = order.table_number;
-
   return (
     <Card padding={12} style={{
       cursor:'pointer',borderRadius:12,boxShadow:'0 1px 2px rgba(0,0,0,0.04)',border:'1px solid #eef2f7'
@@ -388,9 +419,17 @@ function OrderCard({ order, statusColor, onSelect, onStatusChange, onComplete, g
                 });
                 if (resp.ok) {
                   const { pdf_url } = await resp.json();
-                  if (pdf_url && win) win.location = pdf_url;
-                  document.dispatchEvent(new CustomEvent('reload-orders'));
-                } else throw new Error('Invoice gen failed');
+                  if (pdf_url && win) {
+                    win.location = pdf_url;
+                    // After opening the PDF, refresh orders shortly after to avoid stale UI on return
+                    setTimeout(() => document.dispatchEvent(new CustomEvent('reload-orders')), 1500);
+                  } else {
+                    if (win) win.close();
+                  }
+                } else {
+                  if (win) win.close();
+                  throw new Error('Invoice gen failed');
+                }
               } catch (err) {
                 if (win) win.close();
                 console.error('Generate bill error', err);
@@ -414,7 +453,6 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
   const tax      = Number(order.total_tax ?? order.tax_amount ?? 0);
   const total    = Number(order.total_inc_tax ?? order.total_amount ?? 0);
   const table    = order.table_number;
-
   return (
     <div className="modal" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal__card" style={{maxWidth:520}}>
