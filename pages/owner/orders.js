@@ -201,6 +201,8 @@ if (invError) {
 
   useEffect(() => {
   if (!restaurantId) return;
+  console.log('Setting up realtime subscription for restaurant:', restaurantId); // ADD THIS
+
 
   const channel = supabase
     .channel(`orders-${restaurantId}`)  // ← Fixed: backticks instead of quotes
@@ -210,6 +212,8 @@ if (invError) {
       table: 'orders',
       filter: `restaurant_id=eq.${restaurantId}`  // ← Fixed: backticks instead of quotes
     }, async () => {
+             console.log('Realtime event received:', payload); // ADD THIS
+
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification('🔔 New Order!');
       }
@@ -226,6 +230,8 @@ if (invError) {
       }, 250);
     })
     .subscribe();
+      console.log('Realtime subscription status:', status); // ADD THIS
+
 
   return () => supabase.removeChannel(channel);
 }, [restaurantId]);

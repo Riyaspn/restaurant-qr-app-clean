@@ -21,21 +21,30 @@ function MyApp({ Component, pageProps }) {
 
   useEffect(() => {
     const bootstrap = async () => {
-      if (!('serviceWorker' in navigator)) return;
+      if (!('serviceWorker' in navigator)){
+      console.log('Service Worker not supported'); // ADD THIS
+
+return;}
 
       // Register SW
       try {
         await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('✅ SW registered for push');
+      console.log('✅ SW registered for push:', registration); // MODIFY THIS
       } catch (e) {
         console.error('❌ SW registration failed', e);
+      return; // ADD return here
+
       }
 
       // Foreground handler (always runs, not inside catch)
       const messaging = await getMessagingIfSupported();
-      if (!messaging) return;
+      if (!messaging){
+      console.log('Messaging not supported'); // ADD THIS
+ return;}
 
       onMessage(messaging, payload => {
+      console.log('Foreground message received:', payload); // ADD THIS
+
         const { title, body } = payload.notification || {};
         if (!title) return;
 
