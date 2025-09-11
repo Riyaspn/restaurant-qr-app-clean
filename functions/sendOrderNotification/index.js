@@ -1,4 +1,5 @@
 // functions/sendOrderNotification/index.js
+
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
 
@@ -9,9 +10,10 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   const { order } = req.body;
+
   // Fetch all device tokens for this restaurant
   const { data: tokens, error: tokenError } = await supabase
-    .from('push_subscriptions')
+    .from('push_subscription_restaurants')
     .select('device_token')
     .eq('restaurant_id', order.restaurant_id);
 
@@ -19,6 +21,7 @@ export default async function handler(req, res) {
     console.error('Error fetching tokens:', tokenError);
     return res.status(500).json({ error: tokenError.message });
   }
+
   if (!tokens || tokens.length === 0) {
     return res.status(200).json({ message: 'No tokens found' });
   }
@@ -27,7 +30,7 @@ export default async function handler(req, res) {
     registration_ids: tokens.map(t => t.device_token),
     notification: {
       title: 'New Order Received',
-      body: `Order #${order.id.slice(0,8)} has been placed.`,
+      body: `Order #${order.id.slice(0, 8)} has been placed.`,
     },
   };
 
@@ -42,6 +45,7 @@ export default async function handler(req, res) {
       body: JSON.stringify(message),
     }
   );
+
   const result = await response.json();
   console.log('FCM response:', result);
   return res.status(200).json(result);

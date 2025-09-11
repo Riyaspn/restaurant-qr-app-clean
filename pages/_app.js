@@ -1,4 +1,5 @@
 // pages/_app.js
+
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';
@@ -9,20 +10,20 @@ import { useEffect } from 'react';
 import { onMessage } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../lib/firebaseClient';
 
-const OWNER_PREFIX    = '/owner';
+const OWNER_PREFIX = '/owner';
 const CUSTOMER_PREFIX = '/order';
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
-  const path   = router.pathname || '';
-  const showSidebar     = path === OWNER_PREFIX || path.startsWith(`${OWNER_PREFIX}/`);
+  const path = router.pathname || '';
+  const showSidebar = path === OWNER_PREFIX || path.startsWith(`${OWNER_PREFIX}/`);
   const isCustomerRoute = path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`);
 
   useEffect(() => {
     const bootstrap = async () => {
       if (!('serviceWorker' in navigator)) return;
 
-      // Register the Firebase messaging service worker
+      // Register SW
       try {
         await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         console.log('✅ SW registered for push');
@@ -30,7 +31,7 @@ function MyApp({ Component, pageProps }) {
         console.error('❌ SW registration failed', e);
       }
 
-      // Foreground push handler
+      // Foreground handler (always runs, not inside catch)
       const messaging = await getMessagingIfSupported();
       if (!messaging) return;
 
@@ -38,7 +39,6 @@ function MyApp({ Component, pageProps }) {
         const { title, body } = payload.notification || {};
         if (!title) return;
 
-        // Show browser notification
         if (Notification.permission === 'granted') {
           const notification = new Notification(title, {
             body,
@@ -52,7 +52,6 @@ function MyApp({ Component, pageProps }) {
           setTimeout(() => notification.close(), 5000);
         }
 
-        // Play custom in-page sound
         new Audio('/notification-sound.mp3').play().catch(() => {});
       });
     };
