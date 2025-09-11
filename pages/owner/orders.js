@@ -47,6 +47,46 @@ export default function OrdersPage() {
   const notificationAudioRef = useRef(null);
 
   useEffect(() => {
+  const bootstrap = async () => {
+    if (!restaurantId || !user) return;
+    
+    // Register for push notifications
+    const messaging = await getMessagingIfSupported();
+    if (messaging && 'Notification' in window) {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, { 
+            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY 
+          });
+          
+          if (token) {
+            console.log('FCM Token:', token);
+            // Store token
+            await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                deviceToken: token,
+                restaurantId,
+                userEmail: user.email,
+                platform: /Android/.test(navigator.userAgent) ? 'android' : 
+                         /iPhone|iPad/.test(navigator.userAgent) ? 'ios' : 'web'
+              })
+            });
+          }
+        }
+      } catch (error) {
+        console.error('FCM setup failed:', error);
+      }
+    }
+  };
+  
+  bootstrap();
+}, [restaurantId, user]);
+
+
+  useEffect(() => {
     const a = new Audio('/notification-sound.mp3');
     a.load();
     notificationAudioRef.current = a;
