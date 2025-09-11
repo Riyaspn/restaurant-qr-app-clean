@@ -1,6 +1,5 @@
 // pages/api/notify-owner.js
 import admin from 'firebase-admin'
-import { getMessaging } from 'firebase-admin/messaging'  // ← NEW: Modern messaging import
 import { createClient } from '@supabase/supabase-js'
 
 // Initialize Firebase Admin once
@@ -29,7 +28,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
-  
+
   try {
     const { restaurantId, orderId, orderItems } = req.body || {}
     
@@ -80,15 +79,23 @@ export default async function handler(req, res) {
       }
     }
     
-    // ← UPDATED: Use modern getMessaging().sendMulticast instead of admin.messaging()
-    const response = await getMessaging().sendMulticast(message)
+    // ✅ FIXED: Use sendEachForMulticast instead of sendMulticast
+    const messaging = admin.messaging()
+    const result = await messaging.sendEachForMulticast(message)
+    
+    console.log('Push notification result:', {
+      successCount: result.successCount,
+      failureCount: result.failureCount
+    })
     
     return res.status(200).json({
-      successCount: response.successCount,
-      failureCount: response.failureCount
+      message: 'Notifications sent',
+      successCount: result.successCount,
+      failureCount: result.failureCount
     })
-  } catch (err) {
-    console.error('notify-owner error:', err)
-    return res.status(500).json({ error: err?.message || 'Internal error' })
+    
+  } catch (error) {
+    console.error('notify-owner error:', error)
+    return res.status(500).json({ error: 'Failed to send notifications' })
   }
 }

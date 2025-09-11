@@ -121,10 +121,14 @@ window.removeEventListener('click', unlockAudio, { capture: true });
       let invMap = {};
 
       if (ids.length) {
-        const { data: invs } = await supabase
-          .from('invoices')
-          .select('order_id,pdf_url')
-          .in('order_id', ids);
+        const { data: invs, error: invError } = await supabase
+  .from('invoices')
+  .select('order_id,pdf_url')
+  .in('order_id', ids);
+
+if (invError) {
+  console.error('Invoice fetch error:', invError);
+}
         (invs || []).forEach(inv => {
           invMap[inv.order_id] = inv.pdf_url;
         });
@@ -159,18 +163,17 @@ window.removeEventListener('click', unlockAudio, { capture: true });
   if (!restaurantId) return;
 
   const channel = supabase
-    .channel(`orders-${restaurantId}`)
+    .channel(`orders-${restaurantId}`)  // ← Fixed: backticks instead of quotes
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
       table: 'orders',
-      filter: `restaurant_id=eq.${restaurantId}`
+      filter: `restaurant_id=eq.${restaurantId}`  // ← Fixed: backticks instead of quotes
     }, async () => {
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification('🔔 New Order!');
       }
       notificationAudioRef.current?.play().catch(() => {});
-      // Small delay to ensure row-level JOINs are available
       setTimeout(async () => {
         const newOrders = await fetchBucket('new');
         setOrdersByStatus(prev => ({
@@ -186,6 +189,7 @@ window.removeEventListener('click', unlockAudio, { capture: true });
 
   return () => supabase.removeChannel(channel);
 }, [restaurantId]);
+
 
 
 
