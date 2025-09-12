@@ -1,12 +1,14 @@
 // pages/_app.js
-
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';
+
 import Layout from '../components/Layout';
 import { RestaurantProvider } from '../context/RestaurantContext';
+
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
+
 import { onMessage } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../lib/firebaseClient';
 
@@ -21,38 +23,36 @@ function MyApp({ Component, pageProps }) {
 
   useEffect(() => {
     const bootstrap = async () => {
-      if (!('serviceWorker' in navigator)){
-      console.log('Service Worker not supported'); // ADD THIS
-
-return;}
-
-      // Register SW
-      try {
-        await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      console.log('✅ SW registered for push:', registration); // MODIFY THIS
-      } catch (e) {
-        console.error('❌ SW registration failed', e);
-      return; // ADD return here
-
+      if (!('serviceWorker' in navigator)) {
+        console.log('Service Worker not supported');
+        return;
       }
 
-      // Foreground handler (always runs, not inside catch)
+      // Register SW early so it can handle background notifications
+      let registration = null;
+      try {
+        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('✅ SW registered for push:', registration.scope);
+      } catch (e) {
+        console.error('❌ SW registration failed', e);
+        return;
+      }
+
+      // Foreground messages: show toast/notification and play a short sound
       const messaging = await getMessagingIfSupported();
-      if (!messaging){
-      console.log('Messaging not supported'); // ADD THIS
- return;}
+      if (!messaging) {
+        console.log('Messaging not supported');
+        return;
+      }
 
-      onMessage(messaging, payload => {
-      console.log('Foreground message received:', payload); // ADD THIS
-
+      onMessage(messaging, (payload) => {
+        console.log('Foreground message received:', payload);
         const { title, body } = payload.notification || {};
-        if (!title) return;
-
-        if (Notification.permission === 'granted') {
+        if (title && 'Notification' in window && Notification.permission === 'granted') {
           const notification = new Notification(title, {
             body,
             icon: '/favicon.ico',
-            badge: '/favicon.ico'
+            badge: '/favicon.ico',
           });
           notification.onclick = () => {
             router.push('/owner/orders');
@@ -60,7 +60,7 @@ return;}
           };
           setTimeout(() => notification.close(), 5000);
         }
-
+        // Short sound; will succeed after any user interaction per autoplay policies
         new Audio('/notification-sound.mp3').play().catch(() => {});
       });
     };

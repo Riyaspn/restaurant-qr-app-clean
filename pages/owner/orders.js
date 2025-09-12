@@ -1,14 +1,13 @@
 // pages/owner/orders.js
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+
 import { getToken } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../../lib/firebaseClient';
-import { Capacitor } from '@capacitor/core';
-import { PushNotificationService } from '../../services/pushNotifications';
 
 // Constants
 const STATUSES = ['new', 'in_progress', 'ready', 'completed'];
@@ -17,14 +16,14 @@ const COLORS   = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', com
 const PAGE     = 20;
 
 // Helpers
-const money = v => `₹${Number(v ?? 0).toFixed(2)}`;
+const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`;
 function toDisplayItems(order) {
   if (Array.isArray(order.items)) return order.items;
   if (Array.isArray(order.order_items)) {
-    return order.order_items.map(oi => ({
+    return order.order_items.map((oi) => ({
       name: oi.menu_items?.name || oi.item_name || 'Item',
       quantity: oi.quantity,
-      price: oi.price
+      price: oi.price,
     }));
   }
   return [];
@@ -36,7 +35,7 @@ export default function OrdersPage() {
   const restaurantId = restaurant?.id;
 
   const [ordersByStatus, setOrdersByStatus] = useState({
-    new: [], in_progress: [], ready: [], completed: []
+    new: [], in_progress: [], ready: [], completed: [], mobileFilter: 'new'
   });
   const [completedPage, setCompletedPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -44,85 +43,77 @@ export default function OrdersPage() {
   const [detail, setDetail] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, orderId: null });
   const [generatingInvoice, setGeneratingInvoice] = useState(null);
+
   const notificationAudioRef = useRef(null);
 
+  // Register FCM token for this browser after permission (invoke from a user gesture elsewhere ideally)
   useEffect(() => {
-  const bootstrap = async () => {
-    if (!restaurantId || !user) return;
-    
-    // Register for push notifications
-    const messaging = await getMessagingIfSupported();
-    if (messaging && 'Notification' in window) {
-      try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          const token = await getToken(messaging, { 
-            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY 
-          });
-          
-          if (token) {
-            console.log('FCM Token:', token);
-            // Store token
-            await fetch('/api/push/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                deviceToken: token,
-                restaurantId,
-                userEmail: user.email,
-                platform: /Android/.test(navigator.userAgent) ? 'android' : 
-                         /iPhone|iPad/.test(navigator.userAgent) ? 'ios' : 'web'
-              })
+    const bootstrap = async () => {
+      if (!restaurantId || !user) return;
+
+      const messaging = await getMessagingIfSupported();
+      if (messaging && 'Notification' in window) {
+        try {
+          // If permission already granted, register token; do not auto-prompt here
+          if (Notification.permission === 'granted') {
+            const reg = await navigator.serviceWorker.ready;
+            const token = await getToken(messaging, {
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+              serviceWorkerRegistration: reg,
             });
+            if (token) {
+              console.log('FCM Token:', token);
+              await fetch('/api/push/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  deviceToken: token,
+                  restaurantId,
+                  userEmail: user.email,
+                  platform: /Android/.test(navigator.userAgent)
+                    ? 'android'
+                    : /iPhone|iPad|iPod/.test(navigator.userAgent)
+                    ? 'ios'
+                    : 'web',
+                }),
+              });
+            }
           }
+        } catch (error) {
+          console.error('FCM setup failed:', error);
         }
-      } catch (error) {
-        console.error('FCM setup failed:', error);
       }
-    }
-  };
-  
-  bootstrap();
-}, [restaurantId, user]);
+    };
+    bootstrap();
+  }, [restaurantId, user]);
 
-
+  // Preload audio and unlock after first interaction
   useEffect(() => {
     const a = new Audio('/notification-sound.mp3');
     a.load();
     notificationAudioRef.current = a;
   }, []);
-  // Request browser notification permission once at mount
-useEffect(() => {
-if (typeof window !== 'undefined' && 'Notification' in window) {
-if (Notification.permission === 'default') {
-Notification.requestPermission().catch(() => {});
-}
-}
-}, []);
 
-// Prime/unlock audio on first user interaction (mobile autoplay guard)
-useEffect(() => {
-function unlockAudio() {
-const a = notificationAudioRef.current;
-if (!a) return;
-const wasMuted = a.muted;
-a.muted = true; // ensure allowed
-a.play().catch(() => {}); // try play to unlock
-a.pause();
-a.currentTime = 0;
-a.muted = wasMuted; // restore
-window.removeEventListener('touchstart', unlockAudio, { capture: true });
-window.removeEventListener('click', unlockAudio, { capture: true });
-}
-window.addEventListener('touchstart', unlockAudio, { capture: true, once: true });
-window.addEventListener('click', unlockAudio, { capture: true, once: true });
-return () => {
-window.removeEventListener('touchstart', unlockAudio, { capture: true });
-window.removeEventListener('click', unlockAudio, { capture: true });
-};
-}, []);
-
-
+  useEffect(() => {
+    function unlockAudio() {
+      const a = notificationAudioRef.current;
+      if (!a) return;
+      const wasMuted = a.muted;
+      a.muted = true;
+      a.play().catch(() => {});
+      a.pause();
+      a.currentTime = 0;
+      a.muted = wasMuted;
+      window.removeEventListener('touchstart', unlockAudio, { capture: true });
+      window.removeEventListener('click', unlockAudio, { capture: true });
+    }
+    window.addEventListener('touchstart', unlockAudio, { capture: true, once: true });
+    window.addEventListener('click', unlockAudio, { capture: true, once: true });
+    return () => {
+      window.removeEventListener('touchstart', unlockAudio, { capture: true });
+      window.removeEventListener('click', unlockAudio, { capture: true });
+    };
+  }, []);
 
   async function fetchBucket(status, page = 1) {
     let q = supabase
@@ -137,7 +128,6 @@ window.removeEventListener('click', unlockAudio, { capture: true });
       if (error) throw error;
       return data;
     }
-
     const { data, error } = await q.order('created_at', { ascending: true });
     if (error) throw error;
     return data;
@@ -147,43 +137,41 @@ window.removeEventListener('click', unlockAudio, { capture: true });
     if (!restaurantId) return;
     setLoading(true);
     setError('');
-
     try {
       const [n, i, r, c] = await Promise.all([
         fetchBucket('new'),
         fetchBucket('in_progress'),
         fetchBucket('ready'),
-        fetchBucket('completed', page)
+        fetchBucket('completed', page),
       ]);
 
       const all = [...n, ...i, ...r, ...c];
-      const ids = all.map(o => o.id);
-      let invMap = {};
+      const ids = all.map((o) => o.id);
 
+      let invMap = {};
       if (ids.length) {
         const { data: invs, error: invError } = await supabase
-  .from('invoices')
-  .select('order_id,pdf_url')
-  .in('order_id', ids);
-
-if (invError) {
-  console.error('Invoice fetch error:', invError);
-}
-        (invs || []).forEach(inv => {
+          .from('invoices')
+          .select('order_id,pdf_url')
+          .in('order_id', ids);
+        if (invError) console.error('Invoice fetch error:', invError);
+        (invs || []).forEach((inv) => {
           invMap[inv.order_id] = inv.pdf_url;
         });
       }
 
-      const attach = rows => rows.map(o => ({
-        ...o,
-        invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null
-      }));
+      const attach = (rows) =>
+        rows.map((o) => ({
+          ...o,
+          invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null,
+        }));
 
       setOrdersByStatus({
         new: attach(n),
         in_progress: attach(i),
         ready: attach(r),
-        completed: attach(c)
+        completed: attach(c),
+        mobileFilter: 'new',
       });
     } catch (e) {
       setError(e.message);
@@ -199,45 +187,52 @@ if (invError) {
     }
   }, [restaurantId]);
 
+  // Supabase Realtime: INSERT on orders for this restaurant
   useEffect(() => {
-  if (!restaurantId) return;
-  console.log('Setting up realtime subscription for restaurant:', restaurantId); // ADD THIS
+    if (!restaurantId) return;
 
+    console.log('Setting up realtime subscription for restaurant:', restaurantId);
 
-  const channel = supabase
-    .channel(`orders-${restaurantId}`)  // ← Fixed: backticks instead of quotes
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'orders',
-      filter: `restaurant_id=eq.${restaurantId}`  // ← Fixed: backticks instead of quotes
-    }, async () => {
-             console.log('Realtime event received:', payload); // ADD THIS
+    const channel = supabase
+      .channel(`orders:${restaurantId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurantId}`,
+        },
+        async (payload) => {
+          console.log('Realtime event received:', payload);
 
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🔔 New Order!');
-      }
-      notificationAudioRef.current?.play().catch(() => {});
-      setTimeout(async () => {
-        const newOrders = await fetchBucket('new');
-        setOrdersByStatus(prev => ({
-          ...prev,
-          new: newOrders.map(o => ({
-            ...o,
-            invoice: prev.new.find(p => p.id === o.id)?.invoice || null
-          }))
-        }));
-      }, 250);
-    })
-    .subscribe();
-      console.log('Realtime subscription status:', status); // ADD THIS
+          const order = payload.new;
 
+          // Play short sound
+          notificationAudioRef.current?.play().catch(() => {});
 
-  return () => supabase.removeChannel(channel);
-}, [restaurantId]);
+          // Optional in-page browser notification if permission granted
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('🔔 New Order!', {
+              body: `Table ${order.table_number || ''}`,
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+            });
+          }
 
+          // Prepend into "new" bucket without full refetch where possible
+          setOrdersByStatus((prev) => ({
+            ...prev,
+            new: [order, ...prev.new],
+          }));
+        }
+      )
+      .subscribe();
 
-
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [restaurantId]);
 
   const updateStatus = async (id, next) => {
     try {
@@ -252,7 +247,7 @@ if (invError) {
     }
   };
 
-  const finalizeComplete = async id => {
+  const finalizeComplete = async (id) => {
     setGeneratingInvoice(id);
     try {
       await supabase
@@ -264,16 +259,13 @@ if (invError) {
       const resp = await fetch('/api/invoices/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: id })
+        body: JSON.stringify({ order_id: id }),
       });
-
       if (!resp.ok) throw new Error('Invoice gen failed');
       const { pdf_url } = await resp.json();
-
       if (pdf_url) {
         window.open(pdf_url, '_blank', 'noopener,noreferrer');
       }
-
       loadOrders();
     } catch (e) {
       setError(e.message);
@@ -310,24 +302,25 @@ if (invError) {
 
       {/* Mobile view */}
       <div className="mobile-filters">
-        {STATUSES.map(s => (
+        {STATUSES.map((s) => (
           <button
             key={s}
             className={`chip ${s === (ordersByStatus.mobileFilter || 'new') ? 'chip--active' : ''}`}
-            onClick={() => setOrdersByStatus(prev => ({ ...prev, mobileFilter: s }))}
+            onClick={() => setOrdersByStatus((prev) => ({ ...prev, mobileFilter: s }))}
           >
             <span className="chip-label">{LABELS[s]}</span>
             <span className="chip-count">{ordersByStatus[s].length}</span>
           </button>
         ))}
       </div>
+
       <div className="mobile-list">
         {ordersByStatus[ordersByStatus.mobileFilter || 'new'].length === 0 ? (
           <Card padding={16} style={{ textAlign: 'center', color: '#6b7280' }}>
             No {LABELS[ordersByStatus.mobileFilter || 'new'].toLowerCase()}
           </Card>
         ) : (
-          ordersByStatus[ordersByStatus.mobileFilter || 'new'].map(o => (
+          ordersByStatus[ordersByStatus.mobileFilter || 'new'].map((o) => (
             <OrderCard
               key={o.id}
               order={o}
@@ -342,7 +335,7 @@ if (invError) {
 
       {/* Desktop kanban */}
       <div className="kanban">
-        {STATUSES.map(status => (
+        {STATUSES.map((status) => (
           <Card key={status} padding={12}>
             <div className="kanban-col-header">
               <strong style={{ color: COLORS[status] }}>{LABELS[status]}</strong>
@@ -352,7 +345,7 @@ if (invError) {
               {ordersByStatus[status].length === 0 ? (
                 <div className="empty-col">No {LABELS[status].toLowerCase()}</div>
               ) : (
-                ordersByStatus[status].map(o => (
+                ordersByStatus[status].map((o) => (
                   <OrderCard
                     key={o.id}
                     order={o}
@@ -372,7 +365,7 @@ if (invError) {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        setCompletedPage(completedPage + 1);
+                        setCompletedPage((p) => p + 1);
                         loadOrders(completedPage + 1);
                       }}
                     >
@@ -494,95 +487,135 @@ if (invError) {
 // OrderCard component
 function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
-  const hasInvoice = Boolean(order.invoice?.pdf_url);
+  const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
 
   return (
-    <Card padding={12} style={{
-      border:'1px solid #eef2f7',
-      borderRadius:12,
-      boxShadow:'0 1px 2px rgba(0,0,0,0.04)'
-    }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
-        <strong>#{order.id.slice(0,8)}</strong>
-        <span style={{ color:'#6b7280', fontSize:12 }}>
+    <Card
+      padding={12}
+      style={{
+        border: '1px solid #eef2f7',
+        borderRadius: 12,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <strong>#{order.id.slice(0, 8)}</strong>
+        <span style={{ color: '#6b7280', fontSize: 12 }}>
           {new Date(order.created_at).toLocaleTimeString()}
         </span>
       </div>
-      <div style={{ margin:'8px 0', fontSize:14 }}> {items.map((it,i) => ( <div key={i}>{it.quantity}× {it.name}</div> ))} </div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontSize:16, fontWeight:700 }}>{money(total)}</span>
-        <div style={{ display:'flex', gap:6 }} onClick={e=>e.stopPropagation()}>
-          {order.status==='new' && (
-            <Button size="sm" onClick={()=>onStatusChange(order.id,'in_progress')}>Start</Button>
+
+      <div style={{ margin: '8px 0', fontSize: 14 }}>
+        {items.map((it, i) => (
+          <div key={i}>
+            {it.quantity}× {it.name}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 16, fontWeight: 700 }}>{money(total)}</span>
+        <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+          {order.status === 'new' && (
+            <Button size="sm" onClick={() => onStatusChange(order.id, 'in_progress')}>
+              Start
+            </Button>
           )}
-          {order.status==='in_progress' && (
-            <Button size="sm" variant="success" onClick={()=>onStatusChange(order.id,'ready')}>Ready</Button>
+          {order.status === 'in_progress' && (
+            <Button size="sm" variant="success" onClick={() => onStatusChange(order.id, 'ready')}>
+              Ready
+            </Button>
           )}
-          {order.status==='ready' && !hasInvoice && (
-            <Button size="sm" onClick={()=>onComplete(order.id)} disabled={generatingInvoice===order.id}>
-              {generatingInvoice===order.id ? 'Processing…' : 'Done'}
+          {order.status === 'ready' && !hasInvoice && (
+            <Button size="sm" onClick={() => onComplete(order.id)} disabled={generatingInvoice === order.id}>
+              {generatingInvoice === order.id ? 'Processing…' : 'Done'}
             </Button>
           )}
           {hasInvoice && (
-            <Button size="sm" variant="outline" onClick={()=>window.open(order.invoice.pdf_url,'_blank')}>
+            <Button size="sm" variant="outline" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>
               Bill
             </Button>
           )}
         </div>
       </div>
-      <div style={{ height:2, marginTop:10, background:statusColor, opacity:0.2, borderRadius:2 }}/>
+
+      <div style={{ height: 2, marginTop: 10, background: statusColor, opacity: 0.2, borderRadius: 2 }} />
     </Card>
   );
 }
 
-// OrderDetailModal component
+// OrderDetailModal and ConfirmDialog unchanged from your version
 function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }) {
   const items = toDisplayItems(order);
-  const hasInvoice = Boolean(order.invoice?.pdf_url);
+  const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const subtotal = Number(order.subtotal_ex_tax ?? order.subtotal ?? 0);
-  const tax      = Number(order.total_tax ?? order.tax_amount ?? 0);
-  const total    = Number(order.total_inc_tax ?? order.total_amount ?? 0);
+  const tax = Number(order.total_tax ?? order.tax_amount ?? 0);
+  const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
 
   return (
-    <div className="modal" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal__card">
-        <div style={{ display:'flex', justifyContent:'space-between' }}>
-          <h2>Order #{order.id.slice(0,8)}</h2>
-          <Button variant="outline" onClick={onClose}>×</Button>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <h2>Order #{order.id.slice(0, 8)}</h2>
+          <Button variant="outline" onClick={onClose}>
+            ×
+          </Button>
         </div>
+
         <Card padding={16}>
-          <div><strong>Time:</strong> {new Date(order.created_at).toLocaleString()}</div>
-          <div><strong>Table:</strong> {order.table_number||'—'}</div>
-          <div><strong>Payment:</strong> {order.payment_method}</div>
+          <div>
+            <strong>Time:</strong> {new Date(order.created_at).toLocaleString()}
+          </div>
+          <div>
+            <strong>Table:</strong> {order.table_number || '—'}
+          </div>
+          <div>
+            <strong>Payment:</strong> {order.payment_method}
+          </div>
         </Card>
-        <Card padding={16} style={{ marginTop:12 }}>
+
+        <Card padding={16} style={{ marginTop: 12 }}>
           <h3>Items</h3>
-          {items.map((it,i)=>
-            <div key={i} style={{ display:'flex', justifyContent:'space-between' }}>
-              <span>{it.quantity}× {it.name}</span>
+          {items.map((it, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>
+                {it.quantity}× {it.name}
+              </span>
               <span>{money(it.quantity * it.price)}</span>
             </div>
-          )}
+          ))}
         </Card>
-        <Card padding={16} style={{ marginTop:12 }}>
-          <div style={{ display:'flex', justifyContent:'space-between' }}><span>Subtotal</span><span>{money(subtotal)}</span></div>
-          <div style={{ display:'flex', justifyContent:'space-between' }}><span>Tax</span><span>{money(tax)}</span></div>
-          <div style={{ display:'flex', justifyContent:'space-between', fontWeight:700, marginTop:6 }}><span>Total</span><span>{money(total)}</span></div>
+
+        <Card padding={16} style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Subtotal</span>
+            <span>{money(subtotal)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Tax</span>
+            <span>{money(tax)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: 6 }}>
+            <span>Total</span>
+            <span>{money(total)}</span>
+          </div>
         </Card>
-        <div style={{ textAlign:'right', marginTop:12 }}>
-          {!hasInvoice && order.status==='ready' && (
-            <Button onClick={()=>onCompleteOrder(order.id)} disabled={generatingInvoice===order.id}>
-              {generatingInvoice===order.id ? 'Generating…' : 'Generate Invoice'}
+
+        <div style={{ textAlign: 'right', marginTop: 12 }}>
+          {!hasInvoice && order.status === 'ready' && (
+            <Button onClick={() => onCompleteOrder(order.id)} disabled={generatingInvoice === order.id}>
+              {generatingInvoice === order.id ? 'Generating…' : 'Generate Invoice'}
             </Button>
           )}
           {hasInvoice && (
-            <Button variant="outline" onClick={()=>window.open(order.invoice.pdf_url,'_blank')}>
+            <Button variant="outline" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>
               View Invoice
             </Button>
           )}
         </div>
       </div>
+
       <style jsx>{`
         .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px;}
         .modal__card {background:#fff;width:100%;max-width:520px;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:auto;}
@@ -591,20 +624,21 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
   );
 }
 
-// ConfirmDialog component
 function ConfirmDialog({ title, message, confirmText, cancelText, onConfirm, onCancel }) {
   return (
-    <div className="modal" onClick={e=>e.target===e.currentTarget&&onCancel()}>
-      <div className="modal__card" style={{maxWidth:420}}>
+    <div className="modal" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal__card" style={{ maxWidth: 420 }}>
         <h3>{title}</h3>
         <p>{message}</p>
-        <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
-          <Button variant="outline" onClick={onCancel}>{cancelText}</Button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button variant="outline" onClick={onCancel}>
+            {cancelText}
+          </Button>
           <Button onClick={onConfirm}>{confirmText}</Button>
         </div>
       </div>
       <style jsx>{`
-        .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;alignItems:center;justifyContent:center;z-index:50;padding:12px;}
+        .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px;}
         .modal__card {background:#fff;padding:16px;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,0.15);}
       `}</style>
     </div>
