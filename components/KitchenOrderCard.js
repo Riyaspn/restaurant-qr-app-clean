@@ -1,30 +1,39 @@
-// components/KitchenOrderCard.js
+// Updated KitchenOrderCard.js component to use order.items JSON
+
 import React from 'react';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-export default function KitchenOrderCard({ order }) {
-  const items = Array.isArray(orders.items)
-    ? orders.items.map((oi) => ({ name: oi.menu_items?.name || oi.item_name, qty: oi.quantity }))
+export default function KitchenOrderCard({ order, onStart }) {
+  // Map over order.items JSON array, fallback keys for name and quantity
+  const items = Array.isArray(order.items)
+    ? order.items.map((oi) => ({
+        name: oi.name || oi.item_name || 'Unknown Item',
+        qty: oi.qty || oi.quantity || 1,
+      }))
     : [];
 
   return (
     <Card padding={16} style={{ border: '1px solid #ddd', borderRadius: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <strong>#{orders.id.slice(0, 8)}</strong>
+        <strong>#{order.id.slice(0, 8)}</strong>
         <span style={{ fontSize: 12, color: '#666' }}>
-          {new Date(orders.created_at).toLocaleTimeString()}
+          {new Date(order.created_at).toLocaleTimeString()}
         </span>
       </div>
       <div style={{ marginBottom: 12 }}>
-        {items.map((it, i) => (
-          <div key={i} style={{ fontSize: 14 }}>
-            {it.qty}× {it.name}
-          </div>
-        ))}
+        {items.length === 0 ? (
+          <div style={{ fontSize: 14, fontStyle: 'italic', color: '#999' }}>No items found</div>
+        ) : (
+          items.map((it, i) => (
+            <div key={i} style={{ fontSize: 14 }}>
+              {it.qty}× {it.name}
+            </div>
+          ))
+        )}
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button size="sm" variant="success" onClick={() => handleMarkInProgress(orders.id)}>
+        <Button size="sm" variant="success" onClick={() => onStart(order.id)}>
           Start
         </Button>
       </div>
