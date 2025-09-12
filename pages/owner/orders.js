@@ -29,15 +29,50 @@ function toDisplayItems(order) {
   return [];
 }
 
-// Enable Alerts Button Component
+// Enhanced Enable Alerts Button with iOS support and state persistence
 function EnableAlertsButton({ restaurantId, userEmail }) {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  // Check if device already has notifications enabled
+  useEffect(() => {
+    const checkExistingPermission = async () => {
+      const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      setIsIOS(isiOS);
+      
+      if ('Notification' in window && Notification.permission === 'granted') {
+        // Check if we have a token stored for this device
+        try {
+          const messaging = await getMessagingIfSupported();
+          if (messaging) {
+            const token = await getToken(messaging, {
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+            });
+            if (token) {
+              setEnabled(true);
+            }
+          }
+        } catch (e) {
+          console.log('Token check failed:', e);
+        }
+      }
+    };
+    checkExistingPermission();
+  }, []);
 
   const enablePush = async () => {
     setLoading(true);
     try {
-      if (!('Notification' in window)) throw new Error('Notifications not supported');
+      // iOS Safari web push check
+      if (isIOS) {
+        if (!('Notification' in window)) {
+          alert('iOS Safari web push notifications require iOS 16.4+ and adding this site to Home Screen. Please use Chrome or add to Home Screen first.');
+          return;
+        }
+      } else if (!('Notification' in window)) {
+        throw new Error('Notifications not supported');
+      }
 
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
@@ -45,6 +80,28 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
         return;
       }
 
+      // For iOS, use native notifications
+      if (isIOS) {
+        // iOS will use native notifications, store a placeholder token
+        const res = await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceToken: 'ios-native-' + Date.now(),
+            restaurantId,
+            userEmail,
+            platform: 'ios',
+          }),
+        });
+        
+        if (!res.ok) throw new Error('Subscribe failed');
+        
+        setEnabled(true);
+        alert('Order alerts enabled! You will receive notifications for new orders.');
+        return;
+      }
+
+      // For Android/Windows - use FCM
       await navigator.serviceWorker.ready;
       const messaging = await getMessagingIfSupported();
       if (!messaging) throw new Error('Messaging not supported');
@@ -57,7 +114,7 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
       if (!token) throw new Error('Failed to get push token');
 
       const ua = navigator.userAgent || '';
-      const platform = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'web';
+      const platform = /Android/i.test(ua) ? 'android' : 'web';
 
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
@@ -92,10 +149,10 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
   return (
     <Button 
       onClick={enablePush} 
-      disabled={loading || enabled}
-      variant="outline"
+      disabled={loading}
+      variant={enabled ? "success" : "outline"}
     >
-      {loading ? 'Enabling...' : enabled ? 'Alerts Enabled' : 'Enable Push Alerts'}
+      {loading ? 'Enabling...' : enabled ? 'Alerts Active' : isIOS ? 'Enable iOS Alerts' : 'Enable Push Alerts'}
     </Button>
   );
 }
@@ -117,41 +174,34 @@ export default function OrdersPage() {
 
   const notificationAudioRef = useRef(null);
 
-  // Register FCM token for this browser after permission (invoke from a user gesture elsewhere ideally)
+  // Auto-register FCM token if permission already granted (non-intrusive)
   useEffect(() => {
     const bootstrap = async () => {
       if (!restaurantId || !user) return;
 
       const messaging = await getMessagingIfSupported();
-      if (messaging && 'Notification' in window) {
+      if (messaging && 'Notification' in window && Notification.permission === 'granted') {
         try {
-          // If permission already granted, register token; do not auto-prompt here
-          if (Notification.permission === 'granted') {
-            const reg = await navigator.serviceWorker.ready;
-            const token = await getToken(messaging, {
-              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-              serviceWorkerRegistration: reg,
+          const reg = await navigator.serviceWorker.ready;
+          const token = await getToken(messaging, {
+            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+            serviceWorkerRegistration: reg,
+          });
+          if (token) {
+            console.log('FCM Token auto-registered:', token);
+            await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                deviceToken: token,
+                restaurantId,
+                userEmail: user.email,
+                platform: /Android/.test(navigator.userAgent) ? 'android' : 'web',
+              }),
             });
-            if (token) {
-              console.log('FCM Token:', token);
-              await fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  deviceToken: token,
-                  restaurantId,
-                  userEmail: user.email,
-                  platform: /Android/.test(navigator.userAgent)
-                    ? 'android'
-                    : /iPhone|iPad|iPod/.test(navigator.userAgent)
-                    ? 'ios'
-                    : 'web',
-                }),
-              });
-            }
           }
         } catch (error) {
-          console.error('FCM setup failed:', error);
+          console.error('Auto FCM setup failed:', error);
         }
       }
     };
@@ -281,11 +331,12 @@ export default function OrdersPage() {
           // Play sound
           notificationAudioRef.current?.play().catch(() => {});
           
-          // Optional in-page notification
+          // Cross-platform notification
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('🔔 New Order!', {
-              body: `Table ${order.table_number || ''}`,
+              body: `Table ${order.table_number || ''} - ${order.total_inc_tax ? `₹${order.total_inc_tax}` : ''}`,
               icon: '/favicon.ico',
+              tag: 'new-order'
             });
           }
           
@@ -553,6 +604,7 @@ export default function OrdersPage() {
           display: flex;
           justify-content: space-between;
           background: #fff;
+          cursor: pointer;
         }
         .chip--active { background: #eef2ff; border-color: #c7d2fe; }
         .chip-label { font-weight: 600; font-size: 13px; }
@@ -614,7 +666,7 @@ export default function OrdersPage() {
   );
 }
 
-// OrderCard component
+// OrderCard component remains the same...
 function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
@@ -675,7 +727,7 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
   );
 }
 
-// OrderDetailModal and ConfirmDialog unchanged from your version
+// OrderDetailModal and ConfirmDialog remain the same...
 function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
@@ -748,7 +800,7 @@ function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }
 
       <style jsx>{`
         .modal {position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px;}
-        .modal__card {background:#fff;width:100%;max-width:520px;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:auto;}
+        .modal__card {background:#fff;width:100%;max-width:520px;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:auto;padding:20px;}
       `}</style>
     </div>
   );
