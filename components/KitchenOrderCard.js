@@ -4,8 +4,8 @@ import Card from './ui/Card';
 import Button from './ui/Button';
 
 export default function KitchenOrderCard({ order }) {
-  const items = Array.isArray(order.order_items)
-    ? order.order_items.map((oi) => ({ name: oi.menu_items?.name || oi.item_name, qty: oi.quantity }))
+  const items = Array.isArray(order.items)
+    ? order.items.map((oi) => ({ name: oi.menu_items?.name || oi.item_name, qty: oi.quantity }))
     : [];
 
   return (
