@@ -29,6 +29,77 @@ function toDisplayItems(order) {
   return [];
 }
 
+// Enable Alerts Button Component
+function EnableAlertsButton({ restaurantId, userEmail }) {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const enablePush = async () => {
+    setLoading(true);
+    try {
+      if (!('Notification' in window)) throw new Error('Notifications not supported');
+
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        alert('Please allow notifications to receive order alerts.');
+        return;
+      }
+
+      await navigator.serviceWorker.ready;
+      const messaging = await getMessagingIfSupported();
+      if (!messaging) throw new Error('Messaging not supported');
+
+      const token = await getToken(messaging, {
+        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(),
+      });
+
+      if (!token) throw new Error('Failed to get push token');
+
+      const ua = navigator.userAgent || '';
+      const platform = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'web';
+
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceToken: token,
+          restaurantId,
+          userEmail,
+          platform,
+        }),
+      });
+      
+      if (!res.ok) throw new Error('Subscribe failed');
+
+      // Test audio unlock
+      try { 
+        const audio = new Audio('/notification-sound.mp3');
+        audio.volume = 0.1;
+        await audio.play(); 
+      } catch {}
+
+      setEnabled(true);
+      alert('Order alerts enabled successfully!');
+    } catch (e) {
+      console.error('Enable alerts failed:', e);
+      alert(`Failed to enable alerts: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button 
+      onClick={enablePush} 
+      disabled={loading || enabled}
+      variant="outline"
+    >
+      {loading ? 'Enabling...' : enabled ? 'Alerts Enabled' : 'Enable Push Alerts'}
+    </Button>
+  );
+}
+
 export default function OrdersPage() {
   const { checking, user } = useRequireAuth();
   const { restaurant, loading: restLoading } = useRestaurant();
@@ -187,7 +258,7 @@ export default function OrdersPage() {
     }
   }, [restaurantId]);
 
-  // Supabase Realtime: INSERT on orders for this restaurant
+  // Enhanced Supabase Realtime with reconnection and Android throttling handling
   useEffect(() => {
     if (!restaurantId) return;
 
@@ -204,32 +275,90 @@ export default function OrdersPage() {
           filter: `restaurant_id=eq.${restaurantId}`,
         },
         async (payload) => {
-          console.log('Realtime event received:', payload);
-
+          console.log('Realtime INSERT received:', payload);
           const order = payload.new;
-
-          // Play short sound
+          
+          // Play sound
           notificationAudioRef.current?.play().catch(() => {});
-
-          // Optional in-page browser notification if permission granted
+          
+          // Optional in-page notification
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('🔔 New Order!', {
               body: `Table ${order.table_number || ''}`,
               icon: '/favicon.ico',
-              badge: '/favicon.ico',
             });
           }
-
-          // Prepend into "new" bucket without full refetch where possible
+          
+          // Update UI immediately
           setOrdersByStatus((prev) => ({
             ...prev,
             new: [order, ...prev.new],
           }));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime channel status:', status);
+        
+        // Handle reconnection issues
+        if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          setTimeout(async () => {
+            try {
+              const { data } = await supabase
+                .from('orders')
+                .select('*, order_items(*, menu_items(name))')
+                .eq('restaurant_id', restaurantId)
+                .eq('status', 'new')
+                .gte('created_at', new Date(Date.now() - 60000).toISOString())
+                .order('created_at', { ascending: true });
+              
+              if (data?.length) {
+                setOrdersByStatus((prev) => ({
+                  ...prev,
+                  new: [...data, ...prev.new].filter((order, index, arr) => 
+                    arr.findIndex(o => o.id === order.id) === index
+                  ),
+                }));
+              }
+            } catch (e) {
+              console.warn('Catch-up fetch failed:', e);
+            }
+          }, 1000);
+        }
+      });
+
+    // Handle visibility change for Android throttling
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking for missed orders');
+        setTimeout(async () => {
+          try {
+            const { data } = await supabase
+              .from('orders')
+              .select('*, order_items(*, menu_items(name))')
+              .eq('restaurant_id', restaurantId)
+              .eq('status', 'new')
+              .gte('created_at', new Date(Date.now() - 120000).toISOString())
+              .order('created_at', { ascending: true });
+            
+            if (data?.length) {
+              setOrdersByStatus((prev) => ({
+                ...prev,
+                new: [...data, ...prev.new].filter((order, index, arr) => 
+                  arr.findIndex(o => o.id === order.id) === index
+                ),
+              }));
+            }
+          } catch (e) {
+            console.warn('Visibility catch-up failed:', e);
+          }
+        }, 500);
+      }
+    }
+    
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
   }, [restaurantId]);
@@ -285,6 +414,7 @@ export default function OrdersPage() {
           <span className="muted">
             {['new','in_progress','ready'].reduce((sum, s) => sum + ordersByStatus[s].length, 0)} live orders
           </span>
+          <EnableAlertsButton restaurantId={restaurantId} userEmail={user?.email} />
           <Button
             variant="outline"
             onClick={() => { setCompletedPage(1); loadOrders(1); }}
