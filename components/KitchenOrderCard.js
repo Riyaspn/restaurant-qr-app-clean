@@ -7,11 +7,11 @@ import Button from './ui/Button';
 export default function KitchenOrderCard({ order, onStart }) {
   // Map over order.items JSON array, fallback keys for name and quantity
   const items = Array.isArray(order.items)
-    ? order.items.map((oi) => ({
-        name: oi.name || oi.item_name || 'Unknown Item',
-        qty: oi.qty || oi.quantity || 1,
-      }))
-    : [];
+  ? order.items.map((oi) => ({
+      name: oi.name || oi.item_name || 'Unknown Item',
+      qty: oi.quantity ?? oi.qty ?? 1,
+    }))
+  : [];
 
   return (
     <Card padding={16} style={{ border: '1px solid #ddd', borderRadius: 8 }}>
