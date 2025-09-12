@@ -4,16 +4,16 @@ import Card from './ui/Card';
 import Button from './ui/Button';
 
 export default function KitchenOrderCard({ order }) {
-  const items = Array.isArray(order.items)
-    ? order.items.map((oi) => ({ name: oi.menu_items?.name || oi.item_name, qty: oi.quantity }))
+  const items = Array.isArray(orders.items)
+    ? orders.items.map((oi) => ({ name: oi.menu_items?.name || oi.item_name, qty: oi.quantity }))
     : [];
 
   return (
     <Card padding={16} style={{ border: '1px solid #ddd', borderRadius: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <strong>#{order.id.slice(0, 8)}</strong>
+        <strong>#{orders.id.slice(0, 8)}</strong>
         <span style={{ fontSize: 12, color: '#666' }}>
-          {new Date(order.created_at).toLocaleTimeString()}
+          {new Date(orders.created_at).toLocaleTimeString()}
         </span>
       </div>
       <div style={{ marginBottom: 12 }}>
@@ -24,7 +24,7 @@ export default function KitchenOrderCard({ order }) {
         ))}
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button size="sm" variant="success" onClick={() => handleMarkInProgress(order.id)}>
+        <Button size="sm" variant="success" onClick={() => handleMarkInProgress(orders.id)}>
           Start
         </Button>
       </div>
