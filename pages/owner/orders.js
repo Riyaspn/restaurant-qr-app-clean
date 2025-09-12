@@ -308,7 +308,7 @@ export default function OrdersPage() {
   }, [restaurantId]);
 
   // Enhanced Supabase Realtime with reconnection and Android throttling handling
-  useEffect(() => {
+ useEffect(() => {
   if (!restaurantId) return;
 
   const channel = supabase
@@ -316,10 +316,10 @@ export default function OrdersPage() {
     .on(
       'postgres_changes',
       {
-        event: '*',  // listen for INSERT, UPDATE, DELETE if needed
+        event: '*', // listen for INSERT, UPDATE, DELETE if needed
         schema: 'public',
         table: 'orders',
-        filter: `restaurant_id=eq.${restaurantId}`
+        filter: `restaurant_id=eq.${restaurantId}`,
       },
       (payload) => {
         const order = payload.new; // new row data
@@ -329,14 +329,12 @@ export default function OrdersPage() {
           // Remove the order from all status buckets
           const updated = { ...prev };
           for (const status of ['new', 'in_progress', 'ready', 'completed']) {
-            updated[status] = prev[status].filter(o => o.id !== order.id);
+            updated[status] = prev[status].filter((o) => o.id !== order.id);
           }
-
-          // Add the order to its current status bucket (if known)
+          // Add the order to its current status bucket (if any)
           if (order.status && updated.hasOwnProperty(order.status)) {
             updated[order.status] = [order, ...updated[order.status]];
           }
-
           return updated;
         });
 
@@ -353,45 +351,11 @@ export default function OrdersPage() {
         }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('Realtime channel status:', status);
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [restaurantId]);
-
-        
-        // Handle reconnection issues
-        if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-          setTimeout(async () => {
-            try {
-              const { data } = await supabase
-                .from('orders')
-                .select('*, order_items(*, menu_items(name))')
-                .eq('restaurant_id', restaurantId)
-                .eq('status', 'new')
-                .gte('created_at', new Date(Date.now() - 60000).toISOString())
-                .order('created_at', { ascending: true });
-              
-              if (data?.length) {
-                setOrdersByStatus((prev) => ({
-                  ...prev,
-                  new: [...data, ...prev.new].filter((order, index, arr) => 
-                    arr.findIndex(o => o.id === order.id) === index
-                  ),
-                }));
-              }
-            } catch (e) {
-              console.warn('Catch-up fetch failed:', e);
-            }
-          }, 1000);
-        }
-      });
-
-    // Handle visibility change for Android throttling
-    function onVisible() {
-      if (document.visibilityState === 'visible') {
-        console.log('Page became visible, checking for missed orders');
+      // Handle reconnection issues
+      if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
         setTimeout(async () => {
           try {
             const { data } = await supabase
@@ -399,31 +363,61 @@ export default function OrdersPage() {
               .select('*, order_items(*, menu_items(name))')
               .eq('restaurant_id', restaurantId)
               .eq('status', 'new')
-              .gte('created_at', new Date(Date.now() - 120000).toISOString())
+              .gte('created_at', new Date(Date.now() - 60000).toISOString())
               .order('created_at', { ascending: true });
-            
+
             if (data?.length) {
               setOrdersByStatus((prev) => ({
                 ...prev,
-                new: [...data, ...prev.new].filter((order, index, arr) => 
-                  arr.findIndex(o => o.id === order.id) === index
+                new: [...data, ...prev.new].filter((order, index, arr) =>
+                  arr.findIndex((o) => o.id === order.id) === index
                 ),
               }));
             }
           } catch (e) {
-            console.warn('Visibility catch-up failed:', e);
+            console.warn('Catch-up fetch failed:', e);
           }
-        }, 500);
+        }, 1000);
       }
-    }
-    
-    document.addEventListener('visibilitychange', onVisible);
+    });
 
-    return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-      supabase.removeChannel(channel);
-    };
-  }, [restaurantId]);
+  // Handle visibility change for Android throttling
+  function onVisible() {
+    if (document.visibilityState === 'visible') {
+      console.log('Page became visible, checking for missed orders');
+      setTimeout(async () => {
+        try {
+          const { data } = await supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(name))')
+            .eq('restaurant_id', restaurantId)
+            .eq('status', 'new')
+            .gte('created_at', new Date(Date.now() - 120000).toISOString())
+            .order('created_at', { ascending: true });
+
+          if (data?.length) {
+            setOrdersByStatus((prev) => ({
+              ...prev,
+              new: [...data, ...prev.new].filter((order, index, arr) =>
+                arr.findIndex((o) => o.id === order.id) === index
+              ),
+            }));
+          }
+        } catch (e) {
+          console.warn('Visibility catch-up failed:', e);
+        }
+      }, 500);
+    }
+  }
+
+  document.addEventListener('visibilitychange', onVisible);
+
+  return () => {
+    document.removeEventListener('visibilitychange', onVisible);
+    supabase.removeChannel(channel);
+  };
+}, [restaurantId]);
+
 
   const updateStatus = async (id, next) => {
     try {
