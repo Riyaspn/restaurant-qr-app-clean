@@ -358,6 +358,32 @@ export default function SettingsPage() {
             {saving ? 'Saving…' : isFirstTime ? 'Complete Setup' : 'Save Changes'}
           </Button>
         </div>
+<Section title="Kitchen Dashboard Link" icon="🔗">
+  <Field label="Kitchen Dashboard URL">
+    {restaurant?.id ? (
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="input"
+          readOnly
+          value={`${window.location.origin}/kitchen?rid=${restaurant.id}`}
+          onFocus={(e) => e.target.select()}
+          style={{ flex: 1 }}
+        />
+        <Button
+          onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/kitchen?rid=${restaurant.id}`);
+            alert('Kitchen URL copied to clipboard');
+          }}
+        >
+          Copy URL
+        </Button>
+      </div>
+    ) : (
+      <div>Loading link…</div>
+    )}
+  </Field>
+</Section>
+
       </form>
     </div>
   )
