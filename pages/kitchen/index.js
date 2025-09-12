@@ -71,30 +71,56 @@ export default function KitchenPage() {
   }, [restaurantId]);
 
   // Real-time subscription for new orders
-  useEffect(() => {
-    if (!restaurantId) return;
+   // In pages/kitchen/index.js, update the realtime subscription useEffect:
 
-    const channel = supabase
-      .channel(`kitchen:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'orders',
-          filter: `restaurant_id=eq.${restaurantId},status=eq.new`,
-        },
-        ({ new: order }) => {
-          audioRef.current?.play().catch(() => {});
-          setNewOrders((prev) => [order, ...prev]);
-        }
-      )
-      .subscribe();
+useEffect(() => {
+  if (!restaurantId) return;
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [restaurantId]);
+  const channel = supabase
+    .channel(`orders:${restaurantId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',               // listen for INSERT and UPDATE
+        schema: 'public',
+        table: 'orders',
+        filter: `restaurant_id=eq.${restaurantId}`,
+      },
+      ({ eventType, new: order }) => {
+        if (!order) return;
+
+        setNewOrders((prev) => {
+          // Remove the order if it existed in the newOrders list
+          const updated = prev.filter((o) => o.id !== order.id);
+
+          // If it's a newly inserted "new" order, prepend it
+          if (eventType === 'INSERT' && order.status === 'new') {
+            audioRef.current?.play().catch(() => {});
+            return [order, ...updated];
+          }
+
+          // If it's an updated order and its status changed away from "new", keep it removed
+          if (eventType === 'UPDATE' && order.status !== 'new') {
+            return updated;
+          }
+
+          // Otherwise (e.g., UPDATE back to "new"), show it again
+          if (eventType === 'UPDATE' && order.status === 'new') {
+            audioRef.current?.play().catch(() => {});
+            return [order, ...updated];
+          }
+
+          return prev;
+        });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [restaurantId]);
+
 
   // Handler to move order to "in_progress"
   const handleStart = async (orderId) => {

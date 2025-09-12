@@ -309,45 +309,57 @@ export default function OrdersPage() {
 
   // Enhanced Supabase Realtime with reconnection and Android throttling handling
   useEffect(() => {
-    if (!restaurantId) return;
+  if (!restaurantId) return;
 
-    console.log('Setting up realtime subscription for restaurant:', restaurantId);
+  const channel = supabase
+    .channel(`orders:${restaurantId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',  // listen for INSERT, UPDATE, DELETE if needed
+        schema: 'public',
+        table: 'orders',
+        filter: `restaurant_id=eq.${restaurantId}`
+      },
+      (payload) => {
+        const order = payload.new; // new row data
+        if (!order) return; // for DELETE events, payload.new is null
 
-    const channel = supabase
-      .channel(`orders:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'orders',
-          filter: `restaurant_id=eq.${restaurantId}`,
-        },
-        async (payload) => {
-          console.log('Realtime INSERT received:', payload);
-          const order = payload.new;
-          
-          // Play sound
+        setOrdersByStatus((prev) => {
+          // Remove the order from all status buckets
+          const updated = { ...prev };
+          for (const status of ['new', 'in_progress', 'ready', 'completed']) {
+            updated[status] = prev[status].filter(o => o.id !== order.id);
+          }
+
+          // Add the order to its current status bucket (if known)
+          if (order.status && updated.hasOwnProperty(order.status)) {
+            updated[order.status] = [order, ...updated[order.status]];
+          }
+
+          return updated;
+        });
+
+        // Optionally play notification sound for new orders
+        if (payload.eventType === 'INSERT' && order.status === 'new') {
           notificationAudioRef.current?.play().catch(() => {});
-          
-          // Cross-platform notification
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('🔔 New Order!', {
               body: `Table ${order.table_number || ''} - ${order.total_inc_tax ? `₹${order.total_inc_tax}` : ''}`,
               icon: '/favicon.ico',
-              tag: 'new-order'
+              tag: 'new-order',
             });
           }
-          
-          // Update UI immediately
-          setOrdersByStatus((prev) => ({
-            ...prev,
-            new: [order, ...prev.new],
-          }));
         }
-      )
-      .subscribe((status) => {
-        console.log('Realtime channel status:', status);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [restaurantId]);
+
         
         // Handle reconnection issues
         if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
