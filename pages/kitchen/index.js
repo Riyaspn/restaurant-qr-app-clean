@@ -85,23 +85,19 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
     setLoading(true);
     try {
       if (!('Notification' in window)) throw new Error('Notifications not supported');
-
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
         alert('Please allow notifications to receive order alerts.');
         return;
       }
-
       await navigator.serviceWorker.ready;
       const messaging = await getMessagingIfSupported();
       if (!messaging) throw new Error('Messaging not supported');
-
       const token = await getToken(messaging, {
         vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
         serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(),
       });
       if (!token) throw new Error('Failed to get push token');
-
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,7 +109,6 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
         }),
       });
       if (!res.ok) throw new Error('Subscribe failed');
-
       setEnabled(true);
       alert('Kitchen alerts enabled successfully!');
     } catch (e) {
@@ -148,7 +143,6 @@ export default function KitchenPage() {
   // Initial fetch of "new" orders with nested data
   useEffect(() => {
     if (!restaurantId) return;
-
     const fetchOrders = async () => {
       try {
         const { data, error } = await supabase
@@ -158,36 +152,36 @@ export default function KitchenPage() {
           .eq('status', 'new')
           .order('created_at', { ascending: true });
         if (error) throw error;
-
         console.log('Initial orders fetched:', data);
         setNewOrders(data || []);
       } catch (error) {
         console.error('Initial fetch error:', error);
       }
     };
-
     fetchOrders();
   }, [restaurantId]);
 
-  // Real-time subscription matching Owner page pattern
+  // Real-time subscription using v2 channel API
   useEffect(() => {
     if (!restaurantId) return;
-
-    const subscription = supabase
-      .from(`orders:restaurant_id=eq.${restaurantId}`)
-      .on('INSERT', (payload) => {
-        console.log('Kitchen realtime INSERT payload:', payload);
-        const newOrder = payload.new;
-
-        // Fetch full nested data, then prepend to state
-        supabase
-          .from('orders')
-          .select('*, order_items(*, menu_items(name))')
-          .eq('id', newOrder.id)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              setNewOrders((prev) => [data, ...prev]);
+    const channel = supabase
+      .channel(`orders:public:orders:restaurant_id=eq.${restaurantId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+        async (payload) => {
+          console.log('Kitchen realtime payload:', payload);
+          const order = payload.new;
+          if (!order) return;
+          const { data } = await supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(name))')
+            .eq('id', order.id)
+            .single();
+          if (!data) return;
+          setNewOrders((prev) => {
+            const filtered = prev.filter((o) => o.id !== data.id);
+            if (payload.event === 'INSERT' && data.status === 'new') {
               audioRef.current?.play().catch(() => {});
               if ('Notification' in window && Notification.permission === 'granted') {
                 new Notification('🔔 New Kitchen Order!', {
@@ -196,23 +190,17 @@ export default function KitchenPage() {
                   tag: 'new-kitchen-order',
                 });
               }
+              return [data, ...filtered];
             }
+            if (payload.event === 'UPDATE') {
+              return data.status === 'new' ? [data, ...filtered] : filtered;
+            }
+            return prev;
           });
-      })
-      .on('UPDATE', (payload) => {
-        console.log('Kitchen realtime UPDATE payload:', payload);
-        const updated = payload.new;
-        setNewOrders((prev) =>
-          updated.status === 'new'
-            ? [updated, ...prev.filter((o) => o.id !== updated.id)]
-            : prev.filter((o) => o.id !== updated.id)
-        );
-      })
+        }
+      )
       .subscribe();
-
-    return () => {
-      supabase.removeSubscription(subscription);
-    };
+    return () => supabase.removeChannel(channel);
   }, [restaurantId]);
 
   // Handler to move order to "in_progress"
@@ -246,7 +234,6 @@ export default function KitchenPage() {
           <Button onClick={() => window.location.reload()}>Refresh</Button>
         </div>
       </header>
-
       {newOrders.length === 0 ? (
         <Card padding={24} style={{ marginTop: 16, textAlign: 'center' }}>
           No new orders
