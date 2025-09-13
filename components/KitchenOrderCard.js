@@ -1,27 +1,28 @@
-// Updated KitchenOrderCard.js with detailed logs for debugging
+// Updated KitchenOrderCard.js with the helper function from orders.js
 
 import React from 'react';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
+// Helper function from orders.js
+function toDisplayItems(order) {
+  if (Array.isArray(order.items)) return order.items;
+  if (Array.isArray(order.order_items)) {
+    return order.order_items.map((oi) => ({
+      name: oi.menu_items?.name || oi.item_name || 'Item',
+      quantity: oi.quantity,
+      price: oi.price,
+    }));
+  }
+  return [];
+}
+
 export default function KitchenOrderCard({ order, onStart }) {
-  // Log the received order object completely
+  // Use the same helper function as orders.js
+  const items = toDisplayItems(order);
+
   console.log('KitchenOrderCard received order:', order);
-
-  // Log raw items array before mapping
-  console.log('Raw order.items:', order.items);
-
-  // Map over order.items JSON array, fallback keys for name and quantity
-  const items = Array.isArray(order.items)
-    ? order.items.map((oi) => {
-        const itemName = oi.name || oi.item_name || 'Unknown Item';
-        const itemQty = oi.quantity ?? oi.qty ?? 1;
-        return { name: itemName, qty: itemQty };
-      })
-    : [];
-
-  // Log items derived after mapping
-  console.log('Items derived:', items);
+  console.log('Items derived using toDisplayItems:', items);
 
   return (
     <Card padding={16} style={{ border: '1px solid #ddd', borderRadius: 8 }}>
@@ -37,7 +38,7 @@ export default function KitchenOrderCard({ order, onStart }) {
         ) : (
           items.map((it, i) => (
             <div key={i} style={{ fontSize: 14 }}>
-              {it.qty}× {it.name}
+              {it.quantity || 1}× {it.name}
             </div>
           ))
         )}
@@ -49,21 +50,4 @@ export default function KitchenOrderCard({ order, onStart }) {
       </div>
     </Card>
   );
-}
-
-async function handleMarkInProgress(orderId) {
-  try {
-    const response = await fetch('/api/kitchen/update-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, status: 'in_progress' }),
-    });
-    if (!response.ok) {
-      console.error('Failed to mark order in progress:', await response.text());
-    } else {
-      console.log(`Order ${orderId} marked as in_progress`);
-    }
-  } catch (error) {
-    console.error('Error during status update:', error);
-  }
 }
