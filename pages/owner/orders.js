@@ -667,6 +667,9 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <strong>#{order.id.slice(0, 8)}</strong>
+        <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
+        Table {order.table_number || 'N/A'}
+        </span>
         <span style={{ color: '#6b7280', fontSize: 12 }}>
           {new Date(order.created_at).toLocaleTimeString()}
         </span>
