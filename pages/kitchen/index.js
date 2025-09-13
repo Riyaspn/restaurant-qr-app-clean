@@ -65,24 +65,24 @@ export default function KitchenPage() {
     audioRef.current = a;
   }, []);
 
-  // Initial fetch of "new" orders
-  useEffect(() => {
-    if (!restaurantId) return;
-    supabase
-      .from('orders')
-      .select('*, order_items(*, menu_items(name))')
-      .eq('restaurant_id', restaurantId)
-      .eq('status', 'new')
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Initial fetch error:', error);
-        } else {
-          setNewOrders(data || []);
-          console.log('Initial orders fetched:', data);
-        }
-      });
-  }, [restaurantId]);
+  // In pages/kitchen/index.js - Update the initial fetch
+useEffect(() => {
+  if (!restaurantId) return;
+  supabase
+    .from('orders')
+    .select('*, order_items(*, menu_items(name))') // This is the key - same as orders.js
+    .eq('restaurant_id', restaurantId)
+    .eq('status', 'new')
+    .order('created_at', { ascending: true })
+    .then(({ data, error }) => {
+      if (error) {
+        console.error('Initial fetch error:', error);
+      } else {
+        setNewOrders(data || []);
+        console.log('Initial orders fetched:', data);
+      }
+    });
+}, [restaurantId]);
 
   // Real-time subscription for new orders and updates
   useEffect(() => {

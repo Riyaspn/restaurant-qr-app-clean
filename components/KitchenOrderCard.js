@@ -1,10 +1,10 @@
-// Updated KitchenOrderCard.js with the helper function from orders.js
+// Updated KitchenOrderCard.js - Replace your current component with this
 
 import React from 'react';
 import Card from './ui/Card';
 import Button from './ui/Button';
 
-// Helper function from orders.js
+// Helper function from orders.js to handle both order.items and order.order_items
 function toDisplayItems(order) {
   if (Array.isArray(order.items)) return order.items;
   if (Array.isArray(order.order_items)) {
@@ -18,10 +18,11 @@ function toDisplayItems(order) {
 }
 
 export default function KitchenOrderCard({ order, onStart }) {
-  // Use the same helper function as orders.js
+  // Use the same helper function as the working orders.js
   const items = toDisplayItems(order);
 
   console.log('KitchenOrderCard received order:', order);
+  console.log('Raw order.items:', order.items);
   console.log('Items derived using toDisplayItems:', items);
 
   return (
