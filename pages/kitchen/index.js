@@ -56,13 +56,19 @@ function KitchenOrderCard({ order, onStart }) {
   );
 }
 
-// Push notifications enable button
+// Push notifications enable button with better error handling
 function EnableAlertsButton({ restaurantId, userEmail }) {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const checkPermission = async () => {
+      // Check if Notification API is supported
+      if (typeof Notification === 'undefined') {
+        console.warn('Notification API not supported in this browser');
+        return;
+      }
+      
       if (Notification.permission === 'granted') {
         try {
           const messaging = await getMessagingIfSupported();
@@ -72,7 +78,9 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
             });
             if (token) setEnabled(true);
           }
-        } catch {}
+        } catch (error) {
+          console.error('Error checking notification permission:', error);
+        }
       }
     };
     checkPermission();
@@ -81,29 +89,40 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
   const enablePush = async () => {
     setLoading(true);
     try {
+      // Check if Notification API is supported
+      if (typeof Notification === 'undefined') {
+        alert('Notifications are not supported in this browser.');
+        return;
+      }
+
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
         alert('Please allow notifications.');
         return;
       }
+      
       await navigator.serviceWorker.ready;
       const messaging = await getMessagingIfSupported();
       if (!messaging) throw new Error('Messaging not supported');
+      
       const token = await getToken(messaging, {
         vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
         serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(),
       });
+      
       if (!token) throw new Error('Failed to get token');
+      
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deviceToken: token, restaurantId, userEmail }),
       });
+      
       if (!res.ok) throw new Error('Subscribe failed');
       setEnabled(true);
       alert('Alerts enabled!');
     } catch (e) {
-      console.error(e);
+      console.error('Error enabling push notifications:', e);
       alert(`Error: ${e.message}`);
     } finally {
       setLoading(false);
@@ -123,6 +142,7 @@ export default function KitchenPage() {
   const restaurantId = restaurant?.id;
   const [newOrders, setNewOrders] = useState([]);
   const audioRef = useRef(null);
+  const channelRef = useRef(null);
 
   // Preload notification sound
   useEffect(() => {
@@ -131,7 +151,7 @@ export default function KitchenPage() {
     audioRef.current = a;
   }, []);
 
-  // Initial fetch of new orders with nested data
+  // Initial fetch of new orders
   useEffect(() => {
     if (!restaurantId) return;
     (async () => {
@@ -142,6 +162,7 @@ export default function KitchenPage() {
           .eq('restaurant_id', restaurantId)
           .eq('status', 'new')
           .order('created_at', { ascending: true });
+        
         if (error) throw error;
         console.log('Initial orders fetched:', data);
         setNewOrders(data || []);
@@ -151,12 +172,23 @@ export default function KitchenPage() {
     })();
   }, [restaurantId]);
 
-  // Real-time subscription using v2 channel API
+  // Real-time subscription with proper cleanup
   useEffect(() => {
     if (!restaurantId) return;
 
+    // Clean up existing channel
+    if (channelRef.current) {
+      console.log('Cleaning up existing channel');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    // Create new channel with unique name
+    const channelName = `kitchen-orders-${restaurantId}-${Date.now()}`;
+    console.log('Creating channel:', channelName);
+    
     const channel = supabase
-      .channel('public:orders')                 // subscribe to public.orders
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -166,50 +198,115 @@ export default function KitchenPage() {
           filter: `restaurant_id=eq.${restaurantId}`,
         },
         async (payload) => {
-          console.log('Kitchen realtime payload:', payload);
-          const ord = payload.new;
-          if (!ord) return;
-          const { data } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(name))')
-            .eq('id', ord.id)
-            .single();
-          if (!data) return;
-          setNewOrders((prev) => {
-            const filtered = prev.filter((o) => o.id !== data.id);
-            if (payload.event === 'INSERT' && data.status === 'new') {
-              audioRef.current?.play().catch(() => {});
-              if (Notification.permission === 'granted') {
-                new Notification('🔔 New Kitchen Order!', {
-                  body: `Table ${data.table_number} • #${data.id.slice(0, 8)}`,
-                });
+          console.log('🔥 Kitchen realtime payload received:', payload);
+          
+          try {
+            const ord = payload.new;
+            if (!ord) {
+              console.log('No new order data in payload');
+              return;
+            }
+
+            // Fetch complete order with relations
+            const { data: orderData, error } = await supabase
+              .from('orders')
+              .select('*, order_items(*, menu_items(name))')
+              .eq('id', ord.id)
+              .single();
+
+            if (error) {
+              console.error('Error fetching order details:', error);
+              return;
+            }
+
+            if (!orderData) {
+              console.log('No order data returned');
+              return;
+            }
+
+            console.log('📦 Complete order data:', orderData);
+
+            setNewOrders((prev) => {
+              const filtered = prev.filter((o) => o.id !== orderData.id);
+              
+              if (payload.eventType === 'INSERT' && orderData.status === 'new') {
+                console.log('🆕 Adding new order to kitchen dashboard');
+                
+                // Play notification sound
+                if (audioRef.current) {
+                  audioRef.current.play().catch((err) => console.error('Audio play failed:', err));
+                }
+                
+                // Show browser notification if supported
+                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                  new Notification('🔔 New Kitchen Order!', {
+                    body: `Table ${orderData.table_number || 'N/A'} • #${orderData.id.slice(0, 8)}`,
+                    icon: '/favicon.ico',
+                    tag: `order-${orderData.id}`,
+                  });
+                }
+                
+                return [orderData, ...filtered];
               }
-              return [data, ...filtered];
-            }
-            if (payload.event === 'UPDATE') {
-              return data.status === 'new' ? [data, ...filtered] : filtered;
-            }
-            return prev;
-          });
+              
+              if (payload.eventType === 'UPDATE') {
+                console.log(`📝 Order ${orderData.id} updated, status: ${orderData.status}`);
+                return orderData.status === 'new' ? [orderData, ...filtered] : filtered;
+              }
+              
+              if (payload.eventType === 'DELETE') {
+                console.log(`🗑️ Order ${ord.id} deleted`);
+                return filtered;
+              }
+              
+              return prev;
+            });
+          } catch (error) {
+            console.error('Error processing realtime event:', error);
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Channel subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to kitchen orders');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Channel subscription error');
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏰ Channel subscription timed out');
+        }
+      });
 
-    return () => void supabase.removeChannel(channel);
+    channelRef.current = channel;
+
+    // Cleanup function
+    return () => {
+      console.log('🧹 Cleaning up kitchen dashboard subscription');
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [restaurantId]);
 
   // Handler to move order to "in_progress"
   const handleStart = async (orderId) => {
     try {
+      console.log(`🚀 Starting order: ${orderId}`);
       const { error } = await supabase
         .from('orders')
         .update({ status: 'in_progress' })
         .eq('id', orderId)
         .eq('restaurant_id', restaurantId);
+        
       if (error) throw error;
+      
+      // Optimistically remove from local state
       setNewOrders((prev) => prev.filter((o) => o.id !== orderId));
+      console.log(`✅ Order ${orderId} moved to in_progress`);
     } catch (e) {
-      console.error(e);
+      console.error('Error starting order:', e);
+      alert('Failed to start order. Please try again.');
     }
   };
 
@@ -227,7 +324,12 @@ export default function KitchenPage() {
       </header>
 
       {newOrders.length === 0 ? (
-        <Card padding={24} style={{ textAlign: 'center' }}>No new orders</Card>
+        <Card padding={24} style={{ textAlign: 'center' }}>
+          <div style={{ marginBottom: 8 }}>No new orders</div>
+          <div style={{ fontSize: 12, color: '#666' }}>
+            Connected to: {restaurantId?.slice(0, 8)}...
+          </div>
+        </Card>
       ) : (
         <div style={{ display: 'grid', gap: 12 }}>
           {newOrders.map((order) => (
