@@ -9,7 +9,7 @@ import Button from '../../components/ui/Button';
 import { getToken } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../../lib/firebaseClient';
 
-// Helper function to handle both JSONB items and relational order_items
+// Helper to handle both JSONB items and relational order_items
 function toDisplayItems(order) {
   if (Array.isArray(order.items)) return order.items;
   if (Array.isArray(order.order_items)) {
@@ -124,14 +124,14 @@ export default function KitchenPage() {
   const [newOrders, setNewOrders] = useState([]);
   const audioRef = useRef(null);
 
-  // Preload audio
+  // Preload notification sound
   useEffect(() => {
     const a = new Audio('/notification-sound.mp3');
     a.load();
     audioRef.current = a;
   }, []);
 
-  // Initial fetch
+  // Initial fetch of new orders with nested data
   useEffect(() => {
     if (!restaurantId) return;
     (async () => {
@@ -151,14 +151,20 @@ export default function KitchenPage() {
     })();
   }, [restaurantId]);
 
-  // Real-time subscription (v2 channel)
+  // Real-time subscription using v2 channel API
   useEffect(() => {
     if (!restaurantId) return;
+
     const channel = supabase
-      .channel(`orders:public:orders:restaurant_id=eq.${restaurantId}`)
+      .channel('public:orders')                 // subscribe to public.orders
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurantId}`,
+        },
         async (payload) => {
           console.log('Kitchen realtime payload:', payload);
           const ord = payload.new;
@@ -189,10 +195,10 @@ export default function KitchenPage() {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => void supabase.removeChannel(channel);
   }, [restaurantId]);
 
-  // Start handler
+  // Handler to move order to "in_progress"
   const handleStart = async (orderId) => {
     try {
       const { error } = await supabase
