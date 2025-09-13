@@ -9,7 +9,7 @@ import Button from '../../components/ui/Button';
 import { getToken } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../../lib/firebaseClient';
 
-// Helper function from orders.js to handle both order.items and order.order_items
+// Helper function to handle both JSONB items and relational order_items
 function toDisplayItems(order) {
   if (Array.isArray(order.items)) return order.items;
   if (Array.isArray(order.order_items)) {
@@ -25,7 +25,6 @@ function toDisplayItems(order) {
 // Kitchen order card component
 function KitchenOrderCard({ order, onStart }) {
   const items = toDisplayItems(order);
-
   console.log('KitchenOrderCard rendering order:', order);
   console.log('Items derived using toDisplayItems:', items);
 
@@ -57,14 +56,14 @@ function KitchenOrderCard({ order, onStart }) {
   );
 }
 
-// Push notifications component
+// Push notifications enable button
 function EnableAlertsButton({ restaurantId, userEmail }) {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const checkExistingPermission = async () => {
-      if ('Notification' in window && Notification.permission === 'granted') {
+    const checkPermission = async () => {
+      if (Notification.permission === 'granted') {
         try {
           const messaging = await getMessagingIfSupported();
           if (messaging) {
@@ -73,21 +72,18 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
             });
             if (token) setEnabled(true);
           }
-        } catch (e) {
-          console.log('Token check failed:', e);
-        }
+        } catch {}
       }
     };
-    checkExistingPermission();
+    checkPermission();
   }, []);
 
   const enablePush = async () => {
     setLoading(true);
     try {
-      if (!('Notification' in window)) throw new Error('Notifications not supported');
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
-        alert('Please allow notifications to receive order alerts.');
+        alert('Please allow notifications.');
         return;
       }
       await navigator.serviceWorker.ready;
@@ -97,23 +93,18 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
         vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
         serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(),
       });
-      if (!token) throw new Error('Failed to get push token');
+      if (!token) throw new Error('Failed to get token');
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceToken: token,
-          restaurantId,
-          userEmail,
-          platform: /Android/.test(navigator.userAgent) ? 'android' : 'web',
-        }),
+        body: JSON.stringify({ deviceToken: token, restaurantId, userEmail }),
       });
       if (!res.ok) throw new Error('Subscribe failed');
       setEnabled(true);
-      alert('Kitchen alerts enabled successfully!');
+      alert('Alerts enabled!');
     } catch (e) {
-      console.error('Enable alerts failed:', e);
-      alert(`Failed to enable alerts: ${e.message}`);
+      console.error(e);
+      alert(`Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -133,17 +124,17 @@ export default function KitchenPage() {
   const [newOrders, setNewOrders] = useState([]);
   const audioRef = useRef(null);
 
-  // Preload notification sound
+  // Preload audio
   useEffect(() => {
     const a = new Audio('/notification-sound.mp3');
     a.load();
     audioRef.current = a;
   }, []);
 
-  // Initial fetch of "new" orders with nested data
+  // Initial fetch
   useEffect(() => {
     if (!restaurantId) return;
-    const fetchOrders = async () => {
+    (async () => {
       try {
         const { data, error } = await supabase
           .from('orders')
@@ -154,14 +145,13 @@ export default function KitchenPage() {
         if (error) throw error;
         console.log('Initial orders fetched:', data);
         setNewOrders(data || []);
-      } catch (error) {
-        console.error('Initial fetch error:', error);
+      } catch (e) {
+        console.error('Fetch error:', e);
       }
-    };
-    fetchOrders();
+    })();
   }, [restaurantId]);
 
-  // Real-time subscription using v2 channel API
+  // Real-time subscription (v2 channel)
   useEffect(() => {
     if (!restaurantId) return;
     const channel = supabase
@@ -171,23 +161,21 @@ export default function KitchenPage() {
         { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
         async (payload) => {
           console.log('Kitchen realtime payload:', payload);
-          const order = payload.new;
-          if (!order) return;
+          const ord = payload.new;
+          if (!ord) return;
           const { data } = await supabase
             .from('orders')
             .select('*, order_items(*, menu_items(name))')
-            .eq('id', order.id)
+            .eq('id', ord.id)
             .single();
           if (!data) return;
           setNewOrders((prev) => {
             const filtered = prev.filter((o) => o.id !== data.id);
             if (payload.event === 'INSERT' && data.status === 'new') {
               audioRef.current?.play().catch(() => {});
-              if ('Notification' in window && Notification.permission === 'granted') {
+              if (Notification.permission === 'granted') {
                 new Notification('🔔 New Kitchen Order!', {
-                  body: `Table ${data.table_number || ''} - #${data.id.slice(0, 8)}`,
-                  icon: '/favicon.ico',
-                  tag: 'new-kitchen-order',
+                  body: `Table ${data.table_number} • #${data.id.slice(0, 8)}`,
                 });
               }
               return [data, ...filtered];
@@ -200,10 +188,11 @@ export default function KitchenPage() {
         }
       )
       .subscribe();
+
     return () => supabase.removeChannel(channel);
   }, [restaurantId]);
 
-  // Handler to move order to "in_progress"
+  // Start handler
   const handleStart = async (orderId) => {
     try {
       const { error } = await supabase
@@ -213,33 +202,28 @@ export default function KitchenPage() {
         .eq('restaurant_id', restaurantId);
       if (error) throw error;
       setNewOrders((prev) => prev.filter((o) => o.id !== orderId));
-    } catch (error) {
-      console.error('Error updating order status:', error);
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  if (checking || restLoading) {
-    return <div style={{ padding: 16 }}>Loading…</div>;
-  }
-  if (!restaurantId) {
-    return <div style={{ padding: 16 }}>No restaurant found.</div>;
-  }
+  if (checking || restLoading) return <div>Loading…</div>;
+  if (!restaurantId) return <div>No restaurant found.</div>;
 
   return (
     <div style={{ padding: 16 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <h1>Kitchen Dashboard</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <EnableAlertsButton restaurantId={restaurantId} userEmail={user?.email} />
           <Button onClick={() => window.location.reload()}>Refresh</Button>
         </div>
       </header>
+
       {newOrders.length === 0 ? (
-        <Card padding={24} style={{ marginTop: 16, textAlign: 'center' }}>
-          No new orders
-        </Card>
+        <Card padding={24} style={{ textAlign: 'center' }}>No new orders</Card>
       ) : (
-        <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           {newOrders.map((order) => (
             <KitchenOrderCard key={order.id} order={order} onStart={handleStart} />
           ))}
