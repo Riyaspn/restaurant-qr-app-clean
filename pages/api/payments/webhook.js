@@ -19,7 +19,6 @@ const razorpay = new Razorpay({
 });
 
 async function getRouteAccount(orderId) {
-  // 1. Fetch restaurant_id for this order
   const { data: ord, error: ordErr } = await supabase
     .from('orders')
     .select('restaurant_id')
@@ -27,13 +26,13 @@ async function getRouteAccount(orderId) {
     .single();
   if (ordErr || !ord) return null;
 
-  // 2. Fetch route_account_id for that restaurant
   const { data: rest, error: restErr } = await supabase
     .from('restaurants')
     .select('route_account_id')
     .eq('id', ord.restaurant_id)
     .single();
-  if (restErr || !rest.route_account_id) return null;
+  if (restErr || !rest?.route_account_id) return null;
+
   return rest.route_account_id;
 }
 
@@ -49,10 +48,11 @@ export default async function handler(req, res) {
     .digest('hex');
   if (expected !== signature) return res.status(400).send('Invalid signature');
 
-  res.status(200).send('OK'); // Acknowledge
+  res.status(200).send('OK'); // ack immediately
 
   try {
     const { event, payload } = JSON.parse(raw);
+
     if (event === 'payment.captured') {
       const payment = payload.payment.entity;
       const orderId = payment.order_id;
@@ -65,16 +65,21 @@ export default async function handler(req, res) {
         return;
       }
 
-      // Create transfer to linked account
-      const transfer = await razorpay.transfers.create({
+      const transferPayload = {
         account: routeAccount,
         amount: payment.amount,
         currency: payment.currency,
         source: payment.id,
         on_hold: false,
-      });
-      console.log('Transfer created:', transfer.id);
-      // Optionally record transfer in your DB here
+      };
+
+      try {
+        const transfer = await razorpay.transfers.create(transferPayload);
+        console.log('Transfer created:', transfer.id);
+        // Optionally update DB to mark transfer success
+      } catch (transferError) {
+        console.error('Transfer creation failed:', transferError);
+      }
     }
   } catch (err) {
     console.error('Webhook handler error:', err);

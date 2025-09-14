@@ -178,32 +178,38 @@ export default function SettingsPage() {
       await supabase.from('restaurants').update({ name: form.restaurant_name }).eq('id', restaurant.id)
 
       // If route_account_id not saved yet, create via Razorpay Route API
-      if (!form.route_account_id) {
-        // Call backend API to create route account
-        const res = await fetch('/api/route/create-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            account_holder_name: form.bank_account_holder_name.trim(),
-            account_number: form.bank_account_number.trim(),
-            ifsc: formattedIfsc,
-            email: form.bank_email?.trim() || form.support_email.trim(),
-            phone: form.bank_phone?.trim() || form.phone.trim(),
-            owner_id: restaurant.id,
-          }),
-        })
-        if (!res.ok) {
-          const errData = await res.json()
-          throw new Error(errData.error || 'Failed to create linked Route account')
-        }
-        const { account_id } = await res.json()
-        setForm(prev => ({ ...prev, route_account_id: account_id }))
-        // Save route_account_id in restaurants table
-        const { error: restUpdErr } = await supabase.from('restaurants').update({ route_account_id: account_id }).eq('id', restaurant.id)
-        if (restUpdErr) {
-          console.warn('Failed to save route_account_id:', restUpdErr.message)
-        }
-      }
+     if (!form.route_account_id) {
+  const res = await fetch('/api/route/create-account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      business_name: form.restaurant_name || form.legal_name,
+      business_type: 'Individual', // Or collect from user input if variable
+      beneficiary_name: form.bank_account_holder_name,
+      account_number: form.bank_account_number,
+      ifsc: form.bank_ifsc.toUpperCase(),
+      email: form.bank_email || form.support_email,
+      phone: form.bank_phone || form.phone,
+      owner_id: restaurant.id,
+    }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error || 'Failed to create linked Route account');
+  }
+  const { account_id } = await res.json();
+  setForm(prev => ({ ...prev, route_account_id: account_id }));
+
+  // Save in restaurants table
+  const { error: updErr } = await supabase
+    .from('restaurants')
+    .update({ route_account_id: account_id })
+    .eq('id', restaurant.id);
+
+  if (updErr) console.warn('Failed to save route_account_id:', updErr.message);
+}
+
 
       // Send notification emails for tables if needed
       const emailData = {
