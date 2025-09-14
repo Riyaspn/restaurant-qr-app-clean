@@ -5,7 +5,6 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-
   const {
     account_holder_name,
     account_number,
@@ -19,21 +18,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required bank details.' });
   }
 
+  const formattedIfsc = ifsc.trim().toUpperCase();
+
   try {
     const payload = {
-      name: account_holder_name,
-      email: email || '',
+      name: account_holder_name.trim(),
+      email: email?.trim() || '',
       type: 'bank_account',
       description: 'Restaurant Owner Account',
       reference_id: owner_id?.toString() || '',
       active: true,
-      contact: phone || '',
+      contact: phone?.trim() || '',
       bank_account: {
-        name: account_holder_name,
-        ifsc,
-        account_number,
+        name: account_holder_name.trim(),
+        ifsc: formattedIfsc,
+        account_number: account_number.trim(),
       },
     };
+
+    console.log('Payload sent to Razorpay Route API:', JSON.stringify(payload, null, 2));
 
     const username = process.env.RAZORPAY_KEY_ID;
     const password = process.env.RAZORPAY_KEY_SECRET;
@@ -50,7 +53,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error('Razorpay Route API error:', errorBody);
+      console.error('Razorpay Route API error response:', errorBody);
       return res.status(response.status).json({ error: errorBody });
     }
 

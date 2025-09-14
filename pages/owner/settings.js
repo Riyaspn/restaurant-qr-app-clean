@@ -150,7 +150,8 @@ export default function SettingsPage() {
 
       // Validate IFSC (simple check)
       const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
-      if (!IFSC_REGEX.test(form.bank_ifsc.trim().toUpperCase())) throw new Error('Invalid IFSC code format.')
+      const formattedIfsc = form.bank_ifsc.trim().toUpperCase()
+      if (!IFSC_REGEX.test(formattedIfsc)) throw new Error('Invalid IFSC code format.')
 
       const newCount = Number(form.tables_count)
       if (!isFirstTime && newCount < originalTables) throw new Error('Cannot decrease tables count')
@@ -158,6 +159,7 @@ export default function SettingsPage() {
       const payload = {
         restaurant_id: restaurant.id,
         ...form,
+        bank_ifsc: formattedIfsc,
         tables_count: newCount,
         default_tax_rate: Number(form.default_tax_rate) || 5,
         prices_include_tax: !!form.prices_include_tax,
@@ -184,7 +186,7 @@ export default function SettingsPage() {
           body: JSON.stringify({
             account_holder_name: form.bank_account_holder_name.trim(),
             account_number: form.bank_account_number.trim(),
-            ifsc: form.bank_ifsc.trim().toUpperCase(),
+            ifsc: formattedIfsc,
             email: form.bank_email?.trim() || form.support_email.trim(),
             phone: form.bank_phone?.trim() || form.phone.trim(),
             owner_id: restaurant.id,
@@ -196,7 +198,6 @@ export default function SettingsPage() {
         }
         const { account_id } = await res.json()
         setForm(prev => ({ ...prev, route_account_id: account_id }))
-
         // Save route_account_id in restaurants table
         const { error: restUpdErr } = await supabase.from('restaurants').update({ route_account_id: account_id }).eq('id', restaurant.id)
         if (restUpdErr) {
@@ -269,7 +270,6 @@ export default function SettingsPage() {
   return (
     <div className="container" style={{ padding: '20px 8px 40px' }}>
       <h1 className="h1">Restaurant Settings</h1>
-
       {error && (
         <Card padding={12} style={{ background: '#fee2e2', borderColor: '#fecaca' }}>
           <div style={{ color: '#b91c1c' }}>{error}</div>
@@ -280,9 +280,7 @@ export default function SettingsPage() {
           <div style={{ color: '#166534' }}>{success}</div>
         </Card>
       )}
-
       <form onSubmit={save} style={{ display: 'grid', gap: 24 }}>
-
         <Section title="Business Info" icon="🏢">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Legal Name" required>
@@ -299,7 +297,6 @@ export default function SettingsPage() {
             </Field>
           </div>
         </Section>
-
         <Section title="Bank Account Details" icon="🏦">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Account Holder Name" required>
@@ -319,7 +316,6 @@ export default function SettingsPage() {
             </Field>
           </div>
         </Section>
-
         <Section title="Tax Info" icon="📋">
           <label>
             <input type="checkbox" checked={form.gst_enabled} onChange={onChange('gst_enabled')} /> GST Registered
@@ -338,7 +334,6 @@ export default function SettingsPage() {
             </div>
           )}
         </Section>
-
         <Section title="Delivery Address" icon="📦">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Recipient" required>
@@ -366,7 +361,6 @@ export default function SettingsPage() {
             </Field>
           </div>
         </Section>
-
         <Section title="Operations" icon="⚙️">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Tables Count" required>
@@ -384,7 +378,6 @@ export default function SettingsPage() {
             <span>ℹ️ Business hours in Availability tab</span>
           </div>
         </Section>
-
         <Section title="Brand & Web" icon="🎨">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Logo URL">
@@ -407,7 +400,6 @@ export default function SettingsPage() {
             <textarea className="input" rows="3" value={form.description} onChange={onChange('description')} />
           </Field>
         </Section>
-
         <Section title="Aggregator Integration Keys" icon="🔗">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Swiggy API Key">
@@ -430,13 +422,11 @@ export default function SettingsPage() {
             </Field>
           </div>
         </Section>
-
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : isFirstTime ? 'Complete Setup' : 'Save Changes'}
           </Button>
         </div>
-
         <Section title="Kitchen Dashboard Link" icon="🔗">
           <Field label="Kitchen Dashboard URL">
             {restaurant?.id ? (
