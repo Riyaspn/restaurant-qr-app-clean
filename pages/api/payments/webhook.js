@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
-import { supabase } from '../../services/supabase';
+import { supabase } from '../../../services/supabase';
 
 export const config = { api: { bodyParser: false } };
 
