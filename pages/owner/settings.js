@@ -33,14 +33,12 @@ function Field({ label, required, children, hint }) {
 export default function SettingsPage() {
   const { checking } = useRequireAuth()
   const { restaurant, loading: loadingRestaurant } = useRestaurant()
-
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isFirstTime, setIsFirstTime] = useState(false)
   const [originalTables, setOriginalTables] = useState(0)
-
   const [form, setForm] = useState({
     legal_name: '',
     restaurant_name: '',
@@ -72,6 +70,13 @@ export default function SettingsPage() {
     zomato_api_key: '',
     zomato_api_secret: '',
     zomato_webhook_secret: '',
+    // New fields for Bank Account Details
+    bank_account_holder_name: '',
+    bank_account_number: '',
+    bank_ifsc: '',
+    bank_email: '',
+    bank_phone: '',
+    route_account_id: '', // store created Razorpay route account ID
   })
 
   useEffect(() => {
@@ -97,6 +102,18 @@ export default function SettingsPage() {
         } else {
           setIsFirstTime(true)
         }
+        // Load route_account_id from restaurants table, if saved
+        const { data: restData, error: restErr } = await supabase
+          .from('restaurants')
+          .select('route_account_id')
+          .eq('id', restaurant.id)
+          .single()
+        if (!restErr && restData) {
+          setForm(prev => ({
+            ...prev,
+            route_account_id: restData.route_account_id || '',
+          }))
+        }
       } catch (e) {
         setError(e.message || 'Failed to load settings')
       } finally {
@@ -111,24 +128,6 @@ export default function SettingsPage() {
     setForm(prev => ({ ...prev, [field]: val }))
   }
 
-  const generateQRArray = (start, end) => {
-    const arr = []
-    const base = `${window.location.origin}/order?r=${restaurant.id}`
-    for (let i = start; i <= end; i++) {
-      arr.push({ tableNumber: `${form.table_prefix} ${i}`, qrUrl: `${base}&t=${i}`, tableId: i })
-    }
-    return arr
-  }
-
-  const sendEmail = async ({ qrCodes, data, incremental }) => {
-    const res = await fetch('/api/send-qr-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qrCodes, restaurantData: data, isIncremental: incremental }),
-    })
-    return res.ok
-  }
-
   const save = async e => {
     e.preventDefault()
     setSaving(true)
@@ -138,13 +137,20 @@ export default function SettingsPage() {
       const required = [
         'legal_name', 'restaurant_name', 'phone', 'support_email',
         'upi_id', 'shipping_name', 'shipping_phone', 'shipping_address_line1',
-        'shipping_city', 'shipping_state', 'shipping_pincode'
+        'shipping_city', 'shipping_state', 'shipping_pincode',
+        // Require bank details mandatorily
+        'bank_account_holder_name', 'bank_account_number', 'bank_ifsc'
       ]
-      const missing = required.filter(f => !form[f])
+      const missing = required.filter(f => !form[f] || form[f].toString().trim() === '')
       if (missing.length) throw new Error(`Missing: ${missing.join(', ')}`)
 
+      // Validate UPI
       const UPI_REGEX = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/
       if (!UPI_REGEX.test(form.upi_id.trim())) throw new Error('Invalid UPI format. Example: name@bankhandle')
+
+      // Validate IFSC (simple check)
+      const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
+      if (!IFSC_REGEX.test(form.bank_ifsc.trim().toUpperCase())) throw new Error('Invalid IFSC code format.')
 
       const newCount = Number(form.tables_count)
       if (!isFirstTime && newCount < originalTables) throw new Error('Cannot decrease tables count')
@@ -157,14 +163,48 @@ export default function SettingsPage() {
         prices_include_tax: !!form.prices_include_tax,
         upi_id: form.upi_id.trim(),
       }
-
+      // Upsert the profile data first (excluding route_account_id for now)
       const { error: upsertErr } = await supabase
         .from('restaurant_profiles')
-        .upsert(payload, { onConflict: 'restaurant_id' })
+        .upsert({
+          ...payload,
+          route_account_id: undefined // avoid overwriting route_account_id here
+        }, { onConflict: 'restaurant_id' })
       if (upsertErr) throw upsertErr
 
+      // Update restaurant name too
       await supabase.from('restaurants').update({ name: form.restaurant_name }).eq('id', restaurant.id)
 
+      // If route_account_id not saved yet, create via Razorpay Route API
+      if (!form.route_account_id) {
+        // Call backend API to create route account
+        const res = await fetch('/api/route/create-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_holder_name: form.bank_account_holder_name.trim(),
+            account_number: form.bank_account_number.trim(),
+            ifsc: form.bank_ifsc.trim().toUpperCase(),
+            email: form.bank_email?.trim() || form.support_email.trim(),
+            phone: form.bank_phone?.trim() || form.phone.trim(),
+            owner_id: restaurant.id,
+          }),
+        })
+        if (!res.ok) {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Failed to create linked Route account')
+        }
+        const { account_id } = await res.json()
+        setForm(prev => ({ ...prev, route_account_id: account_id }))
+
+        // Save route_account_id in restaurants table
+        const { error: restUpdErr } = await supabase.from('restaurants').update({ route_account_id: account_id }).eq('id', restaurant.id)
+        if (restUpdErr) {
+          console.warn('Failed to save route_account_id:', restUpdErr.message)
+        }
+      }
+
+      // Send notification emails for tables if needed
       const emailData = {
         restaurantName: form.restaurant_name,
         legalName: form.legal_name,
@@ -174,7 +214,6 @@ export default function SettingsPage() {
         tablesCount: newCount,
         tablePrefix: form.table_prefix,
       }
-
       if (isFirstTime) {
         const allCodes = generateQRArray(1, newCount)
         const ok = await sendEmail({ qrCodes: allCodes, data: emailData, incremental: false })
@@ -198,11 +237,30 @@ export default function SettingsPage() {
 
       setOriginalTables(newCount)
       setIsFirstTime(false)
+
     } catch (err) {
       setError(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  const generateQRArray = (start, end) => {
+    const arr = []
+    const base = `${window.location.origin}/order?r=${restaurant.id}`
+    for (let i = start; i <= end; i++) {
+      arr.push({ tableNumber: `${form.table_prefix} ${i}`, qrUrl: `${base}&t=${i}`, tableId: i })
+    }
+    return arr
+  }
+
+  const sendEmail = async ({ qrCodes, data, incremental }) => {
+    const res = await fetch('/api/send-qr-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qrCodes, restaurantData: data, isIncremental: incremental }),
+    })
+    return res.ok
   }
 
   if (checking || loadingRestaurant) return <div>Loading…</div>
@@ -224,6 +282,7 @@ export default function SettingsPage() {
       )}
 
       <form onSubmit={save} style={{ display: 'grid', gap: 24 }}>
+
         <Section title="Business Info" icon="🏢">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
             <Field label="Legal Name" required>
@@ -233,10 +292,30 @@ export default function SettingsPage() {
               <input className="input" value={form.restaurant_name} onChange={onChange('restaurant_name')} />
             </Field>
             <Field label="Phone" required>
-              <input className="input" type="tel" value={form.phone} onChange={onChange('phone')} style={{ fontSize: 16 }} /> {/* iOS no-zoom [web:199][web:198][web:208] */}
+              <input className="input" type="tel" value={form.phone} onChange={onChange('phone')} style={{ fontSize: 16 }} />
             </Field>
             <Field label="Support Email" required>
-              <input className="input" type="email" value={form.support_email} onChange={onChange('support_email')} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
+              <input className="input" type="email" value={form.support_email} onChange={onChange('support_email')} style={{ fontSize: 16 }} />
+            </Field>
+          </div>
+        </Section>
+
+        <Section title="Bank Account Details" icon="🏦">
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
+            <Field label="Account Holder Name" required>
+              <input className="input" value={form.bank_account_holder_name} onChange={onChange('bank_account_holder_name')} />
+            </Field>
+            <Field label="Account Number" required>
+              <input className="input" value={form.bank_account_number} onChange={onChange('bank_account_number')} />
+            </Field>
+            <Field label="IFSC Code" required hint="Example: HDFC0001234">
+              <input className="input" value={form.bank_ifsc} onChange={onChange('bank_ifsc')} style={{ textTransform: 'uppercase' }} />
+            </Field>
+            <Field label="Email (optional)">
+              <input className="input" type="email" value={form.bank_email} onChange={onChange('bank_email')} />
+            </Field>
+            <Field label="Phone (optional)">
+              <input className="input" type="tel" value={form.bank_phone} onChange={onChange('bank_phone')} />
             </Field>
           </div>
         </Section>
@@ -248,7 +327,6 @@ export default function SettingsPage() {
           <label>
             <input type="checkbox" checked={form.prices_include_tax} onChange={onChange('prices_include_tax')} /> Menu prices include tax
           </label>
-
           {form.gst_enabled && (
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
               <Field label="GSTIN">
@@ -267,7 +345,7 @@ export default function SettingsPage() {
               <input className="input" value={form.shipping_name} onChange={onChange('shipping_name')} />
             </Field>
             <Field label="Contact" required>
-              <input className="input" type="tel" value={form.shipping_phone} onChange={onChange('shipping_phone')} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
+              <input className="input" type="tel" value={form.shipping_phone} onChange={onChange('shipping_phone')} style={{ fontSize: 16 }} />
             </Field>
           </div>
           <Field label="Address Line 1" required>
@@ -284,7 +362,7 @@ export default function SettingsPage() {
               <input className="input" value={form.shipping_state} onChange={onChange('shipping_state')} />
             </Field>
             <Field label="Pincode" required>
-              <input className="input" value={form.shipping_pincode} onChange={onChange('shipping_pincode')} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
+              <input className="input" value={form.shipping_pincode} onChange={onChange('shipping_pincode')} style={{ fontSize: 16 }} />
             </Field>
           </div>
         </Section>
@@ -358,32 +436,32 @@ export default function SettingsPage() {
             {saving ? 'Saving…' : isFirstTime ? 'Complete Setup' : 'Save Changes'}
           </Button>
         </div>
-<Section title="Kitchen Dashboard Link" icon="🔗">
-  <Field label="Kitchen Dashboard URL">
-    {restaurant?.id ? (
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          className="input"
-          readOnly
-          value={`${window.location.origin}/kitchen?rid=${restaurant.id}`}
-          onFocus={(e) => e.target.select()}
-          style={{ flex: 1 }}
-        />
-        <Button
-          onClick={() => {
-            navigator.clipboard.writeText(`${window.location.origin}/kitchen?rid=${restaurant.id}`);
-            alert('Kitchen URL copied to clipboard');
-          }}
-        >
-          Copy URL
-        </Button>
-      </div>
-    ) : (
-      <div>Loading link…</div>
-    )}
-  </Field>
-</Section>
 
+        <Section title="Kitchen Dashboard Link" icon="🔗">
+          <Field label="Kitchen Dashboard URL">
+            {restaurant?.id ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  readOnly
+                  value={`${window.location.origin}/kitchen?rid=${restaurant.id}`}
+                  onFocus={(e) => e.target.select()}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/kitchen?rid=${restaurant.id}`)
+                    alert('Kitchen URL copied to clipboard')
+                  }}
+                >
+                  Copy URL
+                </Button>
+              </div>
+            ) : (
+              <div>Loading link…</div>
+            )}
+          </Field>
+        </Section>
       </form>
     </div>
   )
