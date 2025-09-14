@@ -1,66 +1,70 @@
 // components/RedirectPayButton.jsx
-import { useState, useEffect } from 'react'
+
+import { useState, useEffect } from 'react';
 
 export default function RedirectPayButton({ amount, customer }) {
-  const [loading, setLoading] = useState(false)
-  const [cashfree, setCashfree] = useState(null)
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Load Cashfree SDK
-    const script = document.createElement('script')
-    script.src = 'https://sdk.cashfree.com/js/ui/2.0.0/cashfree.sandbox.js'
-    script.onload = () => {
-      // Initialize Cashfree (as shown in video)
-      const cf = new window.Cashfree({
-        mode: 'sandbox' // Use 'production' for live
-      })
-      setCashfree(cf)
+    // Load Razorpay checkout script once
+    if (!window.Razorpay) {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
     }
-    document.body.appendChild(script)
-  }, [])
+  }, []);
 
   const startPayment = async () => {
-    if (!cashfree) {
-      alert('Payment system not ready')
-      return
-    }
+    setLoading(true);
 
-    setLoading(true)
     try {
-      // Create order first
-      const response = await fetch('/api/payments/create-order', {
+      const res = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_amount: amount,
-          order_currency: 'INR',
+          amount,
           customer_name: customer.name,
           customer_email: customer.email,
-          customer_phone: customer.phone
-        })
-      })
+          customer_phone: customer.phone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Order creation failed');
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.amount,
+        currency: data.currency,
+        order_id: data.order_id,
+        name: 'Your Restaurant',
+        description: 'Payment for order',
+        prefill: {
+          name: customer.name,
+          email: customer.email,
+          contact: customer.phone,
+        },
+        handler: function (response) {
+          // response.razorpay_payment_id
+          // response.razorpay_order_id
+          // Optionally verify on client or rely on webhook
+          alert('Payment successful!');
+        },
+        theme: { color: '#10b981' },
+      };
 
-      // Use Cashfree SDK for checkout (as shown in video)
-      const checkoutOptions = {
-        paymentSessionId: data.payment_session_id,
-        redirectTarget: '_self' // Opens in same window, use '_blank' for new tab
-      }
-
-      cashfree.checkout(checkoutOptions)
-      
-    } catch (error) {
-      alert(error.message)
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      alert(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <button onClick={startPayment} disabled={loading || !cashfree}>
-      {loading ? 'Processing...' : `Pay ₹${amount}`}
+    <button onClick={startPayment} disabled={loading}>
+      {loading ? 'Processing…' : `Pay ₹${amount}`}
     </button>
-  )
+  );
 }

@@ -1,92 +1,61 @@
 // pages/api/payments/webhook.js
-import crypto from 'crypto'
 
-export const config = { api: { bodyParser: false } }
+import crypto from 'crypto';
 
-// Read raw request body
+export const config = {
+  api: { bodyParser: false },
+};
+
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
-    let data = ''
-    req.on('data', (chunk) => (data += chunk))
-    req.on('end', () => resolve(data))
-    req.on('error', reject)
-  })
+    let data = '';
+    req.on('data', (chunk) => (data += chunk));
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
 }
 
 export default async function handler(req, res) {
-  const reqId = Math.random().toString(36).slice(2, 8) + Date.now().toString(36)
-  const log = (...args) => console.log(`[webhook][${reqId}]`, ...args)
-  const err = (...args) => console.error(`[webhook][${reqId}]`, ...args)
-
   if (req.method !== 'POST') {
-    log('Method not allowed:', req.method)
-    return res.status(405).send('Method not allowed')
+    return res.status(405).send('Method not allowed');
   }
 
+  const raw = await readRawBody(req);
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  const signature = req.headers['x-razorpay-signature'];
+
+  if (!signature) {
+    console.error('Webhook signature missing');
+    return res.status(400).send('Signature missing');
+  }
+
+  // Compute HMAC
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(raw)
+    .digest('hex');
+
+  if (expected !== signature) {
+    console.error('Invalid webhook signature');
+    return res.status(400).send('Invalid signature');
+  }
+
+  // Acknowledge immediately
+  res.status(200).send('OK');
+
+  // Then process asynchronously
   try {
-    const raw = await readRawBody(req)
-    const { CF_SECRET_KEY } = process.env
-    const sig = req.headers['x-webhook-signature'] || ''
-    const ts = req.headers['x-webhook-timestamp'] || ''
+    const event = JSON.parse(raw);
 
-    // Log raw payload details
-    const buf = Buffer.from(raw, 'utf8')
-    log('Raw payload hex:', buf.toString('hex'))
-    log('Raw payload utf8 preview:', raw.substring(0, 200))
-    log('Headers', { ts, sig })
-
-    if (!CF_SECRET_KEY) {
-      err('Missing CF_SECRET_KEY')
-      return res.status(500).send('Server misconfigured')
+    if (event.event === 'payment.captured') {
+      const payment = event.payload.payment.entity;
+      const orderId = payment.order_id;
+      console.log('✅ Payment captured for order', orderId);
+      // TODO: update your database: mark orderId as paid
+    } else {
+      console.log('📥 Received webhook event:', event.event);
     }
-    if (!sig) {
-      err('Missing signature header')
-      return res.status(400).send('Missing signature')
-    }
-
-    // Try three HMAC methods
-    const methods = {
-      'ts+body': ts + raw,
-      'body+ts': raw + ts,
-      'body': raw
-    }
-
-    const computed = {}
-    const matches = {}
-    for (const [name, payload] of Object.entries(methods)) {
-      computed[name] = crypto
-        .createHmac('sha256', CF_SECRET_KEY)
-        .update(payload)
-        .digest('base64')
-      matches[name] = computed[name] === sig
-    }
-
-    log('Attempted signatures', { computed, matches, receivedSig: sig })
-
-    // If none matched, reject
-    if (!Object.values(matches).some(Boolean)) {
-      err('All signature methods failed')
-      return res.status(400).send('Invalid signature')
-    }
-
-    // Acknowledge success
-    res.status(200).send('OK')
-
-    // Asynchronously process event
-    try {
-      const event = JSON.parse(raw)
-      const orderId = event?.data?.order?.order_id
-      const status =
-        event?.data?.payment?.payment_status ||
-        event?.data?.order?.order_status ||
-        'UNKNOWN'
-      log('Processed event', { orderId, status })
-      // TODO: update your database order record by orderId
-    } catch (e) {
-      err('Post-ack processing error', e.message)
-    }
-  } catch (e) {
-    err('Handler error', e.message)
-    return res.status(500).send('Server error')
+  } catch (err) {
+    console.error('Webhook handler error:', err);
   }
 }

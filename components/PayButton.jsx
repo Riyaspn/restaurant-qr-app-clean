@@ -1,58 +1,66 @@
 // components/PayButton.jsx
-import { useState } from 'react'
+
+import { useState, useEffect } from 'react';
 
 export default function PayButton({ amount, customer }) {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!window.Razorpay) {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   const pay = async () => {
-    setLoading(true)
+    setLoading(true);
+
     try {
-      const r = await fetch('/api/payments/create-order', {
+      const res = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount,
-          currency: 'INR',
           customer_name: customer.name,
           customer_email: customer.email,
           customer_phone: customer.phone,
-          metadata: { note: 'Restaurant order' }
-        })
-      })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || 'Failed to create order')
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Order creation failed');
 
-      // Load Cashfree checkout script if not present
-      if (!window?.Cashfree) {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement('script')
-          s.src = 'https://sdk.cashfree.com/js/ui/2.0.0/cashfree.sandbox.js' // switch to production URL for PROD
-          s.onload = resolve
-          s.onerror = reject
-          document.body.appendChild(s)
-        })
-      }
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.amount,
+        currency: data.currency,
+        order_id: data.order_id,
+        name: 'Your Restaurant',
+        description: 'Payment for order',
+        prefill: {
+          name: customer.name,
+          email: customer.email,
+          contact: customer.phone,
+        },
+        handler: function (response) {
+          alert('Payment successful!');
+        },
+        theme: { color: '#3b82f6' },
+      };
 
-      const cashfree = new window.Cashfree({
-        mode: process.env.NEXT_PUBLIC_CF_ENV === 'PROD' ? 'production' : 'sandbox'
-      })
-
-      cashfree.checkout({
-        paymentSessionId: data.order_token,
-        redirectTarget: '_self' // or 'modal' depending on SDK
-      })
-
-      // Final confirmation should rely on webhook updating order status
-    } catch (e) {
-      alert(e.message)
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      alert(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <button onClick={pay} disabled={loading}>
       {loading ? 'Starting payment…' : `Pay ₹${amount}`}
     </button>
-  )
+  );
 }
