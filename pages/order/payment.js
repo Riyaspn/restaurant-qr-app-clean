@@ -13,6 +13,7 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
 
+  // Derive total from query or cart fallback
   const totalAmount = useMemo(() => {
     const q = Number(total);
     if (Number.isFinite(q) && q > 0) return q;
@@ -22,10 +23,12 @@ export default function PaymentPage() {
     );
   }, [total, cart]);
 
+  // Load restaurant metadata from Supabase
   useEffect(() => {
     if (restaurantId) loadRestaurantData();
   }, [restaurantId]);
 
+  // Load cart from localStorage
   useEffect(() => {
     if (restaurantId && tableNumber) {
       try {
@@ -37,6 +40,7 @@ export default function PaymentPage() {
     }
   }, [restaurantId, tableNumber]);
 
+  // Load Razorpay script
   useEffect(() => {
     if (!window.Razorpay) {
       const script = document.createElement('script');
@@ -46,6 +50,7 @@ export default function PaymentPage() {
     }
   }, []);
 
+  // Query Supabase for restaurant metadata
   const loadRestaurantData = async () => {
     try {
       const { data, error } = await supabase
@@ -59,6 +64,7 @@ export default function PaymentPage() {
     }
   };
 
+  // Helper to notify owner
   const notifyOwner = async (payload) => {
     try {
       await fetch('/api/notify-owner', {
@@ -90,27 +96,10 @@ export default function PaymentPage() {
 
     try {
       if (selectedPayment === 'cash') {
-        // ... unchanged cash flow ...
-      } else {
-        // ONLINE PAYMENT FLOW (UPI/CARD) - Razorpay
-        const resp = await fetch('/api/payments/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: totalAmount,          // <--- use `amount`
-            currency: 'INR',              // <--- use `currency`
-            metadata: {
-              restaurant_id: restaurantId,
-              table_number: tableNumber,
-            },
-          }),
-        });
-
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Order creation failed');
-
-        const pendingOrder = {
+        // Cash flow unchanged
+        const orderData = {
           restaurant_id: restaurantId,
+          restaurant_name: restaurant?.name || null,
           table_number: tableNumber,
           items: cart.map(i => ({
             id: i.id,
@@ -120,79 +109,166 @@ export default function PaymentPage() {
             veg: !!i.veg,
           })),
           subtotal: totalAmount,
+          tax: 0,
+          total_amount: totalAmount,
+          payment_method: 'cash',
           special_instructions: specialInstructions.trim(),
-          payment_method: 'online',
           payment_status: 'pending',
-          razorpay_order_id: data.order_id,
         };
-        localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
-
-        notifyOwner({
-          restaurantId,
-          orderId: data.order_id,
-          orderItems: pendingOrder.items,
+        const res = await fetch('/api/orders/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData),
         });
-
-        const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: data.amount,
-          currency: data.currency,
-          order_id: data.order_id,
-          name: restaurant?.name || 'Restaurant',
-          description: `Table ${tableNumber} Order`,
-          prefill: { name: 'Guest', email: 'guest@restaurant.com', contact: '0000000000' },
-          handler: response => {
-            localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
-            window.location.href = `/order/payment-success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`;
-          },
-          modal: { ondismiss: () => setLoading(false) },
-          theme: { color: restaurant?.restaurant_profiles?.brand_color || '#10b981' },
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.open();
+        const result = await res.json();
+        if (!res.ok) throw new Error(result?.error || 'Failed to create order');
+        await notifyOwner({
+          restaurantId,
+          orderId: result.order_id || result.id,
+          orderItems: orderData.items,
+        });
+        localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
+        localStorage.setItem('restaurantId', restaurantId);
+        localStorage.setItem('tableNumber', tableNumber);
+        window.location.href = `/order/success?id=${result.order_id || result.id}&method=cash`;
+        return;
       }
+
+      // ONLINE PAYMENT FLOW via Razorpay
+      const resp = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: totalAmount,
+          currency: 'INR',
+          metadata: {
+            restaurant_id: restaurantId,
+            table_number: tableNumber,
+          },
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Order creation failed');
+
+      const pendingOrder = {
+        restaurant_id: restaurantId,
+        restaurant_name: restaurant?.name || null,
+        table_number: tableNumber,
+        items: cart.map(i => ({
+          id: i.id,
+          name: i.name,
+          price: Number(i.price) || 0,
+          quantity: Number(i.quantity) || 1,
+          veg: !!i.veg,
+        })),
+        subtotal: totalAmount,
+        special_instructions: specialInstructions.trim(),
+        payment_method: 'online',
+        payment_status: 'pending',
+        razorpay_order_id: data.order_id,
+      };
+      localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
+      notifyOwner({
+        restaurantId,
+        orderId: data.order_id,
+        orderItems: pendingOrder.items,
+      });
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.amount,
+        currency: data.currency,
+        order_id: data.order_id,
+        name: restaurant?.name || 'Restaurant',
+        description: `Table ${tableNumber} Order`,
+        prefill: { name: 'Guest', email: 'guest@restaurant.com', contact: '0000000000' },
+        handler: (response) => {
+          localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
+          window.location.href = `/order/payment-success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`;
+        },
+        modal: { ondismiss: () => setLoading(false) },
+        theme: { color: restaurant?.restaurant_profiles?.brand_color || '#10b981' },
+      };
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     } catch (error) {
       console.error('Payment error:', error);
-      alert(`Payment failed: ${error.message}`);
+      alert(`Payment failed: ${error?.message || 'Unknown error'}`);
+    } finally {
       setLoading(false);
     }
   };
 
-  // ... rest of the UI remains unchanged ...
-
-
-  // ==== UI (kept minimal; plug into existing styles/layout) ====
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b';
   const paymentMethods = [
     { id: 'cash', name: 'Pay at Counter', icon: '💵' },
     { id: 'upi', name: 'UPI Payment', icon: '📱' },
-    { id: 'card', name: 'Card Payment', icon: '💳' }
+    { id: 'card', name: 'Card Payment', icon: '💳' },
   ];
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa', paddingBottom: 120 }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: '#fff', borderBottom: '1px solid #e5e7eb' }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}>←</button>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, flex: 1, textAlign: 'center' }}>Payment</h1>
-        <div style={{ fontSize: 14, fontWeight: 600, color: brandColor }}>₹{Number(totalAmount || 0).toFixed(2)}</div>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: 16,
+          background: '#fff',
+          borderBottom: '1px solid #e5e7eb',
+        }}
+      >
+        <button
+          onClick={() => router.back()}
+          style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
+        >
+          ←
+        </button>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, flex: 1, textAlign: 'center' }}>
+          Payment
+        </h1>
+        <div style={{ fontSize: 14, fontWeight: 600, color: brandColor }}>
+          ₹{Number(totalAmount || 0).toFixed(2)}
+        </div>
       </header>
 
       <div style={{ background: '#fff', padding: 20, marginBottom: 8 }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 600 }}>📦 Order Summary</h3>
         <div style={{ marginBottom: 16 }}>
-          {cart.slice(0, 3).map(item => (
-            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 14, color: '#374151' }}>
-              <span>{item.quantity}x {item.name}</span>
-              <span>₹{((Number(item.price) || 0) * (Number(item.quantity) || 0)).toFixed(2)}</span>
+          {cart.slice(0, 3).map((item) => (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: 6,
+                fontSize: 14,
+                color: '#374151',
+              }}
+            >
+              <span>
+                {item.quantity}x {item.name}
+              </span>
+              <span>
+                ₹{((Number(item.price) || 0) * (Number(item.quantity) || 0)).toFixed(2)}
+              </span>
             </div>
           ))}
           {cart.length > 3 && (
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>+{cart.length - 3} more items</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+              +{cart.length - 3} more items
+            </div>
           )}
         </div>
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontWeight: 700,
+              fontSize: 16,
+            }}
+          >
             <span>Final Total</span>
             <span>₹{Number(totalAmount || 0).toFixed(2)}</span>
           </div>
@@ -201,17 +277,19 @@ export default function PaymentPage() {
 
       <div className="payment-methods" style={{ background: '#fff', padding: 16, marginBottom: 84 }}>
         <h3>💳 Choose Payment Method</h3>
-        {paymentMethods.map(method => (
+        {paymentMethods.map((method) => (
           <label key={method.id} className={`pay-card ${selectedPayment === method.id ? 'selected' : ''}`}>
             <input
               type="radio"
               value={method.id}
               checked={selectedPayment === method.id}
-              onChange={e => setSelectedPayment(e.target.value)}
+              onChange={(e) => setSelectedPayment(e.target.value)}
             />
             <div className="pay-main">
               <div className="pay-left">
-                <span className="pay-emoji" aria-hidden="true">{method.icon}</span>
+                <span className="pay-emoji" aria-hidden="true">
+                  {method.icon}
+                </span>
                 <div className="pay-text">
                   <div className="pay-name">{method.name}</div>
                   {method.id === 'cash' && <div className="pay-note">Pay at counter</div>}
@@ -223,7 +301,17 @@ export default function PaymentPage() {
         ))}
       </div>
 
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: 16, background: '#fff', borderTop: '1px solid #e5e7eb' }}>
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: 16,
+          background: '#fff',
+          borderTop: '1px solid #e5e7eb',
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 14, color: '#374151' }}>
           <span>💰 Total: ₹{Number(totalAmount || 0).toFixed(2)}</span>
           <span>⏱️ Ready in 20 mins</span>
@@ -241,10 +329,10 @@ export default function PaymentPage() {
             fontSize: 18,
             fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.6 : 1
+            opacity: loading ? 0.6 : 1,
           }}
         >
-          {loading ? 'Processing...' : (selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${Number(totalAmount || 0).toFixed(2)}`)}
+          {loading ? 'Processing...' : selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${Number(totalAmount || 0).toFixed(2)}`}
         </button>
       </div>
 
@@ -264,7 +352,9 @@ export default function PaymentPage() {
           border-color: ${brandColor};
           background: #fffbeb;
         }
-        .pay-card input { display: none; }
+        .pay-card input {
+          display: none;
+        }
         .pay-main {
           display: flex;
           align-items: center;
@@ -308,7 +398,9 @@ export default function PaymentPage() {
           text-align: right;
         }
         @media (max-width: 380px) {
-          .pay-right { min-width: 84px; }
+          .pay-right {
+            min-width: 84px;
+          }
         }
       `}</style>
     </div>
