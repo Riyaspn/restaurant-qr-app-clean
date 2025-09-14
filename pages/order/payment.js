@@ -6,7 +6,6 @@ import { supabase } from '../../services/supabase';
 export default function PaymentPage() {
   const router = useRouter();
   const { r: restaurantId, t: tableNumber, total } = router.query;
-
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState('cash'); // 'cash' | 'upi' | 'card'
@@ -40,6 +39,16 @@ export default function PaymentPage() {
     }
   }, [restaurantId, tableNumber]);
 
+  // Load Razorpay script
+  useEffect(() => {
+    if (!window.Razorpay) {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
   // Updated: query Supabase directly for restaurant metadata
   const loadRestaurantData = async () => {
     try {
@@ -70,8 +79,7 @@ export default function PaymentPage() {
 
   const handlePayment = async () => {
     if (loading) return;
-
-    // Basic guards so button doesn’t appear to “do nothing”
+    // Basic guards so button doesn't appear to "do nothing"
     if (!restaurantId || !tableNumber) {
       alert('Missing restaurant or table information.');
       return;
@@ -86,6 +94,7 @@ export default function PaymentPage() {
     }
 
     setLoading(true);
+
     try {
       // CASH PAYMENT FLOW
       if (selectedPayment === 'cash') {
@@ -133,23 +142,24 @@ export default function PaymentPage() {
         return;
       }
 
-      // ONLINE PAYMENT FLOW (UPI/CARD)
+      // ONLINE PAYMENT FLOW (UPI/CARD) - Updated for Razorpay
       // Create order session on server
       const resp = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_amount: totalAmount,
-          order_currency: 'INR',
-          customer_name: 'Guest Customer',
-          customer_email: 'guest@example.com',
-          customer_phone: '9999999999'
+          amount: totalAmount,
+          currency: 'INR',
+          metadata: {
+            restaurant_id: restaurantId,
+            table_number: tableNumber
+          }
         })
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data?.error || data?.details?.message || 'Order session creation failed');
+      if (!resp.ok) throw new Error(data?.error || 'Order creation failed');
 
-      // Persist pending order for webhook/return_url completion
+      // Persist pending order for webhook/callback completion
       const pendingOrder = {
         restaurant_id: restaurantId,
         restaurant_name: restaurant?.name || null,
@@ -167,44 +177,51 @@ export default function PaymentPage() {
         payment_method: 'online',
         special_instructions: specialInstructions.trim(),
         payment_status: 'pending',
-        cashfree_order_id: data.order_id
+        razorpay_order_id: data.order_id
       };
+
       localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
-      localStorage.setItem('payment_session', JSON.stringify({
-        order_id: data.order_id,
-        session_id: data.payment_session_id,
-        amount: totalAmount
-      }));
 
       // PRE-PAYMENT alert so the owner dashboard can prepare
-      // This does not block the flow if PN is delayed
       notifyOwner({
         restaurantId,
         orderId: data.order_id,
         orderItems: pendingOrder.items
       });
 
-      // Load Cashfree SDK and open checkout
-      if (!window.Cashfree) {
-        await new Promise(resolve => {
-          const s = document.createElement('script');
-          s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-          s.onload = resolve;
-          s.onerror = resolve; // fail open; server return_url can still complete
-          document.body.appendChild(s);
-        });
-      }
+      // Open Razorpay checkout
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: data.amount,
+        currency: data.currency,
+        order_id: data.order_id,
+        name: restaurant?.name || 'Restaurant',
+        description: `Table ${tableNumber} Order`,
+        prefill: {
+          name: 'Guest',
+          email: 'guest@restaurant.com',
+          contact: '0000000000',
+        },
+        handler: function (response) {
+          // Payment successful - redirect to success page
+          localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
+          localStorage.setItem('restaurantId', restaurantId);
+          localStorage.setItem('tableNumber', tableNumber);
+          window.location.href = `/order/payment-success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`;
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+          }
+        },
+        theme: { 
+          color: restaurant?.restaurant_profiles?.brand_color || '#10b981' 
+        },
+      };
 
-      if (window.Cashfree) {
-        const cashfree = window.Cashfree({ mode: 'production' });
-        await cashfree.checkout({
-          paymentSessionId: data.payment_session_id,
-          redirectTarget: '_self'
-        });
-      } else {
-        // Fallback: if SDK didn’t load, redirect to a hosted page if configured later
-        alert('Payment gateway not available. Please try again.');
-      }
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
     } catch (error) {
       console.error('Payment error:', error);
       alert(`Payment failed: ${error?.message || 'Unknown error'}`);
