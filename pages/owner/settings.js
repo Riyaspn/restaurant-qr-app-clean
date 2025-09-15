@@ -55,6 +55,7 @@ export default function SettingsPage() {
 
   const safeTrim = (val) => (typeof val === 'string' ? val.trim() : val || '')
 
+
   const [form, setForm] = useState({
     legal_name: '',
     restaurant_name: '',
@@ -298,22 +299,22 @@ export default function SettingsPage() {
           legal_info.gst = payload.legal_gst.toUpperCase()
         }
         const res = await fetch('/api/route/create-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            business_name: payload.restaurant_name || payload.legal_name,
-            display_name: payload.restaurant_name,
-            business_type: payload.business_type,
-            beneficiary_name: payload.beneficiary_name,
-            account_number: payload.bank_account_number,
-            ifsc: payload.bank_ifsc,
-            email: safeTrim(form.bank_email) || safeTrim(form.support_email),
-            phone: safeTrim(form.bank_phone) || safeTrim(form.phone),
-            owner_id: restaurant.id,
-            profile,
-            legal_info,
-          }),
-        })
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    business_name: form.restaurant_name || form.legal_name,
+    display_name: form.restaurant_name,
+    business_type: form.business_type,
+    beneficiary_name: form.beneficiary_name, // should be synced to restaurant_name
+    account_number: form.bank_account_number,
+    ifsc: formattedIfsc,
+    email: form.bank_email || form.support_email,
+    phone: form.bank_phone || form.phone,
+    owner_id: restaurant.id,
+    profile,
+    legal_info,
+  }),
+})
         if (!res.ok) {
           const errData = await res.json()
           throw new Error(errData.error || 'Failed to create linked Route account')

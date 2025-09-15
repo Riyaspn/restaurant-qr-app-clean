@@ -1,3 +1,5 @@
+// /api/route/create-account.js
+
 import fetch from 'node-fetch'
 
 const safeTrim = (val) => (typeof val === 'string' ? val.trim() : '')
@@ -21,22 +23,27 @@ export default async function handler(req, res) {
     ifsc,
   } = req.body
 
-  // Basic validation
   if (
     !owner_id ||
-    !email || !phone || !business_name ||
-    !business_type || !profile || !legal_info ||
-    !beneficiary_name || !account_number || !ifsc
+    !email ||
+    !phone ||
+    !business_name ||
+    !business_type ||
+    !profile ||
+    !legal_info ||
+    !beneficiary_name ||
+    !account_number ||
+    !ifsc
   ) {
     return res.status(400).json({ error: 'Missing required fields for creating Linked Account.' })
   }
 
-  // Prepare payload safely
+  // Prepare payload with both legal and customer facing business names
   const payload = {
     email: safeTrim(email),
     phone: safeTrim(phone),
-    legal_name: safeTrim(legal_name),
-    business_name: safeTrim(business_name),
+    legal_business_name: safeTrim(legal_name) || safeTrim(business_name),
+    customer_facing_business_name: safeTrim(business_name),
     business_type: safeTrim(business_type).toLowerCase(),
     profile,
     legal_info,
@@ -73,6 +80,6 @@ export default async function handler(req, res) {
     return res.status(201).json({ account_id: data.id, account: data })
   } catch (e) {
     console.error('Failed to create linked account:', e)
-    res.status(500).json({ error: 'Internal Server Error' })
+    return res.status(500).json({ error: 'Internal Server Error' })
   }
 }
