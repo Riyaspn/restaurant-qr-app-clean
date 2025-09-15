@@ -1,7 +1,3 @@
-// /api/route/create-account.js
-
-import fetch from 'node-fetch'
-
 const safeTrim = (val) => (typeof val === 'string' ? val.trim() : '')
 
 export default async function handler(req, res) {
@@ -33,17 +29,23 @@ export default async function handler(req, res) {
     !legal_info ||
     !beneficiary_name ||
     !account_number ||
-    !ifsc
+    !ifsc ||
+    !legal_name
   ) {
     return res.status(400).json({ error: 'Missing required fields for creating Linked Account.' })
   }
 
-  // Prepare payload with both legal and customer facing business names
+  if (safeTrim(beneficiary_name) !== safeTrim(legal_name)) {
+    return res.status(400).json({
+      error: "'Beneficiary Name' must match 'Legal Name' (Business Name)."
+    })
+  }
+
   const payload = {
     email: safeTrim(email),
     phone: safeTrim(phone),
-    legal_business_name: safeTrim(legal_name) || safeTrim(business_name),
-    customer_facing_business_name: safeTrim(business_name),
+    legal_business_name: safeTrim(legal_name),
+    customer_facing_business_name: safeTrim(legal_name),
     business_type: safeTrim(business_type).toLowerCase(),
     profile,
     legal_info,
@@ -54,11 +56,8 @@ export default async function handler(req, res) {
     reference_id: owner_id.toString(),
   }
 
-  console.log('Creating Razorpay Route Account with payload:', payload)
-
   try {
-    const auth =
-      'Basic ' + Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')
+    const auth = 'Basic ' + Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64')
 
     const response = await fetch('https://api.razorpay.com/v2/accounts', {
       method: 'POST',
@@ -72,14 +71,12 @@ export default async function handler(req, res) {
     const text = await response.text()
 
     if (!response.ok) {
-      console.error('Razorpay Route Account creation error:', text)
       return res.status(response.status).json({ error: JSON.parse(text) })
     }
 
     const data = JSON.parse(text)
     return res.status(201).json({ account_id: data.id, account: data })
   } catch (e) {
-    console.error('Failed to create linked account:', e)
     return res.status(500).json({ error: 'Internal Server Error' })
   }
 }

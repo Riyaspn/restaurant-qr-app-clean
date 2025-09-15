@@ -158,17 +158,23 @@ export default function SettingsPage() {
   }, [restaurant?.id])
 
   const onChange = (field) => (e) => {
-  const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value
+  const val = e.target.value
   setForm((prev) => {
-    const updated = { ...prev, [field]: val }
-    if (field === 'restaurant_name') {
-      // Sync beneficiary_name whenever restaurant_name changes
-      updated.beneficiary_name = val
+    if (field === 'legal_name') {
+      return {
+        ...prev,
+        legal_name: val,
+        restaurant_name: val,    // sync Business Name
+        beneficiary_name: val,   // sync Beneficiary Name
+      }
     }
-    return updated
+    // prevent edits on read-only fields
+    if (field === 'restaurant_name' || field === 'beneficiary_name') {
+      return prev
+    }
+    return { ...prev, [field]: val }
   })
 }
-
 
   const validateBusinessType = (val) => {
     const allowedTypes = [
@@ -302,19 +308,21 @@ export default function SettingsPage() {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    business_name: form.restaurant_name || form.legal_name,
-    display_name: form.restaurant_name,
+    business_name: form.legal_name,
+    display_name: form.legal_name,
+    legal_name: form.legal_name,
     business_type: form.business_type,
-    beneficiary_name: form.beneficiary_name, // should be synced to restaurant_name
+    beneficiary_name: form.legal_name,
     account_number: form.bank_account_number,
     ifsc: formattedIfsc,
-    email: form.bank_email || form.support_email,
-    phone: form.bank_phone || form.phone,
+    email: safeTrim(form.bank_email) || safeTrim(form.support_email),
+    phone: safeTrim(form.bank_phone) || safeTrim(form.phone),
     owner_id: restaurant.id,
     profile,
     legal_info,
   }),
 })
+
         if (!res.ok) {
           const errData = await res.json()
           throw new Error(errData.error || 'Failed to create linked Route account')
@@ -410,12 +418,20 @@ export default function SettingsPage() {
             style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}
           >
             <Field label="Legal Name" required>
-              <input
-                className="input"
-                value={form.legal_name}
-                onChange={onChange('legal_name')}
-              />
-            </Field>
+  <input
+    className="input"
+    value={form.legal_name}
+    onChange={onChange('legal_name')}
+  />
+</Field>
+<Field label="Business Name" required hint="Auto-synced from Legal Name">
+  <input
+    className="input"
+    value={form.restaurant_name}
+    readOnly
+    style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+  />
+</Field>
             <Field label="Display Name" required>
               <input
                 className="input"
@@ -580,14 +596,14 @@ export default function SettingsPage() {
               <option value="public_limited">Public Limited</option>
             </select>
           </Field>
-          <Field label="Beneficiary Name" required hint="Must match Business Name">
-            <input
-              className="input"
-              value={form.beneficiary_name}
-              onChange={onChange('beneficiary_name')}
-            />
-          </Field>
-        </Section>
+          <Field label="Beneficiary Name" required hint="Auto-synced from Legal Name">
+  <input
+    className="input"
+    value={form.beneficiary_name}
+    readOnly
+    style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+  />
+</Field>        </Section>
         {/* Rest of your form sections for tax, delivery, etc. */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <Button type="submit" disabled={saving}>
