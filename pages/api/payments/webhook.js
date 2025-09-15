@@ -31,6 +31,7 @@ async function getRouteAccount(orderId) {
     .select('route_account_id')
     .eq('id', ord.restaurant_id)
     .single();
+
   return rest?.route_account_id || null;
 }
 
@@ -43,7 +44,6 @@ export default async function handler(req, res) {
   if (!signature) {
     return res.status(400).send('Signature missing');
   }
-
   // Use the payment webhook secret
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   const expected = crypto
@@ -78,6 +78,9 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error('Transfer creation failed:', e);
     }
+  } else if (event === 'payment.downtime.started' || event === 'payment.downtime.resolved') {
+    // Handle downtime events if needed or just log
+    console.log(`Payment downtime event received: ${event}`);
   } else {
     console.log('Unhandled event:', event);
   }
