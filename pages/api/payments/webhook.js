@@ -45,15 +45,21 @@ export default async function handler(req, res) {
   try {
     const raw = await readRawBody(req);
     const signature = req.headers['x-razorpay-signature'];
-    
+
     if (!signature) {
       console.log('Missing signature header');
       return res.status(400).send('Signature missing');
     }
 
-    // Validate webhook signature
+    // Validate webhook signature using the webhook secret
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('RAZORPAY_WEBHOOK_SECRET not configured');
+      return res.status(500).send('Webhook secret not configured');
+    }
+
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .createHmac('sha256', webhookSecret)
       .update(raw)
       .digest('hex');
 
@@ -62,16 +68,15 @@ export default async function handler(req, res) {
       return res.status(400).send('Invalid signature');
     }
 
-    // Always respond 200 first to acknowledge receipt
+    // Acknowledge receipt immediately
     res.status(200).send('OK');
 
     // Process the webhook payload
     const { event, payload } = JSON.parse(raw);
     console.log('Received webhook event:', event);
 
-    // Handle different event types
     switch (event) {
-      case 'payment.captured':
+      case 'payment.captured': {
         const payment = payload.payment.entity;
         const orderId = payment.order_id;
         console.log('Payment captured:', payment.id, 'for order', orderId);
@@ -90,27 +95,25 @@ export default async function handler(req, res) {
             source: payment.id,
             on_hold: false,
           };
-
           const transfer = await razorpay.transfers.create(transferPayload);
           console.log('Transfer created:', transfer.id);
         } catch (transferError) {
           console.error('Transfer creation failed:', transferError);
         }
         break;
+      }
 
       case 'payment.downtime.started':
       case 'payment.downtime.resolved':
-        // Just log these informational events
         console.log('Payment downtime event:', event, payload);
         break;
 
       default:
         console.log('Unhandled event type:', event);
     }
-
   } catch (err) {
     console.error('Webhook handler error:', err);
-    // Still return 200 to prevent Razorpay from retrying
+    // Ensure Razorpay doesn't retry indefinitely
     res.status(200).send('Error logged');
   }
 }
