@@ -157,9 +157,17 @@ export default function SettingsPage() {
   }, [restaurant?.id])
 
   const onChange = (field) => (e) => {
-    const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value
-    setForm((prev) => ({ ...prev, [field]: val }))
-  }
+  const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value
+  setForm((prev) => {
+    const updated = { ...prev, [field]: val }
+    if (field === 'restaurant_name') {
+      // Sync beneficiary_name whenever restaurant_name changes
+      updated.beneficiary_name = val
+    }
+    return updated
+  })
+}
+
 
   const validateBusinessType = (val) => {
     const allowedTypes = [
