@@ -70,13 +70,25 @@ export default function SettingsPage() {
     zomato_api_key: '',
     zomato_api_secret: '',
     zomato_webhook_secret: '',
-    // New fields for Bank Account Details
+    // Bank Account Details
     bank_account_holder_name: '',
     bank_account_number: '',
     bank_ifsc: '',
     bank_email: '',
     bank_phone: '',
-    route_account_id: '', // store created Razorpay route account ID
+    route_account_id: '', // Razorpay linked account ID
+
+    // Added KYC fields for Route API
+    profile_category: 'food_and_beverages',
+    profile_subcategory: 'restaurant',
+    profile_address_street1: '',
+    profile_address_street2: '',
+    profile_address_city: '',
+    profile_address_state: '',
+    profile_address_pincode: '',
+    profile_address_country: 'IN',
+    legal_pan: '',
+    legal_gst: '',
   })
 
   useEffect(() => {
@@ -102,7 +114,7 @@ export default function SettingsPage() {
         } else {
           setIsFirstTime(true)
         }
-        // Load route_account_id from restaurants table, if saved
+        // Load route_account_id from restaurants table
         const { data: restData, error: restErr } = await supabase
           .from('restaurants')
           .select('route_account_id')
@@ -138,17 +150,17 @@ export default function SettingsPage() {
         'legal_name', 'restaurant_name', 'phone', 'support_email',
         'upi_id', 'shipping_name', 'shipping_phone', 'shipping_address_line1',
         'shipping_city', 'shipping_state', 'shipping_pincode',
-        // Require bank details mandatorily
-        'bank_account_holder_name', 'bank_account_number', 'bank_ifsc'
+        'bank_account_holder_name', 'bank_account_number', 'bank_ifsc',
+        // New KYC required fields
+        'profile_address_street1', 'profile_address_city', 'profile_address_state',
+        'profile_address_pincode', 'profile_address_country', 'legal_pan'
       ]
       const missing = required.filter(f => !form[f] || form[f].toString().trim() === '')
       if (missing.length) throw new Error(`Missing: ${missing.join(', ')}`)
 
-      // Validate UPI
       const UPI_REGEX = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/
       if (!UPI_REGEX.test(form.upi_id.trim())) throw new Error('Invalid UPI format. Example: name@bankhandle')
 
-      // Validate IFSC (simple check)
       const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
       const formattedIfsc = form.bank_ifsc.trim().toUpperCase()
       if (!IFSC_REGEX.test(formattedIfsc)) throw new Error('Invalid IFSC code format.')
@@ -165,12 +177,13 @@ export default function SettingsPage() {
         prices_include_tax: !!form.prices_include_tax,
         upi_id: form.upi_id.trim(),
       }
+
       // Upsert the profile data first (excluding route_account_id for now)
       const { error: upsertErr } = await supabase
         .from('restaurant_profiles')
         .upsert({
           ...payload,
-          route_account_id: undefined // avoid overwriting route_account_id here
+          route_account_id: undefined
         }, { onConflict: 'restaurant_id' })
       if (upsertErr) throw upsertErr
 
@@ -178,38 +191,57 @@ export default function SettingsPage() {
       await supabase.from('restaurants').update({ name: form.restaurant_name }).eq('id', restaurant.id)
 
       // If route_account_id not saved yet, create via Razorpay Route API
-     if (!form.route_account_id) {
-  const res = await fetch('/api/route/create-account', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      business_name: form.restaurant_name || form.legal_name,
-      business_type: 'Individual', // Or collect from user input if variable
-      beneficiary_name: form.bank_account_holder_name,
-      account_number: form.bank_account_number,
-      ifsc: form.bank_ifsc.toUpperCase(),
-      email: form.bank_email || form.support_email,
-      phone: form.bank_phone || form.phone,
-      owner_id: restaurant.id,
-    }),
-  });
-
-  if (!res.ok) {
-    const errData = await res.json();
-    throw new Error(errData.error || 'Failed to create linked Route account');
-  }
-  const { account_id } = await res.json();
-  setForm(prev => ({ ...prev, route_account_id: account_id }));
-
-  // Save in restaurants table
-  const { error: updErr } = await supabase
-    .from('restaurants')
-    .update({ route_account_id: account_id })
-    .eq('id', restaurant.id);
-
-  if (updErr) console.warn('Failed to save route_account_id:', updErr.message);
-}
-
+      if (!form.route_account_id) {
+        const profile = {
+          category: form.profile_category,
+          subcategory: form.profile_subcategory,
+          addresses: {
+            registered: {
+              street1: form.profile_address_street1.trim(),
+              street2: form.profile_address_street2.trim(),
+              city: form.profile_address_city.trim(),
+              state: form.profile_address_state.trim(),
+              postal_code: form.profile_address_pincode.trim(),
+              country: form.profile_address_country.trim().toUpperCase(),
+            }
+          }
+        }
+        const legal_info = {
+          pan: form.legal_pan.trim().toUpperCase(),
+        }
+        if (form.gst_enabled && form.legal_gst.trim()) {
+          legal_info.gst = form.legal_gst.trim().toUpperCase()
+        }
+        const res = await fetch('/api/route/create-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            business_name: form.restaurant_name || form.legal_name,
+            display_name: form.restaurant_name,
+            business_type: 'individual',
+            beneficiary_name: form.bank_account_holder_name,
+            account_number: form.bank_account_number,
+            ifsc: formattedIfsc,
+            email: form.bank_email || form.support_email,
+            phone: form.bank_phone || form.phone,
+            owner_id: restaurant.id,
+            profile,
+            legal_info,
+          }),
+        })
+        if (!res.ok) {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Failed to create linked Route account')
+        }
+        const { account_id } = await res.json()
+        setForm(prev => ({ ...prev, route_account_id: account_id }))
+        // Save in restaurants table
+        const { error: updErr } = await supabase
+          .from('restaurants')
+          .update({ route_account_id: account_id })
+          .eq('id', restaurant.id)
+        if (updErr) console.warn('Failed to save route_account_id:', updErr.message)
+      }
 
       // Send notification emails for tables if needed
       const emailData = {
@@ -221,6 +253,7 @@ export default function SettingsPage() {
         tablesCount: newCount,
         tablePrefix: form.table_prefix,
       }
+
       if (isFirstTime) {
         const allCodes = generateQRArray(1, newCount)
         const ok = await sendEmail({ qrCodes: allCodes, data: emailData, incremental: false })
@@ -241,10 +274,8 @@ export default function SettingsPage() {
       } else {
         setSuccess('Settings saved')
       }
-
       setOriginalTables(newCount)
       setIsFirstTime(false)
-
     } catch (err) {
       setError(err.message)
     } finally {
@@ -321,6 +352,48 @@ export default function SettingsPage() {
               <input className="input" type="tel" value={form.bank_phone} onChange={onChange('bank_phone')} />
             </Field>
           </div>
+        </Section>
+        <Section title="KYC Information" icon="📝">
+          <Field label="Business Category" required>
+            <select value={form.profile_category} onChange={onChange('profile_category')}>
+              <option value="food_and_beverages">Food & Beverages</option>
+              {/* add others if needed */}
+            </select>
+          </Field>
+          <Field label="Business Subcategory" required>
+            <select value={form.profile_subcategory} onChange={onChange('profile_subcategory')}>
+              <option value="restaurant">Restaurant</option>
+              {/* add others */}
+            </select>
+          </Field>
+          <Field label="Registered Address Line 1" required>
+            <input className="input" value={form.profile_address_street1} onChange={onChange('profile_address_street1')} />
+          </Field>
+          <Field label="Registered Address Line 2">
+            <input className="input" value={form.profile_address_street2} onChange={onChange('profile_address_street2')} />
+          </Field>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
+            <Field label="City" required>
+              <input className="input" value={form.profile_address_city} onChange={onChange('profile_address_city')} />
+            </Field>
+            <Field label="State" required>
+              <input className="input" value={form.profile_address_state} onChange={onChange('profile_address_state')} />
+            </Field>
+            <Field label="Pincode" required>
+              <input className="input" value={form.profile_address_pincode} onChange={onChange('profile_address_pincode')} />
+            </Field>
+            <Field label="Country" required>
+              <input className="input" value={form.profile_address_country} onChange={onChange('profile_address_country')} />
+            </Field>
+          </div>
+          <Field label="PAN" required>
+            <input className="input" value={form.legal_pan} onChange={onChange('legal_pan')} placeholder="ABCDE1234F" />
+          </Field>
+          {form.gst_enabled && (
+            <Field label="GSTIN">
+              <input className="input" value={form.legal_gst} onChange={onChange('legal_gst')} placeholder="22AAAAA0000A1Z5" />
+            </Field>
+          )}
         </Section>
         <Section title="Tax Info" icon="📋">
           <label>

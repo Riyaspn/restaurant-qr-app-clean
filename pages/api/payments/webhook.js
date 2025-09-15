@@ -19,101 +19,66 @@ const razorpay = new Razorpay({
 });
 
 async function getRouteAccount(orderId) {
-  const { data: ord, error: ordErr } = await supabase
+  const { data: ord } = await supabase
     .from('orders')
     .select('restaurant_id')
     .eq('id', orderId)
     .single();
-  if (ordErr || !ord) return null;
+  if (!ord) return null;
 
-  const { data: rest, error: restErr } = await supabase
+  const { data: rest } = await supabase
     .from('restaurants')
     .select('route_account_id')
     .eq('id', ord.restaurant_id)
     .single();
-  if (restErr || !rest?.route_account_id) return null;
-
-  return rest.route_account_id;
+  return rest?.route_account_id || null;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    console.log('Method not allowed:', req.method);
     return res.status(405).send('Method not allowed');
   }
+  const raw = await readRawBody(req);
+  const signature = req.headers['x-razorpay-signature'];
+  if (!signature) {
+    return res.status(400).send('Signature missing');
+  }
 
-  try {
-    const raw = await readRawBody(req);
-    const signature = req.headers['x-razorpay-signature'];
+  // Use the payment webhook secret
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const expected = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(raw)
+    .digest('hex');
+  if (expected !== signature) {
+    console.log('Invalid signature:', signature);
+    return res.status(400).send('Invalid signature');
+  }
 
-    if (!signature) {
-      console.log('Missing signature header');
-      return res.status(400).send('Signature missing');
+  // Acknowledge receipt
+  res.status(200).send('OK');
+
+  const { event, payload } = JSON.parse(raw);
+  if (event === 'payment.captured') {
+    const { id: payId, order_id, amount, currency } = payload.payment.entity;
+    const routeAccount = await getRouteAccount(order_id);
+    if (!routeAccount) {
+      console.warn('No Route account for order', order_id);
+      return;
     }
-
-    // Validate webhook signature using the webhook secret
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      console.error('RAZORPAY_WEBHOOK_SECRET not configured');
-      return res.status(500).send('Webhook secret not configured');
+    try {
+      const transfer = await razorpay.transfers.create({
+        account: routeAccount,
+        amount,
+        currency,
+        source: payId,
+        on_hold: false,
+      });
+      console.log('Transfer created:', transfer.id);
+    } catch (e) {
+      console.error('Transfer creation failed:', e);
     }
-
-    const expectedSignature = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(raw)
-      .digest('hex');
-
-    if (expectedSignature !== signature) {
-      console.log('Invalid signature - Expected:', expectedSignature, 'Received:', signature);
-      return res.status(400).send('Invalid signature');
-    }
-
-    // Acknowledge receipt immediately
-    res.status(200).send('OK');
-
-    // Process the webhook payload
-    const { event, payload } = JSON.parse(raw);
-    console.log('Received webhook event:', event);
-
-    switch (event) {
-      case 'payment.captured': {
-        const payment = payload.payment.entity;
-        const orderId = payment.order_id;
-        console.log('Payment captured:', payment.id, 'for order', orderId);
-
-        const routeAccount = await getRouteAccount(orderId);
-        if (!routeAccount) {
-          console.warn('No Route account for order', orderId);
-          return;
-        }
-
-        try {
-          const transferPayload = {
-            account: routeAccount,
-            amount: payment.amount,
-            currency: payment.currency,
-            source: payment.id,
-            on_hold: false,
-          };
-          const transfer = await razorpay.transfers.create(transferPayload);
-          console.log('Transfer created:', transfer.id);
-        } catch (transferError) {
-          console.error('Transfer creation failed:', transferError);
-        }
-        break;
-      }
-
-      case 'payment.downtime.started':
-      case 'payment.downtime.resolved':
-        console.log('Payment downtime event:', event, payload);
-        break;
-
-      default:
-        console.log('Unhandled event type:', event);
-    }
-  } catch (err) {
-    console.error('Webhook handler error:', err);
-    // Ensure Razorpay doesn't retry indefinitely
-    res.status(200).send('Error logged');
+  } else {
+    console.log('Unhandled event:', event);
   }
 }
