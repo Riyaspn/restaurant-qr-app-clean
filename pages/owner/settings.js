@@ -52,12 +52,10 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState('')
   const [isFirstTime, setIsFirstTime] = useState(false)
   const [originalTables, setOriginalTables] = useState(0)
-
   const safeTrim = (val) => (typeof val === 'string' ? val.trim() : val || '')
-
-
   const [form, setForm] = useState({
     legal_name: '',
+    business_name: '',
     restaurant_name: '',
     phone: '',
     support_email: '',
@@ -132,6 +130,10 @@ export default function SettingsPage() {
             profile_address_country: data.profile_address_country || 'IN',
             business_type: data.business_type || 'individual',
             beneficiary_name: data.beneficiary_name || '',
+            // Sync business_name and restaurant_name with legal_name on load
+            legal_name: data.legal_name || '',
+            business_name: data.legal_name || '',
+            restaurant_name: data.legal_name || '',
           }))
           setOriginalTables(data.tables_count || 0)
         } else {
@@ -157,24 +159,26 @@ export default function SettingsPage() {
     load()
   }, [restaurant?.id])
 
+  // onChange handler syncs legal_name->business_name & beneficiary_name; prevents direct edits to synced fields
   const onChange = (field) => (e) => {
-  const val = e.target.value
-  setForm((prev) => {
-    if (field === 'legal_name') {
-      return {
-        ...prev,
-        legal_name: val,
-        restaurant_name: val,    // sync Business Name
-        beneficiary_name: val,   // sync Beneficiary Name
+    const val = e.target.value
+    setForm((prev) => {
+      if (field === 'legal_name') {
+        return {
+          ...prev,
+          legal_name: val,
+          business_name: val,
+          restaurant_name: prev.restaurant_name, // keep display name independent
+          beneficiary_name: val,
+        }
       }
-    }
-    // prevent edits on read-only fields
-    if (field === 'restaurant_name' || field === 'beneficiary_name') {
-      return prev
-    }
-    return { ...prev, [field]: val }
-  })
-}
+      // prevent edits on read-only fields
+      if (field === 'business_name' || field === 'beneficiary_name') {
+        return prev
+      }
+      return { ...prev, [field]: val }
+    })
+  }
 
   const validateBusinessType = (val) => {
     const allowedTypes = [
@@ -199,6 +203,7 @@ export default function SettingsPage() {
     try {
       const required = [
         'legal_name',
+        'business_name',
         'restaurant_name',
         'phone',
         'support_email',
@@ -225,26 +230,21 @@ export default function SettingsPage() {
       ]
       const missing = required.filter((f) => !form[f] || safeTrim(form[f]) === '')
       if (missing.length) throw new Error(`Missing: ${missing.join(', ')}`)
-
-      if (safeTrim(form.beneficiary_name) !== safeTrim(form.restaurant_name)) {
+      if (safeTrim(form.beneficiary_name) !== safeTrim(form.business_name)) {
         throw new Error("'Beneficiary Name' must match 'Business Name'")
       }
       if (!validateBusinessType(form.business_type)) {
         throw new Error('Invalid Business Type selected')
       }
-
       const UPI_REGEX = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/
       if (!UPI_REGEX.test(safeTrim(form.upi_id)))
         throw new Error('Invalid UPI format. Example: name@bankhandle')
-
       const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
       const formattedIfsc = safeTrim(form.bank_ifsc).toUpperCase()
       if (!IFSC_REGEX.test(formattedIfsc)) throw new Error('Invalid IFSC code format.')
-
       const newCount = Number(form.tables_count)
       if (!isFirstTime && newCount < originalTables)
         throw new Error('Cannot decrease tables count')
-
       const payload = {
         restaurant_id: restaurant.id,
         ...form,
@@ -266,7 +266,6 @@ export default function SettingsPage() {
         legal_pan: safeTrim(form.legal_pan).toUpperCase(),
         legal_gst: safeTrim(form.legal_gst),
       }
-
       const { error: upsertErr } = await supabase
         .from('restaurant_profiles')
         .upsert(
@@ -277,12 +276,10 @@ export default function SettingsPage() {
           { onConflict: 'restaurant_id' }
         )
       if (upsertErr) throw upsertErr
-
       await supabase
         .from('restaurants')
-        .update({ name: form.restaurant_name })
+        .update({ name: form.display_name })
         .eq('id', restaurant.id)
-
       if (!form.route_account_id) {
         const profile = {
           category: payload.profile_category,
@@ -305,24 +302,22 @@ export default function SettingsPage() {
           legal_info.gst = payload.legal_gst.toUpperCase()
         }
         const res = await fetch('/api/route/create-account', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    business_name: form.legal_name,
-    display_name: form.legal_name,
-    legal_name: form.legal_name,
-    business_type: form.business_type,
-    beneficiary_name: form.legal_name,
-    account_number: form.bank_account_number,
-    ifsc: formattedIfsc,
-    email: safeTrim(form.bank_email) || safeTrim(form.support_email),
-    phone: safeTrim(form.bank_phone) || safeTrim(form.phone),
-    owner_id: restaurant.id,
-    profile,
-    legal_info,
-  }),
-})
-
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            legal_name: form.legal_name,
+            beneficiary_name: form.beneficiary_name,
+            display_name: form.display_name,
+            business_type: form.business_type,
+            account_number: form.bank_account_number,
+            ifsc: formattedIfsc,
+            email: safeTrim(form.bank_email) || safeTrim(form.support_email),
+            phone: safeTrim(form.bank_phone) || safeTrim(form.phone),
+            owner_id: restaurant.id,
+            profile,
+            legal_info,
+          }),
+        })
         if (!res.ok) {
           const errData = await res.json()
           throw new Error(errData.error || 'Failed to create linked Route account')
@@ -338,7 +333,7 @@ export default function SettingsPage() {
 
       // Email logic for tables (optional)
       const emailData = {
-        restaurantName: form.restaurant_name,
+        restaurantName: form.display_name,
         legalName: form.legal_name,
         phone: form.phone,
         email: form.support_email,
@@ -418,21 +413,21 @@ export default function SettingsPage() {
             style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}
           >
             <Field label="Legal Name" required>
-  <input
-    className="input"
-    value={form.legal_name}
-    onChange={onChange('legal_name')}
-  />
-</Field>
-<Field label="Business Name" required hint="Auto-synced from Legal Name">
-  <input
-    className="input"
-    value={form.restaurant_name}
-    readOnly
-    style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-  />
-</Field>
-            <Field label="Display Name" required>
+              <input
+                className="input"
+                value={form.legal_name}
+                onChange={onChange('legal_name')}
+              />
+            </Field>
+            <Field label="Business Name" required hint="Auto-synced from Legal Name">
+              <input
+                className="input"
+                value={form.business_name}
+                readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+              />
+            </Field>
+            <Field label="Display Name" required hint="Shown to customers">
               <input
                 className="input"
                 value={form.restaurant_name}
@@ -597,19 +592,22 @@ export default function SettingsPage() {
             </select>
           </Field>
           <Field label="Beneficiary Name" required hint="Auto-synced from Legal Name">
-  <input
-    className="input"
-    value={form.beneficiary_name}
-    readOnly
-    style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-  />
-</Field>        </Section>
-        {/* Rest of your form sections for tax, delivery, etc. */}
+            <input
+              className="input"
+              value={form.beneficiary_name}
+              readOnly
+              style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+            />
+          </Field>
+        </Section>
+        {/* Other sections */}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : isFirstTime ? 'Complete Setup' : 'Save Changes'}
           </Button>
         </div>
+
         <Section title="Kitchen Dashboard Link" icon="🔗">
           <Field label="Kitchen Dashboard URL">
             {restaurant?.id ? (
