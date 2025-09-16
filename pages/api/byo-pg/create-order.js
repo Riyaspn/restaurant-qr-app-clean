@@ -5,24 +5,40 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   try {
+    console.log('create-order called with body:', req.body);
+
     const { restaurant_id, amount, metadata } = req.body;
 
     if (!restaurant_id || !amount) {
+      console.log('Missing restaurant_id or amount in request body');
       return res.status(400).json({ error: 'Missing restaurant_id or amount' });
     }
 
-    // Fetch Razorpay keys for this restaurant
     const { data: restaurant, error } = await supabase
       .from('restaurant_profiles')
       .select('razorpay_key_id, razorpay_key_secret')
       .eq('restaurant_id', restaurant_id)
       .single();
 
-    if (error || !restaurant || !restaurant.razorpay_key_id || !restaurant.razorpay_key_secret) {
+    if (error) {
+      console.error('Error fetching restaurant profile:', error);
+      return res.status(500).json({ error: 'Failed to fetch restaurant profile' });
+    }
+
+    if (!restaurant) {
+      console.warn('No restaurant found for id:', restaurant_id);
+      return res.status(400).json({ error: 'Restaurant not found' });
+    }
+    if (!restaurant.razorpay_key_id || !restaurant.razorpay_key_secret) {
+      console.warn('Payment keys missing for restaurant:', restaurant_id);
       return res.status(400).json({ error: 'Payment gateway not configured for this restaurant' });
     }
 
-    // Get Razorpay client using fetched keys
+    console.log('Using Razorpay keys for restaurant:', {
+      razorpay_key_id: restaurant.razorpay_key_id,
+      razorpay_key_secret: '***hidden***',
+    });
+
     const razorpay = getRazorpayClient(restaurant.razorpay_key_id, restaurant.razorpay_key_secret);
 
     const order = await razorpay.orders.create({
@@ -33,9 +49,11 @@ export default async function handler(req, res) {
       notes: metadata || {},
     });
 
+    console.log('Created Razorpay order:', order);
+
     return res.status(200).json({ order_id: order.id, amount: order.amount, currency: order.currency });
   } catch (err) {
-    console.error(err);
+    console.error('create-order error:', err);
     return res.status(500).json({ error: err.message || 'Order creation failed' });
   }
 }
