@@ -1,10 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { getRazorpayClient } from '../../../services/byoPg';
+import Razorpay from 'razorpay';
 
-// Initialize Supabase client with service role key for backend use
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export default async function handler(req, res) {
@@ -14,7 +12,6 @@ export default async function handler(req, res) {
     console.log('create-order called with body:', req.body);
 
     const { restaurant_id, amount, metadata } = req.body;
-
     if (!restaurant_id || !amount) {
       console.log('Missing restaurant_id or amount in request body');
       return res.status(400).json({ error: 'Missing restaurant_id or amount' });
@@ -30,12 +27,10 @@ export default async function handler(req, res) {
       console.error('Error fetching restaurant profile:', error);
       return res.status(500).json({ error: 'Failed to fetch restaurant profile' });
     }
-
     if (!restaurant) {
       console.warn('No restaurant found for id:', restaurant_id);
       return res.status(400).json({ error: 'Restaurant not found' });
     }
-
     if (!restaurant.razorpay_key_id || !restaurant.razorpay_key_secret) {
       console.warn('Payment keys missing for restaurant:', restaurant_id);
       return res.status(400).json({ error: 'Payment gateway not configured for this restaurant' });
@@ -46,7 +41,10 @@ export default async function handler(req, res) {
       razorpay_key_secret: '***hidden***',
     });
 
-    const razorpay = getRazorpayClient(restaurant.razorpay_key_id, restaurant.razorpay_key_secret);
+    const razorpay = new Razorpay({
+      key_id: restaurant.razorpay_key_id,
+      key_secret: restaurant.razorpay_key_secret,
+    });
 
     const order = await razorpay.orders.create({
       amount: Math.round(amount * 100),
@@ -57,7 +55,6 @@ export default async function handler(req, res) {
     });
 
     console.log('Created Razorpay order:', order);
-
     return res.status(200).json({ order_id: order.id, amount: order.amount, currency: order.currency });
   } catch (err) {
     console.error('create-order error:', err);
