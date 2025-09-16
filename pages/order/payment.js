@@ -202,8 +202,8 @@ export default function PaymentPage() {
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b';
   const paymentMethods = [
     { id: 'cash', name: 'Pay at Counter', icon: '💵' },
-    { id: 'upi', name: 'UPI Payment', icon: '📱' },
-    { id: 'card', name: 'Card Payment', icon: '💳' },
+    //{ id: 'upi', name: 'UPI Payment', icon: '📱' },
+    //{ id: 'card', name: 'Card Payment', icon: '💳' },
   ];
 
   return (
