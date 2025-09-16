@@ -1,4 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 import { getRazorpayClient } from '../../../services/byoPg';
+
+// Initialize Supabase client with service role key for backend use
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -13,8 +20,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing restaurant_id or amount' });
     }
 
-    // Use getRazorpayClient which fetches keys internally
-    const razorpay = await getRazorpayClient(restaurant_id);
+    const { data: restaurant, error } = await supabase
+      .from('restaurant_profiles')
+      .select('razorpay_key_id, razorpay_key_secret')
+      .eq('restaurant_id', restaurant_id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching restaurant profile:', error);
+      return res.status(500).json({ error: 'Failed to fetch restaurant profile' });
+    }
+
+    if (!restaurant) {
+      console.warn('No restaurant found for id:', restaurant_id);
+      return res.status(400).json({ error: 'Restaurant not found' });
+    }
+
+    if (!restaurant.razorpay_key_id || !restaurant.razorpay_key_secret) {
+      console.warn('Payment keys missing for restaurant:', restaurant_id);
+      return res.status(400).json({ error: 'Payment gateway not configured for this restaurant' });
+    }
+
+    console.log('Using Razorpay keys for restaurant:', {
+      razorpay_key_id: restaurant.razorpay_key_id,
+      razorpay_key_secret: '***hidden***',
+    });
+
+    const razorpay = getRazorpayClient(restaurant.razorpay_key_id, restaurant.razorpay_key_secret);
 
     const order = await razorpay.orders.create({
       amount: Math.round(amount * 100),
