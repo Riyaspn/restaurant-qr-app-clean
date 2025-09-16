@@ -1,18 +1,15 @@
 // pages/order/payment.js
-
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
-
 export default function PaymentPage() {
   const router = useRouter();
   const { r: restaurantId, t: tableNumber, total } = router.query;
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
-  const [selectedPayment, setSelectedPayment] = useState('cash'); // 'cash' | 'upi' | 'card'
+  const [selectedPayment, setSelectedPayment] = useState('cash'); // 'cash' | 'byo'
   const [loading, setLoading] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
-
   // Derive total from query or cart fallback
   const totalAmount = useMemo(() => {
     const q = Number(total);
@@ -22,12 +19,10 @@ export default function PaymentPage() {
       0
     );
   }, [total, cart]);
-
   // Load restaurant metadata from Supabase
   useEffect(() => {
     if (restaurantId) loadRestaurantData();
   }, [restaurantId]);
-
   // Load cart from localStorage
   useEffect(() => {
     if (restaurantId && tableNumber) {
@@ -39,7 +34,6 @@ export default function PaymentPage() {
       }
     }
   }, [restaurantId, tableNumber]);
-
   // Load Razorpay script
   useEffect(() => {
     if (!window.Razorpay) {
@@ -49,7 +43,6 @@ export default function PaymentPage() {
       document.body.appendChild(script);
     }
   }, []);
-
   // Query Supabase for restaurant metadata
   const loadRestaurantData = async () => {
     try {
@@ -63,7 +56,6 @@ export default function PaymentPage() {
       console.error(e);
     }
   };
-
   // Helper to notify owner
   const notifyOwner = async (payload) => {
     try {
@@ -76,7 +68,6 @@ export default function PaymentPage() {
       console.warn('notify-owner failed', e);
     }
   };
-
   const handlePayment = async () => {
     if (loading) return;
     if (!restaurantId || !tableNumber) {
@@ -91,12 +82,10 @@ export default function PaymentPage() {
       alert('Invalid total amount.');
       return;
     }
-
     setLoading(true);
-
     try {
       if (selectedPayment === 'cash') {
-        // Cash flow unchanged
+        // existing cash flow...
         const orderData = {
           restaurant_id: restaurantId,
           restaurant_name: restaurant?.name || null,
@@ -133,64 +122,60 @@ export default function PaymentPage() {
         window.location.href = `/order/success?id=${result.order_id || result.id}&method=cash`;
         return;
       }
-
-      // ONLINE PAYMENT FLOW via Razorpay
-      const resp = await fetch('/api/payments/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: totalAmount,
-          currency: 'INR',
-          metadata: {
+      if (selectedPayment === 'byo') {
+        // 1) Create Razorpay order via BYO PG API
+        const resp = await fetch('/byo-pg/api/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             restaurant_id: restaurantId,
-            table_number: tableNumber,
+            amount: totalAmount,
+            metadata: {
+              table_number: tableNumber,
+              special_instructions: specialInstructions.trim(),
+            },
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Order creation failed');
+
+        // 2) Store pending order for callback
+        const pendingOrder = {
+          restaurant_id: restaurantId,
+          table_number: tableNumber,
+          items: cart.map(i => ({
+            id: i.id,
+            name: i.name,
+            price: Number(i.price) || 0,
+            quantity: Number(i.quantity) || 1,
+            veg: !!i.veg,
+          })),
+          subtotal: totalAmount,
+          special_instructions: specialInstructions.trim(),
+          payment_method: 'byo',
+        };
+        localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
+
+        // 3) Launch Razorpay Checkout
+        const options = {
+          key: '', // no client key here
+          order_id: data.order_id,
+          amount: data.amount,
+          currency: data.currency,
+          name: restaurant?.name || 'Restaurant',
+          description: `Table ${tableNumber} Order`,
+          handler: (response) => {
+            window.location.href = `/order/payment-success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`;
           },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Order creation failed');
-
-      const pendingOrder = {
-        restaurant_id: restaurantId,
-        restaurant_name: restaurant?.name || null,
-        table_number: tableNumber,
-        items: cart.map(i => ({
-          id: i.id,
-          name: i.name,
-          price: Number(i.price) || 0,
-          quantity: Number(i.quantity) || 1,
-          veg: !!i.veg,
-        })),
-        subtotal: totalAmount,
-        special_instructions: specialInstructions.trim(),
-        payment_method: 'online',
-        payment_status: 'pending',
-        razorpay_order_id: data.order_id,
-      };
-      localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
-      notifyOwner({
-        restaurantId,
-        orderId: data.order_id,
-        orderItems: pendingOrder.items,
-      });
-
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: data.amount,
-        currency: data.currency,
-        order_id: data.order_id,
-        name: restaurant?.name || 'Restaurant',
-        description: `Table ${tableNumber} Order`,
-        prefill: { name: 'Guest', email: 'guest@restaurant.com', contact: '0000000000' },
-        handler: (response) => {
-          localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
-          window.location.href = `/order/payment-success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`;
-        },
-        modal: { ondismiss: () => setLoading(false) },
-        theme: { color: restaurant?.restaurant_profiles?.brand_color || '#10b981' },
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+          modal: { ondismiss: () => setLoading(false) },
+          theme: { color: restaurant?.restaurant_profiles?.brand_color || '#10b981' },
+        };
+        // Note: BYO PG Checkout script uses server-side key injection via webhook confirmation
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+        return;
+      }
+      // If other payment methods enabled, handle here...
     } catch (error) {
       console.error('Payment error:', error);
       alert(`Payment failed: ${error?.message || 'Unknown error'}`);
@@ -198,14 +183,13 @@ export default function PaymentPage() {
       setLoading(false);
     }
   };
-
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b';
   const paymentMethods = [
     { id: 'cash', name: 'Pay at Counter', icon: '💵' },
-    { id: 'upi', name: 'UPI Payment', icon: '📱' },
-    { id: 'card', name: 'Card Payment', icon: '💳' },
+    //{ id: 'upi', name: 'UPI Payment', icon: '📱' },
+    //{ id: 'card', name: 'Card Payment', icon: '💳' },
+    { id: 'byo', name: 'Online Payment (BYO Gateway)', icon: '🌐' },
   ];
-
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa', paddingBottom: 120 }}>
       <header
@@ -231,7 +215,6 @@ export default function PaymentPage() {
           ₹{Number(totalAmount || 0).toFixed(2)}
         </div>
       </header>
-
       <div style={{ background: '#fff', padding: 20, marginBottom: 8 }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 600 }}>📦 Order Summary</h3>
         <div style={{ marginBottom: 16 }}>
@@ -274,7 +257,6 @@ export default function PaymentPage() {
           </div>
         </div>
       </div>
-
       <div className="payment-methods" style={{ background: '#fff', padding: 16, marginBottom: 84 }}>
         <h3>💳 Choose Payment Method</h3>
         {paymentMethods.map((method) => (
@@ -300,7 +282,6 @@ export default function PaymentPage() {
           </label>
         ))}
       </div>
-
       <div
         style={{
           position: 'fixed',
@@ -335,7 +316,6 @@ export default function PaymentPage() {
           {loading ? 'Processing...' : selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${Number(totalAmount || 0).toFixed(2)}`}
         </button>
       </div>
-
       <style jsx>{`
         .pay-card {
           display: block;
