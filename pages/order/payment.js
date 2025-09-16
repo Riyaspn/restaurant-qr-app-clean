@@ -124,7 +124,7 @@ export default function PaymentPage() {
       }
       if (selectedPayment === 'byo') {
         // 1) Create Razorpay order via BYO PG API
-        const resp = await fetch('/byo-pg/api/create-order', {
+        const resp = await fetch('/api/byo-pg/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
