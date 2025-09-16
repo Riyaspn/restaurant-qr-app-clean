@@ -1,5 +1,11 @@
-import { supabase } from '../../../services/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { getRazorpayClient } from '../../../services/byoPg';
+
+// Initialize Supabase client with service role key for backend use
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -29,6 +35,7 @@ export default async function handler(req, res) {
       console.warn('No restaurant found for id:', restaurant_id);
       return res.status(400).json({ error: 'Restaurant not found' });
     }
+
     if (!restaurant.razorpay_key_id || !restaurant.razorpay_key_secret) {
       console.warn('Payment keys missing for restaurant:', restaurant_id);
       return res.status(400).json({ error: 'Payment gateway not configured for this restaurant' });
