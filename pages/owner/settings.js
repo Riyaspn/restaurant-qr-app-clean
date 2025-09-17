@@ -92,7 +92,7 @@ export default function SettingsPage() {
     profile_subcategory: 'restaurant',
     business_type: 'individual',
     legal_pan: '',
-    legalgst: '',
+    legal_gst: '',
     beneficiary_name: '',
     
     // Brand & Web
@@ -218,7 +218,7 @@ export default function SettingsPage() {
       // GST enabled toggle
       if (field === 'gst_enabled' && !val) {
         updated.gstin = '';
-        updated.legalgst = '';
+        updated.legal_gst = '';
       }
       
       return updated;
@@ -340,8 +340,8 @@ export default function SettingsPage() {
           pan: payload.legal_pan,
         };
 
-        if (form.gst_enabled && form.legalgst.trim()) {
-          legalInfo.gst = form.legalgst.trim().toUpperCase();
+        if (form.gst_enabled && form.legal_gst.trim()) {
+          legalInfo.gst = form.legal_gst.trim().toUpperCase();
         }
 
         const response = await fetch('/api/route/create-account', {
@@ -676,8 +676,8 @@ export default function SettingsPage() {
               <Field label="GST Number (if different)">
                 <input 
                   className="input" 
-                  value={form.legalgst} 
-                  onChange={onChange('legalgst')} 
+                  value={form.legal_gst} 
+                  onChange={onChange('legal_gst')} 
                   style={{ textTransform: 'uppercase' }}
                 />
               </Field>
