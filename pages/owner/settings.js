@@ -81,8 +81,8 @@ export default function SettingsPage() {
     razorpaykeysecret: '',
     
     // Bank Account Details
-    bankaccountholdername: '',
-    bankaccountnumber: '',
+    bank_account_holder_name: '',
+    bank_account_number: '',
     bankifsc: '',
     bankemail: '',
     bankphone: '',
@@ -186,7 +186,7 @@ export default function SettingsPage() {
       // Auto-sync certain fields
       if (field === 'legalname') {
         updated.beneficiaryname = val;
-        updated.bankaccountholdername = val;
+        updated.bank_account_holder_name = val;
       }
       
       if (field === 'onlinepaymentenabled' && !val) {
@@ -256,7 +256,7 @@ export default function SettingsPage() {
         if (form.useowngateway) {
           required.push('razorpaykeyid', 'razorpaykeysecret');
         } else {
-          required.push('bankaccountholdername', 'bankaccountnumber', 'bankifsc', 'beneficiaryname', 'businesstype', 'legalpan');
+          required.push('bank_account_holder_name', 'bank_account_number', 'bankifsc', 'beneficiaryname', 'businesstype', 'legalpan');
         }
       }
 
@@ -352,7 +352,7 @@ export default function SettingsPage() {
             beneficiary_name: form.beneficiaryname,
             display_name: form.restaurantname,
             business_type: form.businesstype,
-            account_number: form.bankaccountnumber,
+            account_number: form.bank_account_number,
             ifsc: payload.bankifsc,
             email: form.bankemail?.trim() || form.supportemail.trim(),
             phone: form.bankphone?.trim() || form.phone.trim(),
@@ -549,16 +549,16 @@ export default function SettingsPage() {
                       <Field label="Account Holder Name" required>
                         <input 
                           className="input" 
-                          value={form.bankaccountholdername} 
-                          onChange={onChange('bankaccountholdername')} 
+                          value={form.bank_account_holder_name} 
+                          onChange={onChange('bank_account_holder_name')} 
                         />
                       </Field>
                       
                       <Field label="Account Number" required>
                         <input 
                           className="input" 
-                          value={form.bankaccountnumber} 
-                          onChange={onChange('bankaccountnumber')} 
+                          value={form.bank_account_number} 
+                          onChange={onChange('bank_account_number')} 
                         />
                       </Field>
                       
