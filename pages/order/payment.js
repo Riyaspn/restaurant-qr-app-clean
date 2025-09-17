@@ -1,16 +1,20 @@
-// pages/order/payment.js
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
+
 export default function PaymentPage() {
   const router = useRouter();
   const { r: restaurantId, t: tableNumber, total } = router.query;
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
-  const [selectedPayment, setSelectedPayment] = useState('cash'); // 'cash' | 'byo'
+  const [selectedPayment, setSelectedPayment] = useState('cash');
   const [loading, setLoading] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
-  // Derive total from query or cart fallback
+  const [paymentSettings, setPaymentSettings] = useState({
+    online_payment_enabled: false,
+    use_own_gateway: false,
+  });
+
   const totalAmount = useMemo(() => {
     const q = Number(total);
     if (Number.isFinite(q) && q > 0) return q;
@@ -19,11 +23,11 @@ export default function PaymentPage() {
       0
     );
   }, [total, cart]);
-  // Load restaurant metadata from Supabase
+
   useEffect(() => {
     if (restaurantId) loadRestaurantData();
   }, [restaurantId]);
-  // Load cart from localStorage
+
   useEffect(() => {
     if (restaurantId && tableNumber) {
       try {
@@ -34,7 +38,7 @@ export default function PaymentPage() {
       }
     }
   }, [restaurantId, tableNumber]);
-  // Load Razorpay script
+
   useEffect(() => {
     if (!window.Razorpay) {
       const script = document.createElement('script');
@@ -43,20 +47,38 @@ export default function PaymentPage() {
       document.body.appendChild(script);
     }
   }, []);
-  // Query Supabase for restaurant metadata
+
   const loadRestaurantData = async () => {
     try {
       const { data, error } = await supabase
         .from('restaurants')
-        .select('id, name, restaurant_profiles(brand_color)')
+        .select(`
+          id, 
+          name, 
+          restaurant_profiles(
+            brand_color, 
+            online_payment_enabled, 
+            use_own_gateway
+          )
+        `)
         .eq('id', restaurantId)
         .single();
-      if (!error && data) setRestaurant(data);
+
+      if (!error && data) {
+        setRestaurant(data);
+        const profile = data.restaurant_profiles;
+        if (profile) {
+          setPaymentSettings({
+            online_payment_enabled: profile.online_payment_enabled || false,
+            use_own_gateway: profile.use_own_gateway || false,
+          });
+        }
+      }
     } catch (e) {
       console.error(e);
     }
   };
-  // Helper to notify owner
+
   const notifyOwner = async (payload) => {
     try {
       await fetch('/api/notify-owner', {
@@ -68,6 +90,7 @@ export default function PaymentPage() {
       console.warn('notify-owner failed', e);
     }
   };
+
   const handlePayment = async () => {
     if (loading) return;
     if (!restaurantId || !tableNumber) {
@@ -82,10 +105,11 @@ export default function PaymentPage() {
       alert('Invalid total amount.');
       return;
     }
+
     setLoading(true);
+
     try {
       if (selectedPayment === 'cash') {
-        // existing cash flow...
         const orderData = {
           restaurant_id: restaurantId,
           restaurant_name: restaurant?.name || null,
@@ -104,26 +128,30 @@ export default function PaymentPage() {
           special_instructions: specialInstructions.trim(),
           payment_status: 'pending',
         };
+
         const res = await fetch('/api/orders/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData),
         });
+
         const result = await res.json();
         if (!res.ok) throw new Error(result?.error || 'Failed to create order');
+
         await notifyOwner({
           restaurantId,
           orderId: result.order_id || result.id,
           orderItems: orderData.items,
         });
+
         localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
         localStorage.setItem('restaurantId', restaurantId);
         localStorage.setItem('tableNumber', tableNumber);
         window.location.href = `/order/success?id=${result.order_id || result.id}&method=cash`;
         return;
       }
+
       if (selectedPayment === 'byo') {
-        // 1) Create Razorpay order via BYO PG API
         const resp = await fetch('/api/byo-pg/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -136,10 +164,10 @@ export default function PaymentPage() {
             },
           }),
         });
+
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Order creation failed');
 
-        // 2) Store pending order for callback
         const pendingOrder = {
           restaurant_id: restaurantId,
           table_number: tableNumber,
@@ -154,11 +182,11 @@ export default function PaymentPage() {
           special_instructions: specialInstructions.trim(),
           payment_method: 'byo',
         };
+
         localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
 
-        // 3) Launch Razorpay Checkout
         const options = {
-          key: '', // no client key here
+          key: '',
           order_id: data.order_id,
           amount: data.amount,
           currency: data.currency,
@@ -170,12 +198,65 @@ export default function PaymentPage() {
           modal: { ondismiss: () => setLoading(false) },
           theme: { color: restaurant?.restaurant_profiles?.brand_color || '#10b981' },
         };
-        // Note: BYO PG Checkout script uses server-side key injection via webhook confirmation
+
         const rzp = new window.Razorpay(options);
         rzp.open();
         return;
       }
-      // If other payment methods enabled, handle here...
+
+      if (selectedPayment === 'route') {
+        // Handle Route payment here
+        const resp = await fetch('/api/route/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurant_id: restaurantId,
+            amount: totalAmount,
+            metadata: {
+              table_number: tableNumber,
+              special_instructions: specialInstructions.trim(),
+            },
+          }),
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Order creation failed');
+
+        const pendingOrder = {
+          restaurant_id: restaurantId,
+          table_number: tableNumber,
+          items: cart.map(i => ({
+            id: i.id,
+            name: i.name,
+            price: Number(i.price) || 0,
+            quantity: Number(i.quantity) || 1,
+            veg: !!i.veg,
+          })),
+          subtotal: totalAmount,
+          special_instructions: specialInstructions.trim(),
+          payment_method: 'route',
+        };
+
+        localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
+
+        const options = {
+          key: data.key_id, // This will be your master Razorpay key for Route
+          order_id: data.order_id,
+          amount: data.amount,
+          currency: data.currency,
+          name: restaurant?.name || 'Restaurant',
+          description: `Table ${tableNumber} Order`,
+          handler: (response) => {
+            window.location.href = `/order/payment-success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`;
+          },
+          modal: { ondismiss: () => setLoading(false) },
+          theme: { color: restaurant?.restaurant_profiles?.brand_color || '#10b981' },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+        return;
+      }
     } catch (error) {
       console.error('Payment error:', error);
       alert(`Payment failed: ${error?.message || 'Unknown error'}`);
@@ -183,13 +264,31 @@ export default function PaymentPage() {
       setLoading(false);
     }
   };
+
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b';
-  const paymentMethods = [
-    { id: 'cash', name: 'Pay at Counter', icon: '💵' },
-    //{ id: 'upi', name: 'UPI Payment', icon: '📱' },
-    //{ id: 'card', name: 'Card Payment', icon: '💳' },
-    { id: 'byo', name: 'Online Payment (BYO Gateway)', icon: '🌐' },
-  ];
+
+  // Dynamic payment methods based on restaurant settings
+  const getPaymentMethods = () => {
+    const methods = [
+      { id: 'cash', name: 'Pay at Counter', icon: '💵' }
+    ];
+
+    if (paymentSettings.online_payment_enabled) {
+      if (paymentSettings.use_own_gateway) {
+        methods.push({ id: 'byo', name: 'Online Payment (BYO Gateway)', icon: '🌐' });
+      } else {
+        methods.push(
+          { id: 'route', name: 'UPI Payment', icon: '📱' },
+          { id: 'route', name: 'Card Payment', icon: '💳' }
+        );
+      }
+    }
+
+    return methods;
+  };
+
+  const paymentMethods = getPaymentMethods();
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa', paddingBottom: 120 }}>
       <header
@@ -215,6 +314,7 @@ export default function PaymentPage() {
           ₹{Number(totalAmount || 0).toFixed(2)}
         </div>
       </header>
+
       <div style={{ background: '#fff', padding: 20, marginBottom: 8 }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 600 }}>📦 Order Summary</h3>
         <div style={{ marginBottom: 16 }}>
@@ -257,10 +357,11 @@ export default function PaymentPage() {
           </div>
         </div>
       </div>
+
       <div className="payment-methods" style={{ background: '#fff', padding: 16, marginBottom: 84 }}>
         <h3>💳 Choose Payment Method</h3>
-        {paymentMethods.map((method) => (
-          <label key={method.id} className={`pay-card ${selectedPayment === method.id ? 'selected' : ''}`}>
+        {paymentMethods.map((method, index) => (
+          <label key={`${method.id}-${index}`} className={`pay-card ${selectedPayment === method.id ? 'selected' : ''}`}>
             <input
               type="radio"
               value={method.id}
@@ -282,6 +383,7 @@ export default function PaymentPage() {
           </label>
         ))}
       </div>
+
       <div
         style={{
           position: 'fixed',
@@ -316,6 +418,7 @@ export default function PaymentPage() {
           {loading ? 'Processing...' : selectedPayment === 'cash' ? 'Place Order' : `Pay ₹${Number(totalAmount || 0).toFixed(2)}`}
         </button>
       </div>
+
       <style jsx>{`
         .pay-card {
           display: block;

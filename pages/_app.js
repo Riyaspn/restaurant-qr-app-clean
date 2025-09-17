@@ -2,13 +2,10 @@
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';
-
 import Layout from '../components/Layout';
 import { RestaurantProvider } from '../context/RestaurantContext';
-
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
-
 import { onMessage } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../lib/firebaseClient';
 
@@ -22,26 +19,45 @@ function MyApp({ Component, pageProps }) {
   const isCustomerRoute = path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`);
 
   useEffect(() => {
-    const bootstrap = async () => {
+    async function bootstrap() {
       if (!('serviceWorker' in navigator)) {
         console.log('Service Worker not supported');
         return;
       }
 
-      // Register SW early so it can handle background notifications
-      let registration = null;
       try {
-        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('✅ SW registered for push:', registration.scope);
-      } catch (e) {
-        console.error('❌ SW registration failed', e);
+        // Only register the PWA service worker if not already registered
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        const hasPwaSW = registrations.some(reg => reg.active && reg.active.scriptURL.includes('service-worker.js'));
+        if (!hasPwaSW) {
+          const pwaRegistration = await navigator.serviceWorker.register('/service-worker.js');
+          console.log('✅ PWA SW registered:', pwaRegistration.scope);
+        } else {
+          console.log('PWA SW already registered');
+        }
+      } catch (error) {
+        console.error('❌ PWA SW registration failed', error);
+      }
+
+      let fbRegistration = null;
+      try {
+        // Only register Firebase messaging SW if not already registered
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        const hasFirebaseSW = registrations.some(reg => reg.active && reg.active.scriptURL.includes('firebase-messaging-sw.js'));
+        if (!hasFirebaseSW) {
+          fbRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.log('✅ Firebase messaging SW registered:', fbRegistration.scope);
+        } else {
+          console.log('Firebase messaging SW already registered');
+        }
+      } catch (error) {
+        console.error('❌ Firebase messaging SW registration failed', error);
         return;
       }
 
-      // Foreground messages: show toast/notification and play a short sound
       const messaging = await getMessagingIfSupported();
       if (!messaging) {
-        console.log('Messaging not supported');
+        console.log('Firebase Messaging not supported');
         return;
       }
 
@@ -60,10 +76,11 @@ function MyApp({ Component, pageProps }) {
           };
           setTimeout(() => notification.close(), 5000);
         }
-        // Short sound; will succeed after any user interaction per autoplay policies
+
+        // Attempt to play notification sound (may be blocked if no user interaction)
         new Audio('/notification-sound.mp3').play().catch(() => {});
       });
-    };
+    }
 
     bootstrap();
   }, [router]);
