@@ -85,11 +85,11 @@ export default function SettingsPage() {
     instagram_handle: '',
     facebook_page: '',
     description: '',
-    useswiggy: false,
+    swiggy_enabled : false,
     swiggy_api_key: '',
     swiggy_api_secret: '',
     swiggy_webhook_secret: '',
-    usezomato: false,
+    zomato_enabled: false,
     zomato_api_key: '',
     zomato_api_secret: '',
     zomato_webhook_secret: '',
@@ -124,8 +124,8 @@ export default function SettingsPage() {
             business_type: data.business_type || 'individual',
             online_payment_enabled: data.online_payment_enabled ?? false,
             use_own_gateway: data.use_own_gateway ?? false,
-            useswiggy: !!(data.swiggy_api_key && data.swiggy_api_secret && data.swiggy_webhook_secret),
-            usezomato: !!(data.zomato_api_key && data.zomato_api_secret && data.zomato_webhook_secret),
+            swiggy_enabled : !!(data.swiggy_api_key && data.swiggy_api_secret && data.swiggy_webhook_secret),
+            zomato_enabled: !!(data.zomato_api_key && data.zomato_api_secret && data.zomato_webhook_secret),
           }));
           setOriginalTables(data.tables_count || 0);
           setIsFirstTime(false);
@@ -168,12 +168,12 @@ export default function SettingsPage() {
         updated.razorpay_key_id = '';
         updated.razorpay_key_secret = '';
       }
-      if (field === 'useswiggy' && !val) {
+      if (field === 'swiggy_enabled ' && !val) {
         updated.swiggy_api_key = '';
         updated.swiggy_api_secret = '';
         updated.swiggy_webhook_secret = '';
       }
-      if (field === 'usezomato' && !val) {
+      if (field === 'zomato_enabled' && !val) {
         updated.zomato_api_key = '';
         updated.zomato_api_secret = '';
         updated.zomato_webhook_secret = '';
@@ -803,15 +803,15 @@ export default function SettingsPage() {
   <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
     <input
       type="checkbox"
-      id="useswiggy"
-      checked={form.useswiggy}
-      onChange={onChange('useswiggy')}
+      id="swiggy_enabled "
+      checked={form.swiggy_enabled }
+      onChange={onChange('swiggy_enabled ')}
     />
-    <label htmlFor="useswiggy" style={{ marginLeft: 6 }}>
+    <label htmlFor="swiggy_enabled " style={{ marginLeft: 6 }}>
       Enable Swiggy Integration
     </label>
   </div>
-  {form.useswiggy && (
+  {form.swiggy_enabled  && (
     <>
       <Field label="Swiggy API Key" required>
         <input
@@ -844,15 +844,15 @@ export default function SettingsPage() {
   <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0 12px' }}>
     <input
       type="checkbox"
-      id="usezomato"
-      checked={form.usezomato}
-      onChange={onChange('usezomato')}
+      id="zomato_enabled"
+      checked={form.zomato_enabled}
+      onChange={onChange('zomato_enabled')}
     />
-    <label htmlFor="usezomato" style={{ marginLeft: 6 }}>
+    <label htmlFor="zomato_enabled" style={{ marginLeft: 6 }}>
       Enable Zomato Integration
     </label>
   </div>
-  {form.usezomato && (
+  {form.zomato_enabled && (
     <>
       <Field label="Zomato API Key" required>
         <input
