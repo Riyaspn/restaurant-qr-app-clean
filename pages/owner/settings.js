@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
-import supabase from '../../services/supabase';
+import { supabase } from '../../services/supabase'
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 
