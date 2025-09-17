@@ -3,17 +3,18 @@ const urlsToCache = [
   '/',
   '/favicon.ico',
   '/manifest.json',
-  '/index.html',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
   '/styles/globals.css',
   '/styles/responsive.css',
   '/styles/theme.css',
-  // Add other assets or routes you want to cache here
+  // Add any other assets or routes you want to cache here
 ];
 
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Install');
-  // Force the waiting service worker to become the active service worker
-  self.skipWaiting();
+  self.skipWaiting(); // Activate worker immediately
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Caching app shell and content');
@@ -24,7 +25,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activate');
-  // Take control of uncontrolled clients immediately
+
   event.waitUntil(
     (async () => {
       await self.clients.claim();
@@ -41,8 +42,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch strategy: try cache first, then network fallback.
-// If both fail, consider showing a fallback offline page (update as needed).
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then(async (cachedResponse) => {
@@ -53,8 +52,6 @@ self.addEventListener('fetch', (event) => {
         const fetchResponse = await fetch(event.request);
         return fetchResponse;
       } catch (error) {
-        // Optionally: return offline page here if request is for navigations.
-        // For now, just silently fail (prevent errors from causing reload loops)
         console.warn('[Service Worker] Fetch failed; returning nothing.', error);
         return new Response('', {status: 503, statusText: 'Service Unavailable'});
       }

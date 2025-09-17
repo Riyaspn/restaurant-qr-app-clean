@@ -23,8 +23,8 @@ messaging.onBackgroundMessage((payload) => {
   
   self.registration.showNotification(title, {
     body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     tag: 'new-order',
     requireInteraction: true,
     vibrate: [200, 100, 200],
