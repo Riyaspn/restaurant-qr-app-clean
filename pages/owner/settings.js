@@ -55,7 +55,7 @@ export default function SettingsPage() {
     support_email: '',
     
     // Tax Settings
-    gstenabled: false,
+    gst_enabled: false,
     gstin: '',
     default_tax_rate: 5,
     prices_include_tax: true,
@@ -216,7 +216,7 @@ export default function SettingsPage() {
       }
       
       // GST enabled toggle
-      if (field === 'gstenabled' && !val) {
+      if (field === 'gst_enabled' && !val) {
         updated.gstin = '';
         updated.legalgst = '';
       }
@@ -340,7 +340,7 @@ export default function SettingsPage() {
           pan: payload.legal_pan,
         };
 
-        if (form.gstenabled && form.legalgst.trim()) {
+        if (form.gst_enabled && form.legalgst.trim()) {
           legalInfo.gst = form.legalgst.trim().toUpperCase();
         }
 
@@ -652,16 +652,16 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
             <input 
               type="checkbox" 
-              id="gstenabled" 
-              checked={form.gstenabled} 
-              onChange={onChange('gstenabled')} 
+              id="gst_enabled" 
+              checked={form.gst_enabled} 
+              onChange={onChange('gst_enabled')} 
             />
-            <label htmlFor="gstenabled" style={{ marginLeft: 6 }}>
+            <label htmlFor="gst_enabled" style={{ marginLeft: 6 }}>
               Enable GST
             </label>
           </div>
 
-          {form.gstenabled && (
+          {form.gst_enabled && (
             <>
               <Field label="GSTIN">
                 <input 
