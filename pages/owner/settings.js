@@ -49,70 +49,70 @@ export default function SettingsPage() {
   // Form state
   const [form, setForm] = useState({
     // Business Information
-    legalname: '',
-    restaurantname: '',
+    legal_name: '',
+    restaurant_name: '',
     phone: '',
-    supportemail: '',
+    support_email: '',
     
     // Tax Settings
     gstenabled: false,
     gstin: '',
-    defaulttaxrate: 5,
-    pricesincludetax: true,
+    default_tax_rate: 5,
+    prices_include_tax: true,
     
     // Delivery Address
-    shippingname: '',
-    shippingphone: '',
-    shippingaddressline1: '',
-    shippingaddressline2: '',
-    shippingcity: '',
-    shippingstate: '',
-    shippingpincode: '',
+    shipping_name: '',
+    shipping_phone: '',
+    shipping_address_line1: '',
+    shipping_address_line2: '',
+    shipping_city: '',
+    shipping_state: '',
+    shipping_pincode: '',
     
     // Operations
-    tablescount: 0,
-    tableprefix: 'T',
-    upiid: '',
+    tables_count: 0,
+    table_prefix: 'T',
+    upi_id: '',
     
     // Payment Gateway Settings
-    onlinepaymentenabled: false,
-    useowngateway: false,
-    razorpaykeyid: '',
-    razorpaykeysecret: '',
+    online_payment_enabled: false,
+    use_own_gateway: false,
+    razorpay_key_id: '',
+    razorpay_key_secret: '',
     
     // Bank Account Details
     bank_account_holder_name: '',
     bank_account_number: '',
-    bankifsc: '',
-    bankemail: '',
-    bankphone: '',
+    bank_ifsc: '',
+    bank_email: '',
+    bank_phone: '',
     
     // KYC Information
-    profilecategory: 'food_and_beverages',
-    profilesubcategory: 'restaurant',
-    businesstype: 'individual',
-    legalpan: '',
+    profile_category: 'food_and_beverages',
+    profile_subcategory: 'restaurant',
+    business_type: 'individual',
+    legal_pan: '',
     legalgst: '',
-    beneficiaryname: '',
+    beneficiary_name: '',
     
     // Brand & Web
-    brandlogourl: '',
-    brandcolor: '#1976d2',
-    websiteurl: '',
-    instagramhandle: '',
-    facebookpage: '',
+    brand_logo_url: '',
+    brand_color: '#1976d2',
+    website_url: '',
+    instagram_handle: '',
+    facebook_page: '',
     description: '',
     
     // Third-party Integrations
     useswiggy: false,
-    swiggyapikey: '',
-    swiggyapisecret: '',
-    swiggywebhooksecret: '',
+    swiggy_api_key: '',
+    swiggy_api_secret: '',
+    swiggy_webhook_secret: '',
     
     usezomato: false,
-    zomatoapikey: '',
-    zomatoapisecret: '',
-    zomatowebhooksecret: '',
+    zomato_api_key: '',
+    zomato_api_secret: '',
+    zomato_webhook_secret: '',
   });
 
   // Track original table count for validation
@@ -140,17 +140,17 @@ export default function SettingsPage() {
           setForm(prev => ({
             ...prev,
             ...data,
-            defaulttaxrate: data.defaulttaxrate ?? 5,
-            pricesincludetax: data.pricesincludetax ?? true,
-            profilecategory: data.profilecategory || 'food_and_beverages',
-            profilesubcategory: data.profilesubcategory || 'restaurant',
-            businesstype: data.businesstype || 'individual',
-            onlinepaymentenabled: data.onlinepaymentenabled ?? false,
-            useowngateway: data.useowngateway ?? false,
-            useswiggy: !!(data.swiggyapikey && data.swiggyapisecret && data.swiggywebhooksecret),
-            usezomato: !!(data.zomatoapikey && data.zomatoapisecret && data.zomatowebhooksecret),
+            default_tax_rate: data.default_tax_rate ?? 5,
+            prices_include_tax: data.prices_include_tax ?? true,
+            profile_category: data.profile_category || 'food_and_beverages',
+            profile_subcategory: data.profile_subcategory || 'restaurant',
+            business_type: data.business_type || 'individual',
+            online_payment_enabled: data.online_payment_enabled ?? false,
+            use_own_gateway: data.use_own_gateway ?? false,
+            useswiggy: !!(data.swiggy_api_key && data.swiggy_api_secret && data.swiggy_webhook_secret),
+            usezomato: !!(data.zomato_api_key && data.zomato_api_secret && data.zomato_webhook_secret),
           }));
-          setOriginalTables(data.tablescount || 0);
+          setOriginalTables(data.tables_count || 0);
           setIsFirstTime(false);
         } else {
           setIsFirstTime(true);
@@ -184,35 +184,35 @@ export default function SettingsPage() {
       const updated = { ...prev, [field]: val };
       
       // Auto-sync certain fields
-      if (field === 'legalname') {
-        updated.beneficiaryname = val;
+      if (field === 'legal_name') {
+        updated.beneficiary_name = val;
         updated.bank_account_holder_name = val;
       }
       
-      if (field === 'onlinepaymentenabled' && !val) {
+      if (field === 'online_payment_enabled' && !val) {
         // Reset payment details when disabling
-        updated.useowngateway = false;
-        updated.razorpaykeyid = '';
-        updated.razorpaykeysecret = '';
+        updated.use_own_gateway = false;
+        updated.razorpay_key_id = '';
+        updated.razorpay_key_secret = '';
       }
       
-      if (field === 'useowngateway' && !val) {
+      if (field === 'use_own_gateway' && !val) {
         // Clear razorpay keys if switched off
-        updated.razorpaykeyid = '';
-        updated.razorpaykeysecret = '';
+        updated.razorpay_key_id = '';
+        updated.razorpay_key_secret = '';
       }
       
       // Toggle integrations
       if (field === 'useswiggy' && !val) {
-        updated.swiggyapikey = '';
-        updated.swiggyapisecret = '';
-        updated.swiggywebhooksecret = '';
+        updated.swiggy_api_key = '';
+        updated.swiggy_api_secret = '';
+        updated.swiggy_webhook_secret = '';
       }
       
       if (field === 'usezomato' && !val) {
-        updated.zomatoapikey = '';
-        updated.zomatoapisecret = '';
-        updated.zomatowebhooksecret = '';
+        updated.zomato_api_key = '';
+        updated.zomato_api_secret = '';
+        updated.zomato_webhook_secret = '';
       }
       
       // GST enabled toggle
@@ -226,7 +226,7 @@ export default function SettingsPage() {
   };
 
   // Validation helpers
-  const validateBusinessType = (val) => {
+  const validatebusiness_type = (val) => {
     const allowed = ['individual', 'private_limited', 'proprietorship', 'partnership', 'llp', 'trust', 'society', 'ngo', 'public_limited'];
     return allowed.includes(val);
   };
@@ -250,13 +250,13 @@ export default function SettingsPage() {
 
     try {
       // Required field validation
-      const required = ['legalname', 'restaurantname', 'phone', 'supportemail'];
+      const required = ['legal_name', 'restaurant_name', 'phone', 'support_email'];
       
-      if (form.onlinepaymentenabled) {
-        if (form.useowngateway) {
-          required.push('razorpaykeyid', 'razorpaykeysecret');
+      if (form.online_payment_enabled) {
+        if (form.use_own_gateway) {
+          required.push('razorpay_key_id', 'razorpay_key_secret');
         } else {
-          required.push('bank_account_holder_name', 'bank_account_number', 'bankifsc', 'beneficiaryname', 'businesstype', 'legalpan');
+          required.push('bank_account_holder_name', 'bank_account_number', 'bank_ifsc', 'beneficiary_name', 'business_type', 'legal_pan');
         }
       }
 
@@ -266,26 +266,26 @@ export default function SettingsPage() {
       }
 
       // Field-specific validation
-      if (form.onlinepaymentenabled && !form.useowngateway) {
-        if (form.beneficiaryname.trim() !== form.legalname.trim()) {
+      if (form.online_payment_enabled && !form.use_own_gateway) {
+        if (form.beneficiary_name.trim() !== form.legal_name.trim()) {
           throw new Error('Beneficiary Name must match Legal Name');
         }
         
-        if (!validateBusinessType(form.businesstype)) {
+        if (!validatebusiness_type(form.business_type)) {
           throw new Error('Invalid business type selected');
         }
         
-        if (!validateIFSC(form.bankifsc)) {
+        if (!validateIFSC(form.bank_ifsc)) {
           throw new Error('Invalid IFSC code format');
         }
       }
 
-      if (form.upiid && !validateUPI(form.upiid)) {
+      if (form.upi_id && !validateUPI(form.upi_id)) {
         throw new Error('Invalid UPI format. Example: name@bankhandle');
       }
 
       // Table count validation
-      const newTableCount = Number(form.tablescount);
+      const newTableCount = Number(form.tables_count);
       if (!isFirstTime && newTableCount < originalTables) {
         throw new Error('Cannot decrease number of tables');
       }
@@ -294,16 +294,16 @@ export default function SettingsPage() {
       const payload = {
         restaurant_id: restaurant.id,
         ...form,
-        bankifsc: form.bankifsc.trim().toUpperCase(),
-        defaulttaxrate: Number(form.defaulttaxrate) || 5,
-        pricesincludetax: !!form.pricesincludetax,
-        onlinepaymentenabled: !!form.onlinepaymentenabled,
-        useowngateway: !!form.useowngateway,
-        legalpan: form.legalpan.trim().toUpperCase(),
-        beneficiaryname: form.beneficiaryname.trim(),
-        businesstype: form.businesstype,
-        tablescount: newTableCount,
-        upiid: form.upiid.trim(),
+        bank_ifsc: form.bank_ifsc.trim().toUpperCase(),
+        default_tax_rate: Number(form.default_tax_rate) || 5,
+        prices_include_tax: !!form.prices_include_tax,
+        online_payment_enabled: !!form.online_payment_enabled,
+        use_own_gateway: !!form.use_own_gateway,
+        legal_pan: form.legal_pan.trim().toUpperCase(),
+        beneficiary_name: form.beneficiary_name.trim(),
+        business_type: form.business_type,
+        tables_count: newTableCount,
+        upi_id: form.upi_id.trim(),
       };
 
       // Upsert profile data
@@ -316,28 +316,28 @@ export default function SettingsPage() {
       // Update restaurant name
       await supabase
         .from('restaurants')
-        .update({ name: form.restaurantname })
+        .update({ name: form.restaurant_name })
         .eq('id', restaurant.id);
 
       // Handle route account creation if needed
-      if (form.onlinepaymentenabled && !form.useowngateway && !form.routeaccountid) {
+      if (form.online_payment_enabled && !form.use_own_gateway && !form.routeaccountid) {
         const profile = {
-          category: payload.profilecategory,
-          subcategory: payload.profilesubcategory,
+          category: payload.profile_category,
+          subcategory: payload.profile_subcategory,
           addresses: {
             registered: {
-              street1: form.shippingaddressline1.trim(),
-              street2: form.shippingaddressline2.trim(),
-              city: form.shippingcity.trim(),
-              state: form.shippingstate.trim(),
-              postal_code: form.shippingpincode.trim(),
+              street1: form.shipping_address_line1.trim(),
+              street2: form.shipping_address_line2.trim(),
+              city: form.shipping_city.trim(),
+              state: form.shipping_state.trim(),
+              postal_code: form.shipping_pincode.trim(),
               country: 'IN',
             },
           },
         };
 
         const legalInfo = {
-          pan: payload.legalpan,
+          pan: payload.legal_pan,
         };
 
         if (form.gstenabled && form.legalgst.trim()) {
@@ -348,14 +348,14 @@ export default function SettingsPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            legal_name: form.legalname,
-            beneficiary_name: form.beneficiaryname,
-            display_name: form.restaurantname,
-            business_type: form.businesstype,
+            legal_name: form.legal_name,
+            beneficiary_name: form.beneficiary_name,
+            display_name: form.restaurant_name,
+            business_type: form.business_type,
             account_number: form.bank_account_number,
-            ifsc: payload.bankifsc,
-            email: form.bankemail?.trim() || form.supportemail.trim(),
-            phone: form.bankphone?.trim() || form.phone.trim(),
+            ifsc: payload.bank_ifsc,
+            email: form.bank_email?.trim() || form.support_email.trim(),
+            phone: form.bank_phone?.trim() || form.phone.trim(),
             owner_id: restaurant.id,
             profile,
             legal_info: legalInfo,
@@ -419,16 +419,16 @@ export default function SettingsPage() {
             <Field label="Legal Name" required>
               <input 
                 className="input" 
-                value={form.legalname} 
-                onChange={onChange('legalname')} 
+                value={form.legal_name} 
+                onChange={onChange('legal_name')} 
               />
             </Field>
             
             <Field label="Display Name" required hint="Shown to customers">
               <input 
                 className="input" 
-                value={form.restaurantname} 
-                onChange={onChange('restaurantname')} 
+                value={form.restaurant_name} 
+                onChange={onChange('restaurant_name')} 
               />
             </Field>
             
@@ -446,8 +446,8 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 type="email" 
-                value={form.supportemail} 
-                onChange={onChange('supportemail')} 
+                value={form.support_email} 
+                onChange={onChange('support_email')} 
                 style={{ fontSize: 16 }}
               />
             </Field>
@@ -461,23 +461,23 @@ export default function SettingsPage() {
               <label>
                 <input 
                   type="radio" 
-                  name="onlinepaymentenabled" 
-                  checked={form.onlinepaymentenabled === true} 
-                  onChange={() => setForm(prev => ({ ...prev, onlinepaymentenabled: true }))} 
+                  name="online_payment_enabled" 
+                  checked={form.online_payment_enabled === true} 
+                  onChange={() => setForm(prev => ({ ...prev, online_payment_enabled: true }))} 
                 />
                 Yes
               </label>
               <label>
                 <input 
                   type="radio" 
-                  name="onlinepaymentenabled" 
-                  checked={form.onlinepaymentenabled === false} 
+                  name="online_payment_enabled" 
+                  checked={form.online_payment_enabled === false} 
                   onChange={() => setForm(prev => ({ 
                     ...prev, 
-                    onlinepaymentenabled: false, 
-                    useowngateway: false,
-                    razorpaykeyid: '',
-                    razorpaykeysecret: ''
+                    online_payment_enabled: false, 
+                    use_own_gateway: false,
+                    razorpay_key_id: '',
+                    razorpay_key_secret: ''
                   }))} 
                 />
                 No
@@ -485,29 +485,29 @@ export default function SettingsPage() {
             </div>
           </Field>
 
-          {form.onlinepaymentenabled && (
+          {form.online_payment_enabled && (
             <>
               <Field label="Use Your Own Payment Gateway?" required>
                 <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
                   <label>
                     <input 
                       type="radio" 
-                      name="useowngateway" 
-                      checked={form.useowngateway === true} 
-                      onChange={() => setForm(prev => ({ ...prev, useowngateway: true }))} 
+                      name="use_own_gateway" 
+                      checked={form.use_own_gateway === true} 
+                      onChange={() => setForm(prev => ({ ...prev, use_own_gateway: true }))} 
                     />
                     Yes (BYO Gateway)
                   </label>
                   <label>
                     <input 
                       type="radio" 
-                      name="useowngateway" 
-                      checked={form.useowngateway === false} 
+                      name="use_own_gateway" 
+                      checked={form.use_own_gateway === false} 
                       onChange={() => setForm(prev => ({ 
                         ...prev, 
-                        useowngateway: false,
-                        razorpaykeyid: '',
-                        razorpaykeysecret: ''
+                        use_own_gateway: false,
+                        razorpay_key_id: '',
+                        razorpay_key_secret: ''
                       }))} 
                     />
                     No (Use platform gateway)
@@ -515,13 +515,13 @@ export default function SettingsPage() {
                 </div>
               </Field>
 
-              {form.useowngateway && (
+              {form.use_own_gateway && (
                 <Section title="Razorpay Account" icon="🔑">
                   <Field label="Razorpay Key ID" required>
                     <input 
                       className="input" 
-                      value={form.razorpaykeyid} 
-                      onChange={onChange('razorpaykeyid')} 
+                      value={form.razorpay_key_id} 
+                      onChange={onChange('razorpay_key_id')} 
                       placeholder="rzp_test_..."
                     />
                   </Field>
@@ -530,8 +530,8 @@ export default function SettingsPage() {
                     <input 
                       className="input" 
                       type="password" 
-                      value={form.razorpaykeysecret} 
-                      onChange={onChange('razorpaykeysecret')} 
+                      value={form.razorpay_key_secret} 
+                      onChange={onChange('razorpay_key_secret')} 
                     />
                   </Field>
                   
@@ -541,7 +541,7 @@ export default function SettingsPage() {
                 </Section>
               )}
 
-              {!form.useowngateway && (
+              {!form.use_own_gateway && (
                 <>
                   {/* Bank Account Details */}
                   <Section title="Bank Details & KYC" icon="🏦">
@@ -565,8 +565,8 @@ export default function SettingsPage() {
                       <Field label="IFSC Code" required hint="Example: HDFC0001234">
                         <input 
                           className="input" 
-                          value={form.bankifsc} 
-                          onChange={onChange('bankifsc')} 
+                          value={form.bank_ifsc} 
+                          onChange={onChange('bank_ifsc')} 
                           style={{ textTransform: 'uppercase' }}
                         />
                       </Field>
@@ -575,8 +575,8 @@ export default function SettingsPage() {
                         <input 
                           className="input" 
                           type="email" 
-                          value={form.bankemail} 
-                          onChange={onChange('bankemail')} 
+                          value={form.bank_email} 
+                          onChange={onChange('bank_email')} 
                         />
                       </Field>
                       
@@ -584,8 +584,8 @@ export default function SettingsPage() {
                         <input 
                           className="input" 
                           type="tel" 
-                          value={form.bankphone} 
-                          onChange={onChange('bankphone')} 
+                          value={form.bank_phone} 
+                          onChange={onChange('bank_phone')} 
                         />
                       </Field>
                     </div>
@@ -594,14 +594,14 @@ export default function SettingsPage() {
                   {/* KYC Information */}
                   <Section title="KYC Information" icon="📋">
                     <Field label="Business Category" required>
-                      <select value={form.profilecategory} onChange={onChange('profilecategory')}>
+                      <select value={form.profile_category} onChange={onChange('profile_category')}>
                         <option value="food_and_beverages">Food & Beverages</option>
                         {/* Add more as needed */}
                       </select>
                     </Field>
                     
                     <Field label="Business Subcategory" required>
-                      <select value={form.profilesubcategory} onChange={onChange('profilesubcategory')}>
+                      <select value={form.profile_subcategory} onChange={onChange('profile_subcategory')}>
                         <option value="restaurant">Restaurant</option>
                         {/* Add more as needed */}
                       </select>
@@ -610,15 +610,15 @@ export default function SettingsPage() {
                     <Field label="PAN" required>
                       <input 
                         className="input" 
-                        value={form.legalpan} 
-                        onChange={onChange('legalpan')} 
+                        value={form.legal_pan} 
+                        onChange={onChange('legal_pan')} 
                         placeholder="ABCDE1234F" 
                         style={{ textTransform: 'uppercase' }}
                       />
                     </Field>
 
                     <Field label="Business Type" required hint="Select your business type">
-                      <select value={form.businesstype} onChange={onChange('businesstype')}>
+                      <select value={form.business_type} onChange={onChange('business_type')}>
                         <option value="">-- Select --</option>
                         <option value="individual">Individual</option>
                         <option value="private_limited">Private Limited</option>
@@ -635,7 +635,7 @@ export default function SettingsPage() {
                     <Field label="Beneficiary Name" required hint="Auto-synced from Legal Name">
                       <input 
                         className="input" 
-                        value={form.beneficiaryname} 
+                        value={form.beneficiary_name} 
                         readOnly 
                         style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                       />
@@ -692,13 +692,13 @@ export default function SettingsPage() {
                 min="0" 
                 max="100" 
                 step="0.1" 
-                value={form.defaulttaxrate} 
-                onChange={onChange('defaulttaxrate')} 
+                value={form.default_tax_rate} 
+                onChange={onChange('default_tax_rate')} 
               />
             </Field>
             
             <Field label="Prices Include Tax" required>
-              <select value={form.pricesincludetax} onChange={onChange('pricesincludetax')}>
+              <select value={form.prices_include_tax} onChange={onChange('prices_include_tax')}>
                 <option value={true}>Yes</option>
                 <option value={false}>No</option>
               </select>
@@ -712,8 +712,8 @@ export default function SettingsPage() {
             <Field label="Recipient" required>
               <input 
                 className="input" 
-                value={form.shippingname} 
-                onChange={onChange('shippingname')} 
+                value={form.shipping_name} 
+                onChange={onChange('shipping_name')} 
               />
             </Field>
             
@@ -721,8 +721,8 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 type="tel" 
-                value={form.shippingphone} 
-                onChange={onChange('shippingphone')} 
+                value={form.shipping_phone} 
+                onChange={onChange('shipping_phone')} 
                 style={{ fontSize: 16 }}
               />
             </Field>
@@ -731,16 +731,16 @@ export default function SettingsPage() {
           <Field label="Address Line 1" required>
             <input 
               className="input" 
-              value={form.shippingaddressline1} 
-              onChange={onChange('shippingaddressline1')} 
+              value={form.shipping_address_line1} 
+              onChange={onChange('shipping_address_line1')} 
             />
           </Field>
           
           <Field label="Address Line 2">
             <input 
               className="input" 
-              value={form.shippingaddressline2} 
-              onChange={onChange('shippingaddressline2')} 
+              value={form.shipping_address_line2} 
+              onChange={onChange('shipping_address_line2')} 
             />
           </Field>
 
@@ -748,24 +748,24 @@ export default function SettingsPage() {
             <Field label="City" required>
               <input 
                 className="input" 
-                value={form.shippingcity} 
-                onChange={onChange('shippingcity')} 
+                value={form.shipping_city} 
+                onChange={onChange('shipping_city')} 
               />
             </Field>
             
             <Field label="State" required>
               <input 
                 className="input" 
-                value={form.shippingstate} 
-                onChange={onChange('shippingstate')} 
+                value={form.shipping_state} 
+                onChange={onChange('shipping_state')} 
               />
             </Field>
             
             <Field label="Pincode" required>
               <input 
                 className="input" 
-                value={form.shippingpincode} 
-                onChange={onChange('shippingpincode')} 
+                value={form.shipping_pincode} 
+                onChange={onChange('shipping_pincode')} 
                 style={{ fontSize: 16 }}
               />
             </Field>
@@ -781,8 +781,8 @@ export default function SettingsPage() {
                 type="number" 
                 min={originalTables || 0} 
                 max="100" 
-                value={form.tablescount} 
-                onChange={onChange('tablescount')} 
+                value={form.tables_count} 
+                onChange={onChange('tables_count')} 
               />
               {originalTables > 0 && (
                 <div className="muted" style={{ fontSize: 12 }}>
@@ -795,8 +795,8 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 maxLength="3" 
-                value={form.tableprefix} 
-                onChange={onChange('tableprefix')} 
+                value={form.table_prefix} 
+                onChange={onChange('table_prefix')} 
                 placeholder="T" 
               />
             </Field>
@@ -804,8 +804,8 @@ export default function SettingsPage() {
             <Field label="UPI ID" required>
               <input 
                 className="input" 
-                value={form.upiid} 
-                onChange={onChange('upiid')} 
+                value={form.upi_id} 
+                onChange={onChange('upi_id')} 
                 placeholder="name@upi" 
               />
             </Field>
@@ -823,8 +823,8 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 type="url" 
-                value={form.brandlogourl} 
-                onChange={onChange('brandlogourl')} 
+                value={form.brand_logo_url} 
+                onChange={onChange('brand_logo_url')} 
               />
             </Field>
             
@@ -832,8 +832,8 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 type="color" 
-                value={form.brandcolor} 
-                onChange={onChange('brandcolor')} 
+                value={form.brand_color} 
+                onChange={onChange('brand_color')} 
               />
             </Field>
             
@@ -841,16 +841,16 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 type="url" 
-                value={form.websiteurl} 
-                onChange={onChange('websiteurl')} 
+                value={form.website_url} 
+                onChange={onChange('website_url')} 
               />
             </Field>
             
             <Field label="Instagram">
               <input 
                 className="input" 
-                value={form.instagramhandle} 
-                onChange={onChange('instagramhandle')} 
+                value={form.instagram_handle} 
+                onChange={onChange('instagram_handle')} 
               />
             </Field>
             
@@ -858,8 +858,8 @@ export default function SettingsPage() {
               <input 
                 className="input" 
                 type="url" 
-                value={form.facebookpage} 
-                onChange={onChange('facebookpage')} 
+                value={form.facebook_page} 
+                onChange={onChange('facebook_page')} 
               />
             </Field>
           </div>
@@ -893,8 +893,8 @@ export default function SettingsPage() {
               <Field label="Swiggy API Key">
                 <input 
                   className="input" 
-                  value={form.swiggyapikey} 
-                  onChange={onChange('swiggyapikey')} 
+                  value={form.swiggy_api_key} 
+                  onChange={onChange('swiggy_api_key')} 
                 />
               </Field>
               
@@ -902,8 +902,8 @@ export default function SettingsPage() {
                 <input 
                   type="password" 
                   className="input" 
-                  value={form.swiggyapisecret} 
-                  onChange={onChange('swiggyapisecret')} 
+                  value={form.swiggy_api_secret} 
+                  onChange={onChange('swiggy_api_secret')} 
                 />
               </Field>
               
@@ -911,8 +911,8 @@ export default function SettingsPage() {
                 <input 
                   type="password" 
                   className="input" 
-                  value={form.swiggywebhooksecret} 
-                  onChange={onChange('swiggywebhooksecret')} 
+                  value={form.swiggy_webhook_secret} 
+                  onChange={onChange('swiggy_webhook_secret')} 
                 />
               </Field>
             </>
@@ -935,8 +935,8 @@ export default function SettingsPage() {
               <Field label="Zomato API Key">
                 <input 
                   className="input" 
-                  value={form.zomatoapikey} 
-                  onChange={onChange('zomatoapikey')} 
+                  value={form.zomato_api_key} 
+                  onChange={onChange('zomato_api_key')} 
                 />
               </Field>
               
@@ -944,8 +944,8 @@ export default function SettingsPage() {
                 <input 
                   type="password" 
                   className="input" 
-                  value={form.zomatoapisecret} 
-                  onChange={onChange('zomatoapisecret')} 
+                  value={form.zomato_api_secret} 
+                  onChange={onChange('zomato_api_secret')} 
                 />
               </Field>
               
@@ -953,8 +953,8 @@ export default function SettingsPage() {
                 <input 
                   type="password" 
                   className="input" 
-                  value={form.zomatowebhooksecret} 
-                  onChange={onChange('zomatowebhooksecret')} 
+                  value={form.zomato_webhook_secret} 
+                  onChange={onChange('zomato_webhook_secret')} 
                 />
               </Field>
             </>
