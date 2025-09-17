@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
-import { supabase } from '../../services/supabase'
+import { supabase } from '../../services/supabase';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 
-// Helper components that follow existing patterns
 function Section({ title, icon, children }) {
   return (
     <Card padding24>
@@ -39,28 +38,22 @@ function Field({ label, required, children, hint }) {
 export default function SettingsPage() {
   const { checking } = useRequireAuth();
   const { restaurant, loading: loadingRestaurant } = useRestaurant();
-  
-  // Loading and error states
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [routeAccountId, setRouteAccountId] = useState('');
 
-  // Form state
   const [form, setForm] = useState({
-    // Business Information
     legal_name: '',
     restaurant_name: '',
     phone: '',
     support_email: '',
-    
-    // Tax Settings
     gst_enabled: false,
     gstin: '',
     default_tax_rate: 5,
     prices_include_tax: true,
-    
-    // Delivery Address
     shipping_name: '',
     shipping_phone: '',
     shipping_address_line1: '',
@@ -68,72 +61,56 @@ export default function SettingsPage() {
     shipping_city: '',
     shipping_state: '',
     shipping_pincode: '',
-    
-    // Operations
     tables_count: 0,
     table_prefix: 'T',
     upi_id: '',
-    
-    // Payment Gateway Settings
     online_payment_enabled: false,
     use_own_gateway: false,
     razorpay_key_id: '',
     razorpay_key_secret: '',
-    
-    // Bank Account Details
     bank_account_holder_name: '',
     bank_account_number: '',
     bank_ifsc: '',
     bank_email: '',
     bank_phone: '',
-    
-    // KYC Information
     profile_category: 'food_and_beverages',
     profile_subcategory: 'restaurant',
     business_type: 'individual',
     legal_pan: '',
     legal_gst: '',
     beneficiary_name: '',
-    
-    // Brand & Web
     brand_logo_url: '',
     brand_color: '#1976d2',
     website_url: '',
     instagram_handle: '',
     facebook_page: '',
     description: '',
-    
-    // Third-party Integrations
     useswiggy: false,
     swiggy_api_key: '',
     swiggy_api_secret: '',
     swiggy_webhook_secret: '',
-    
     usezomato: false,
     zomato_api_key: '',
     zomato_api_secret: '',
     zomato_webhook_secret: '',
   });
 
-  // Track original table count for validation
   const [originalTables, setOriginalTables] = useState(0);
   const [isFirstTime, setIsFirstTime] = useState(false);
 
-  // Load existing settings
   useEffect(() => {
     if (!restaurant?.id) return;
-
     async function loadSettings() {
       setLoading(true);
       setError('');
-      
+
       try {
+        // Load profile
         const { data, error } = await supabase
           .from('restaurant_profiles')
           .select('*')
           .eq('restaurant_id', restaurant.id)
           .maybeSingle();
-
         if (error) throw error;
 
         if (data) {
@@ -156,15 +133,14 @@ export default function SettingsPage() {
           setIsFirstTime(true);
         }
 
-        // Load route account ID from restaurants table
+        // Load route_account_id
         const { data: restData, error: restErr } = await supabase
           .from('restaurants')
           .select('route_account_id')
           .eq('id', restaurant.id)
           .single();
-
-        if (!restErr && restData) {
-          setForm(prev => ({ ...prev, routeaccountid: restData.route_account_id }));
+        if (!restErr && restData?.route_account_id) {
+          setRouteAccountId(restData.route_account_id);
         }
       } catch (e) {
         setError(e.message || 'Failed to load settings');
@@ -172,128 +148,95 @@ export default function SettingsPage() {
         setLoading(false);
       }
     }
-
     loadSettings();
   }, [restaurant?.id]);
 
-  // Handle form changes
   const onChange = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    
     setForm(prev => {
       const updated = { ...prev, [field]: val };
-      
-      // Auto-sync certain fields
       if (field === 'legal_name') {
         updated.beneficiary_name = val;
         updated.bank_account_holder_name = val;
       }
-      
       if (field === 'online_payment_enabled' && !val) {
-        // Reset payment details when disabling
         updated.use_own_gateway = false;
         updated.razorpay_key_id = '';
         updated.razorpay_key_secret = '';
       }
-      
       if (field === 'use_own_gateway' && !val) {
-        // Clear razorpay keys if switched off
         updated.razorpay_key_id = '';
         updated.razorpay_key_secret = '';
       }
-      
-      // Toggle integrations
       if (field === 'useswiggy' && !val) {
         updated.swiggy_api_key = '';
         updated.swiggy_api_secret = '';
         updated.swiggy_webhook_secret = '';
       }
-      
       if (field === 'usezomato' && !val) {
         updated.zomato_api_key = '';
         updated.zomato_api_secret = '';
         updated.zomato_webhook_secret = '';
       }
-      
-      // GST enabled toggle
       if (field === 'gst_enabled' && !val) {
         updated.gstin = '';
         updated.legal_gst = '';
       }
-      
       return updated;
     });
   };
 
-  // Validation helpers
   const validatebusiness_type = (val) => {
-    const allowed = ['individual', 'private_limited', 'proprietorship', 'partnership', 'llp', 'trust', 'society', 'ngo', 'public_limited'];
+    const allowed = ['individual','private_limited','proprietorship','partnership','llp','trust','society','ngo','public_limited'];
     return allowed.includes(val);
   };
+  const validateUPI = (upi) => /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(upi.trim());
+  const validateIFSC = (ifsc) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc.trim().toUpperCase());
 
-  const validateUPI = (upi) => {
-    const UPI_REGEX = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
-    return UPI_REGEX.test(upi.trim());
-  };
-
-  const validateIFSC = (ifsc) => {
-    const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-    return IFSC_REGEX.test(ifsc.trim().toUpperCase());
-  };
-
-  // Save form data
   async function save(e) {
     e.preventDefault();
     setSaving(true);
     setError('');
     setSuccess('');
-
     try {
-      // Required field validation
-      const required = ['legal_name', 'restaurant_name', 'phone', 'support_email'];
-      
+      const required = ['legal_name','restaurant_name','phone','support_email'];
       if (form.online_payment_enabled) {
         if (form.use_own_gateway) {
-          required.push('razorpay_key_id', 'razorpay_key_secret');
+          required.push('razorpay_key_id','razorpay_key_secret');
         } else {
-          required.push('bank_account_holder_name', 'bank_account_number', 'bank_ifsc', 'beneficiary_name', 'business_type', 'legal_pan');
+          required.push('bank_account_holder_name','bank_account_number','bank_ifsc','beneficiary_name','business_type','legal_pan');
         }
       }
-
       const missing = required.filter(f => !form[f] || !form[f].toString().trim());
-      if (missing.length) {
-        throw new Error(`Missing required fields: ${missing.join(', ')}`);
-      }
+      if (missing.length) throw new Error(`Missing required fields: ${missing.join(', ')}`);
 
-      // Field-specific validation
       if (form.online_payment_enabled && !form.use_own_gateway) {
         if (form.beneficiary_name.trim() !== form.legal_name.trim()) {
           throw new Error('Beneficiary Name must match Legal Name');
         }
-        
         if (!validatebusiness_type(form.business_type)) {
           throw new Error('Invalid business type selected');
         }
-        
         if (!validateIFSC(form.bank_ifsc)) {
           throw new Error('Invalid IFSC code format');
         }
       }
-
       if (form.upi_id && !validateUPI(form.upi_id)) {
         throw new Error('Invalid UPI format. Example: name@bankhandle');
       }
-
-      // Table count validation
       const newTableCount = Number(form.tables_count);
       if (!isFirstTime && newTableCount < originalTables) {
         throw new Error('Cannot decrease number of tables');
       }
 
-      // Prepare payload
+      const {
+        // omit any routeaccountid
+        ...profileForm
+      } = form;
+
       const payload = {
         restaurant_id: restaurant.id,
-        ...form,
+        ...profileForm,
         bank_ifsc: form.bank_ifsc.trim().toUpperCase(),
         default_tax_rate: Number(form.default_tax_rate) || 5,
         prices_include_tax: !!form.prices_include_tax,
@@ -306,21 +249,18 @@ export default function SettingsPage() {
         upi_id: form.upi_id.trim(),
       };
 
-      // Upsert profile data
       const { error: upsertError } = await supabase
         .from('restaurant_profiles')
         .upsert(payload, { onConflict: 'restaurant_id' });
-
       if (upsertError) throw upsertError;
 
-      // Update restaurant name
       await supabase
         .from('restaurants')
         .update({ name: form.restaurant_name })
         .eq('id', restaurant.id);
 
-      // Handle route account creation if needed
-      if (form.online_payment_enabled && !form.use_own_gateway && !form.routeaccountid) {
+      // Create route account if needed
+      if (form.online_payment_enabled && !form.use_own_gateway && !routeAccountId) {
         const profile = {
           category: payload.profile_category,
           subcategory: payload.profile_subcategory,
@@ -335,16 +275,11 @@ export default function SettingsPage() {
             },
           },
         };
-
-        const legalInfo = {
-          pan: payload.legal_pan,
-        };
-
+        const legalInfo = { pan: payload.legal_pan };
         if (form.gst_enabled && form.legal_gst.trim()) {
           legalInfo.gst = form.legal_gst.trim().toUpperCase();
         }
-
-        const response = await fetch('/api/route/create-account', {
+        const resp = await fetch('/api/route/create-account', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -361,29 +296,21 @@ export default function SettingsPage() {
             legal_info: legalInfo,
           }),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create linked Route account');
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.error || 'Failed to create linked Route account');
         }
-
-        const accountId = await response.json();
-        setForm(prev => ({ ...prev, routeaccountid: accountId }));
-
-        const { error: updErr } = await supabase
+        const accountId = await resp.json();
+        setRouteAccountId(accountId);
+        await supabase
           .from('restaurants')
           .update({ route_account_id: accountId })
           .eq('id', restaurant.id);
-
-        if (updErr) {
-          console.warn('Failed to save route_account_id:', updErr.message);
-        }
       }
 
       setOriginalTables(newTableCount);
       setIsFirstTime(false);
       setSuccess('Settings saved successfully!');
-      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -397,14 +324,11 @@ export default function SettingsPage() {
   return (
     <div className="container" style={{ padding: '20px' }}>
       <h1 className="h1">Restaurant Settings</h1>
-
-      {/* Error/Success Messages */}
       {error && (
         <Card padding12 style={{ background: '#fee2e2', borderColor: '#fca5a5', marginBottom: '16px' }}>
           <div style={{ color: '#b91c1c' }}>{error}</div>
         </Card>
       )}
-
       {success && (
         <Card padding12 style={{ background: '#ecfdf5', borderColor: '#34d399', marginBottom: '16px' }}>
           <div style={{ color: '#065f46' }}>{success}</div>
