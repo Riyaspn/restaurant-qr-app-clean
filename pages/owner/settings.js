@@ -799,98 +799,97 @@ export default function SettingsPage() {
         </Section>
 
         {/* Third-party Integrations */}
-        <Section title="Third-party Integrations" icon="🔗">
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-            <input 
-              type="checkbox" 
-              id="useswiggy" 
-              checked={form.useswiggy} 
-              onChange={onChange('useswiggy')} 
-            />
-            <label htmlFor="useswiggy" style={{ marginLeft: 6 }}>
-              Enable Swiggy Integration
-            </label>
-          </div>
+<Section title="Third-party Integrations" icon="🔗">
+  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+    <input
+      type="checkbox"
+      id="useswiggy"
+      checked={form.useswiggy}
+      onChange={onChange('useswiggy')}
+    />
+    <label htmlFor="useswiggy" style={{ marginLeft: 6 }}>
+      Enable Swiggy Integration
+    </label>
+  </div>
+  {form.useswiggy && (
+    <>
+      <Field label="Swiggy API Key" required>
+        <input
+          className="input"
+          value={form.swiggy_api_key}
+          onChange={onChange('swiggy_api_key')}
+        />
+      </Field>
 
-          {form.useswiggy && (
-            <>
-              <Field label="Swiggy API Key">
-                <input 
-                  className="input" 
-                  value={form.swiggy_api_key} 
-                  onChange={onChange('swiggy_api_key')} 
-                />
-              </Field>
-              
-              <Field label="Swiggy API Secret">
-                <input 
-                  type="password" 
-                  className="input" 
-                  value={form.swiggy_api_secret} 
-                  onChange={onChange('swiggy_api_secret')} 
-                />
-              </Field>
-              
-              <Field label="Swiggy Webhook Secret">
-                <input 
-                  type="password" 
-                  className="input" 
-                  value={form.swiggy_webhook_secret} 
-                  onChange={onChange('swiggy_webhook_secret')} 
-                />
-              </Field>
-            </>
-          )}
+      <Field label="Swiggy API Secret" required>
+        <input
+          type="password"
+          className="input"
+          value={form.swiggy_api_secret}
+          onChange={onChange('swiggy_api_secret')}
+        />
+      </Field>
 
-          <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0 12px' }}>
-            <input 
-              type="checkbox" 
-              id="usezomato" 
-              checked={form.usezomato} 
-              onChange={onChange('usezomato')} 
-            />
-            <label htmlFor="usezomato" style={{ marginLeft: 6 }}>
-              Enable Zomato Integration
-            </label>
-          </div>
+      <Field label="Swiggy Webhook Secret" required>
+        <input
+          type="password"
+          className="input"
+          value={form.swiggy_webhook_secret}
+          onChange={onChange('swiggy_webhook_secret')}
+        />
+      </Field>
+    </>
+  )}
 
-          {form.usezomato && (
-            <>
-              <Field label="Zomato API Key">
-                <input 
-                  className="input" 
-                  value={form.zomato_api_key} 
-                  onChange={onChange('zomato_api_key')} 
-                />
-              </Field>
-              
-              <Field label="Zomato API Secret">
-                <input 
-                  type="password" 
-                  className="input" 
-                  value={form.zomato_api_secret} 
-                  onChange={onChange('zomato_api_secret')} 
-                />
-              </Field>
-              
-              <Field label="Zomato Webhook Secret">
-                <input 
-                  type="password" 
-                  className="input" 
-                  value={form.zomato_webhook_secret} 
-                  onChange={onChange('zomato_webhook_secret')} 
-                />
-              </Field>
-            </>
-          )}
-        </Section>
+  <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0 12px' }}>
+    <input
+      type="checkbox"
+      id="usezomato"
+      checked={form.usezomato}
+      onChange={onChange('usezomato')}
+    />
+    <label htmlFor="usezomato" style={{ marginLeft: 6 }}>
+      Enable Zomato Integration
+    </label>
+  </div>
+  {form.usezomato && (
+    <>
+      <Field label="Zomato API Key" required>
+        <input
+          className="input"
+          value={form.zomato_api_key}
+          onChange={onChange('zomato_api_key')}
+        />
+      </Field>
 
-        {/* Save Button */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-          <Button disabled={saving} type="submit">
-            {saving ? 'Saving...' : (isFirstTime ? 'Complete Setup' : 'Save Changes')}
-          </Button>
-        </div>
+      <Field label="Zomato API Secret" required>
+        <input
+          type="password"
+          className="input"
+          value={form.zomato_api_secret}
+          onChange={onChange('zomato_api_secret')}
+        />
+      </Field>
+
+      <Field label="Zomato Webhook Secret" required>
+        <input
+          type="password"
+          className="input"
+          value={form.zomato_webhook_secret}
+          onChange={onChange('zomato_webhook_secret')}
+        />
+      </Field>
+    </>
+  )}
+</Section>
+
+{/* Save Button */}
+<div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+  <Button disabled={saving} type="submit">
+    {saving ? 'Saving...' : (isFirstTime ? 'Complete Setup' : 'Save Changes')}
+  </Button>
+</div>
+
 
       </form>
 
