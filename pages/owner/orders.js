@@ -1,4 +1,3 @@
-// pages/owner/orders.js
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { useRequireAuth } from '../../lib/useRequireAuth';
@@ -7,15 +6,17 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { getToken } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../../lib/firebaseClient';
+import { useEnhancedPushNotifications } from '../../src/hooks/useEnhancedPushNotifications';
 
 // Constants
 const STATUSES = ['new', 'in_progress', 'ready', 'completed'];
-const LABELS   = { new: 'New', in_progress: 'Cooking', ready: 'Ready', completed: 'Done' };
-const COLORS   = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' };
-const PAGE     = 20;
+const LABELS = { new: 'New', in_progress: 'Cooking', ready: 'Ready', completed: 'Done' };
+const COLORS = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' };
+const PAGE = 20;
 
 // Helpers
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`;
+
 function toDisplayItems(order) {
   if (Array.isArray(order.items)) return order.items;
   if (Array.isArray(order.order_items)) {
@@ -28,157 +29,34 @@ function toDisplayItems(order) {
   return [];
 }
 
-// Enhanced Enable Alerts Button with iOS support and state persistence
-function EnableAlertsButton({ restaurantId, userEmail }) {
-  const [enabled, setEnabled] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-
-  // Check if device already has notifications enabled
-  useEffect(() => {
-    const checkExistingPermission = async () => {
-      const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      setIsIOS(isiOS);
-      
-      if ('Notification' in window && Notification.permission === 'granted') {
-        // Check if we have a token stored for this device
-        try {
-          const messaging = await getMessagingIfSupported();
-          if (messaging) {
-            const token = await getToken(messaging, {
-              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-            });
-            if (token) {
-              setEnabled(true);
-            }
-          }
-        } catch (e) {
-          console.log('Token check failed:', e);
-        }
-      }
-    };
-    checkExistingPermission();
-  }, []);
-
-  const enablePush = async () => {
-    setLoading(true);
-    try {
-      // iOS Safari web push check
-      if (isIOS) {
-        if (!('Notification' in window)) {
-          alert('iOS Safari web push notifications require iOS 16.4+ and adding this site to Home Screen. Please use Chrome or add to Home Screen first.');
-          return;
-        }
-      } else if (!('Notification' in window)) {
-        throw new Error('Notifications not supported');
-      }
-
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') {
-        alert('Please allow notifications to receive order alerts.');
-        return;
-      }
-
-      // For iOS, use native notifications
-      if (isIOS) {
-        // iOS will use native notifications, store a placeholder token
-        const res = await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            deviceToken: 'ios-native-' + Date.now(),
-            restaurantId,
-            userEmail,
-            platform: 'ios',
-          }),
-        });
-        
-        if (!res.ok) throw new Error('Subscribe failed');
-        
-        setEnabled(true);
-        alert('Order alerts enabled! You will receive notifications for new orders.');
-        return;
-      }
-
-      // For Android/Windows - use FCM
-      await navigator.serviceWorker.ready;
-      const messaging = await getMessagingIfSupported();
-      if (!messaging) throw new Error('Messaging not supported');
-
-      const token = await getToken(messaging, {
-        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration(),
-      });
-
-      if (!token) throw new Error('Failed to get push token');
-
-      const ua = navigator.userAgent || '';
-      const platform = /Android/i.test(ua) ? 'android' : 'web';
-
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deviceToken: token,
-          restaurantId,
-          userEmail,
-          platform,
-        }),
-      });
-      
-      if (!res.ok) throw new Error('Subscribe failed');
-
-      // Test audio unlock
-      try { 
-        const audio = new Audio('/notification-sound.mp3');
-        audio.volume = 0.1;
-        await audio.play(); 
-      } catch {}
-
-      setEnabled(true);
-      alert('Order alerts enabled successfully!');
-    } catch (e) {
-      console.error('Enable alerts failed:', e);
-      alert(`Failed to enable alerts: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Button 
-      onClick={enablePush} 
-      disabled={loading}
-      variant={enabled ? "success" : "outline"}
-    >
-      {loading ? 'Enabling...' : enabled ? 'Alerts Active' : isIOS ? 'Enable iOS Alerts' : 'Enable Push Alerts'}
-    </Button>
-  );
-}
-
 export default function OrdersPage() {
   const { checking, user } = useRequireAuth();
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
-
   const [ordersByStatus, setOrdersByStatus] = useState({
     new: [], in_progress: [], ready: [], completed: [], mobileFilter: 'new'
   });
   const [completedPage, setCompletedPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [detail, setDetail] = useState(null);
-  const [confirm, setConfirm] = useState({ open: false, orderId: null });
   const [generatingInvoice, setGeneratingInvoice] = useState(null);
-
   const notificationAudioRef = useRef(null);
+
+  // Use enhanced push notifications hook
+  useEnhancedPushNotifications(
+    restaurantId,
+    user?.email,
+    (token) => {
+      console.log('Push token received:', token);
+      // Optionally store token in local storage or state
+    }
+  );
 
   // Consolidated audio initialization and unlock
   useEffect(() => {
     const a = new Audio('/notification-sound.mp3');
     a.load();
     notificationAudioRef.current = a;
-
     function unlockAudio() {
       const audio = notificationAudioRef.current;
       if (!audio) return;
@@ -191,49 +69,13 @@ export default function OrdersPage() {
       window.removeEventListener('touchstart', unlockAudio, { capture: true });
       window.removeEventListener('click', unlockAudio, { capture: true });
     }
-
     window.addEventListener('touchstart', unlockAudio, { capture: true, once: true });
     window.addEventListener('click', unlockAudio, { capture: true, once: true });
-
     return () => {
       window.removeEventListener('touchstart', unlockAudio, { capture: true });
       window.removeEventListener('click', unlockAudio, { capture: true });
     };
   }, []);
-
-  // Auto-register FCM token if permission already granted (non-intrusive)
-  useEffect(() => {
-    const bootstrap = async () => {
-      if (!restaurantId || !user) return;
-
-      const messaging = await getMessagingIfSupported();
-      if (messaging && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          const token = await getToken(messaging, {
-            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-            serviceWorkerRegistration: reg,
-          });
-          if (token) {
-            console.log('FCM Token auto-registered:', token);
-            await fetch('/api/push/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                deviceToken: token,
-                restaurantId,
-                userEmail: user.email,
-                platform: /Android/.test(navigator.userAgent) ? 'android' : 'web',
-              }),
-            });
-          }
-        } catch (error) {
-          console.error('Auto FCM setup failed:', error);
-        }
-      }
-    };
-    bootstrap();
-  }, [restaurantId, user]);
 
   async function fetchBucket(status, page = 1) {
     let q = supabase
@@ -241,7 +83,6 @@ export default function OrdersPage() {
       .select('*, order_items(*, menu_items(name))')
       .eq('restaurant_id', restaurantId)
       .eq('status', status);
-
     if (status === 'completed') {
       const to = page * PAGE - 1;
       const { data, error } = await q.order('created_at', { ascending: false }).range(0, to);
@@ -264,10 +105,8 @@ export default function OrdersPage() {
         fetchBucket('ready'),
         fetchBucket('completed', page),
       ]);
-
       const all = [...n, ...i, ...r, ...c];
       const ids = all.map((o) => o.id);
-
       let invMap = {};
       if (ids.length) {
         const { data: invs, error: invError } = await supabase
@@ -279,13 +118,11 @@ export default function OrdersPage() {
           invMap[inv.order_id] = inv.pdf_url;
         });
       }
-
       const attach = (rows) =>
         rows.map((o) => ({
           ...o,
           invoice: invMap[o.id] ? { pdf_url: invMap[o.id] } : null,
         }));
-
       setOrdersByStatus({
         new: attach(n),
         in_progress: attach(i),
@@ -308,54 +145,77 @@ export default function OrdersPage() {
   }, [restaurantId]);
 
   // Enhanced Supabase Realtime with reconnection and Android throttling handling
- useEffect(() => {
-  if (!restaurantId) return;
-
-  const channel = supabase
-    .channel(`orders:${restaurantId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*', // listen for INSERT, UPDATE, DELETE if needed
-        schema: 'public',
-        table: 'orders',
-        filter: `restaurant_id=eq.${restaurantId}`,
-      },
-      (payload) => {
-        const order = payload.new; // new row data
-        if (!order) return; // for DELETE events, payload.new is null
-
-        setOrdersByStatus((prev) => {
-          // Remove the order from all status buckets
-          const updated = { ...prev };
-          for (const status of ['new', 'in_progress', 'ready', 'completed']) {
-            updated[status] = prev[status].filter((o) => o.id !== order.id);
-          }
-          // Add the order to its current status bucket (if any)
-          if (order.status && updated.hasOwnProperty(order.status)) {
-            updated[order.status] = [order, ...updated[order.status]];
-          }
-          return updated;
-        });
-
-        // Optionally play notification sound for new orders
-        if (payload.eventType === 'INSERT' && order.status === 'new') {
-          notificationAudioRef.current?.play().catch(() => {});
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🔔 New Order!', {
-              body: `Table ${order.table_number || ''} - ${order.total_inc_tax ? `₹${order.total_inc_tax}` : ''}`,
-              icon: '/favicon.ico',
-              tag: 'new-order',
-            });
+  useEffect(() => {
+    if (!restaurantId) return;
+    const channel = supabase
+      .channel(`orders:${restaurantId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // listen for INSERT, UPDATE, DELETE if needed
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurantId}`,
+        },
+        (payload) => {
+          const order = payload.new; // new row data
+          if (!order) return; // for DELETE events, payload.new is null
+          setOrdersByStatus((prev) => {
+            // Remove the order from all status buckets
+            const updated = { ...prev };
+            for (const status of ['new', 'in_progress', 'ready', 'completed']) {
+              updated[status] = prev[status].filter((o) => o.id !== order.id);
+            }
+            // Add the order to its current status bucket (if any)
+            if (order.status && updated.hasOwnProperty(order.status)) {
+              updated[order.status] = [order, ...updated[order.status]];
+            }
+            return updated;
+          });
+          // Optionally play notification sound for new orders
+          if (payload.eventType === 'INSERT' && order.status === 'new') {
+            notificationAudioRef.current?.play().catch(() => {});
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('🔔 New Order!', {
+                body: `Table ${order.table_number || ''} - ${order.total_inc_tax ? `₹${order.total_inc_tax}` : ''}`,
+                icon: '/favicon.ico',
+                tag: 'new-order',
+              });
+            }
           }
         }
-      }
-    )
-    .subscribe((status) => {
-      console.log('Realtime channel status:', status);
-
-      // Handle reconnection issues
-      if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+      )
+      .subscribe((status) => {
+        console.log('Realtime channel status:', status);
+        // Handle reconnection issues
+        if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          setTimeout(async () => {
+            try {
+              const { data } = await supabase
+                .from('orders')
+                .select('*, order_items(*, menu_items(name))')
+                .eq('restaurant_id', restaurantId)
+                .eq('status', 'new')
+                .gte('created_at', new Date(Date.now() - 60000).toISOString())
+                .order('created_at', { ascending: true });
+              if (data?.length) {
+                setOrdersByStatus((prev) => ({
+                  ...prev,
+                  new: [...data, ...prev.new].filter((order, index, arr) =>
+                    arr.findIndex((o) => o.id === order.id) === index
+                  ),
+                }));
+              }
+            } catch (e) {
+              console.warn('Catch-up fetch failed:', e);
+            }
+          }, 1000);
+        }
+      });
+    // Handle visibility change for Android throttling
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking for missed orders');
         setTimeout(async () => {
           try {
             const { data } = await supabase
@@ -363,9 +223,8 @@ export default function OrdersPage() {
               .select('*, order_items(*, menu_items(name))')
               .eq('restaurant_id', restaurantId)
               .eq('status', 'new')
-              .gte('created_at', new Date(Date.now() - 60000).toISOString())
+              .gte('created_at', new Date(Date.now() - 120000).toISOString())
               .order('created_at', { ascending: true });
-
             if (data?.length) {
               setOrdersByStatus((prev) => ({
                 ...prev,
@@ -375,49 +234,17 @@ export default function OrdersPage() {
               }));
             }
           } catch (e) {
-            console.warn('Catch-up fetch failed:', e);
+            console.warn('Visibility catch-up failed:', e);
           }
-        }, 1000);
+        }, 500);
       }
-    });
-
-  // Handle visibility change for Android throttling
-  function onVisible() {
-    if (document.visibilityState === 'visible') {
-      console.log('Page became visible, checking for missed orders');
-      setTimeout(async () => {
-        try {
-          const { data } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(name))')
-            .eq('restaurant_id', restaurantId)
-            .eq('status', 'new')
-            .gte('created_at', new Date(Date.now() - 120000).toISOString())
-            .order('created_at', { ascending: true });
-
-          if (data?.length) {
-            setOrdersByStatus((prev) => ({
-              ...prev,
-              new: [...data, ...prev.new].filter((order, index, arr) =>
-                arr.findIndex((o) => o.id === order.id) === index
-              ),
-            }));
-          }
-        } catch (e) {
-          console.warn('Visibility catch-up failed:', e);
-        }
-      }, 500);
     }
-  }
-
-  document.addEventListener('visibilitychange', onVisible);
-
-  return () => {
-    document.removeEventListener('visibilitychange', onVisible);
-    supabase.removeChannel(channel);
-  };
-}, [restaurantId]);
-
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [restaurantId]);
 
   const updateStatus = async (id, next) => {
     try {
@@ -440,7 +267,6 @@ export default function OrdersPage() {
         .update({ status: 'completed' })
         .eq('id', id)
         .eq('restaurant_id', restaurantId);
-
       const resp = await fetch('/api/invoices/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -470,7 +296,9 @@ export default function OrdersPage() {
           <span className="muted">
             {['new','in_progress','ready'].reduce((sum, s) => sum + ordersByStatus[s].length, 0)} live orders
           </span>
-          <EnableAlertsButton restaurantId={restaurantId} userEmail={user?.email} />
+
+          {/* Removed old EnableAlertsButton in favor of hook */}
+
           <Button
             variant="outline"
             onClick={() => { setCompletedPage(1); loadOrders(1); }}
@@ -499,7 +327,6 @@ export default function OrdersPage() {
           </button>
         ))}
       </div>
-
       <div className="mobile-list">
         {ordersByStatus[ordersByStatus.mobileFilter || 'new'].length === 0 ? (
           <Card padding={16} style={{ textAlign: 'center', color: '#6b7280' }}>
@@ -518,7 +345,6 @@ export default function OrdersPage() {
           ))
         )}
       </div>
-
       {/* Desktop kanban */}
       <div className="kanban">
         {STATUSES.map((status) => (
@@ -564,16 +390,12 @@ export default function OrdersPage() {
           </Card>
         ))}
       </div>
-
-      {/* mobile & desktop rendering omitted for brevity */}
-
       <style jsx>{`
         .orders-wrap { padding: 12px 0 32px; }
         .orders-header { display: flex; justify-content: space-between; align-items: center; padding: 0 12px 12px; }
         .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
         .header-actions { display: flex; align-items: center; gap: 10px; }
         .muted { color: #6b7280; font-size: 14px; }
-
         /* Mobile */
         .mobile-filters {
           display: grid;
@@ -604,7 +426,6 @@ export default function OrdersPage() {
           gap: 10px;
           padding: 0 12px;
         }
-
         /* Desktop Kanban */
         .kanban {
           display: grid;
@@ -638,7 +459,6 @@ export default function OrdersPage() {
           border: 1px dashed #e5e7eb;
           border-radius: 8px;
         }
-
         @media (max-width: 1024px) {
           .kanban { display: none; }
         }
@@ -655,7 +475,6 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
-
   return (
     <Card
       padding={12}
@@ -668,13 +487,12 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <strong>#{order.id.slice(0, 8)}</strong>
         <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
-        Table {order.table_number || 'N/A'}
+          Table {order.table_number || 'N/A'}
         </span>
         <span style={{ color: '#6b7280', fontSize: 12 }}>
           {new Date(order.created_at).toLocaleTimeString()}
         </span>
       </div>
-
       <div style={{ margin: '8px 0', fontSize: 14 }}>
         {items.map((it, i) => (
           <div key={i}>
@@ -682,7 +500,6 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
           </div>
         ))}
       </div>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 16, fontWeight: 700 }}>{money(total)}</span>
         <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
@@ -708,17 +525,7 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
           )}
         </div>
       </div>
-
       <div style={{ height: 2, marginTop: 10, background: statusColor, opacity: 0.2, borderRadius: 2 }} />
     </Card>
   );
-}
-
-// Modal components omitted for brevity - OrderDetailModal and ConfirmDialog remain unchanged
-function OrderDetailModal({ order, onClose, onCompleteOrder, generatingInvoice }) {
-  /* implementation omitted for brevity */
-}
-
-function ConfirmDialog({ title, message, confirmText, cancelText, onConfirm, onCancel }) {
-  /* implementation omitted for brevity */
 }

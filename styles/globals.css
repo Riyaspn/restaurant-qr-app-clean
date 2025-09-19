@@ -60,3 +60,32 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
   header, .sidebar { display: none !important; }
   .main-content { margin: 0; padding: 0; }
 }
+
+/* Add to your global CSS */
+.in-app-notification {
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-content strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.notification-content p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
