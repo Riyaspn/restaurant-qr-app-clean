@@ -4,7 +4,6 @@ const urlsToCache = [
   '/',
   '/favicon.ico',
   '/manifest.json',
-<<<<<<< HEAD
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/styles/globals.css',
