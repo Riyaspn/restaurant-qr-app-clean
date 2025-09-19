@@ -1,5 +1,3 @@
-// pages/_app.js
-
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';
@@ -21,14 +19,13 @@ function MyApp({ Component, pageProps }) {
 
   useEffect(() => {
     async function bootstrap() {
-
       if (!('serviceWorker' in navigator)) {
         console.log('Service Worker not supported');
         return;
       }
 
       try {
-        // Only register the PWA service worker if not already registered
+        // Register the PWA service worker if not already registered
         const registrations = await navigator.serviceWorker.getRegistrations();
         const hasPwaSW = registrations.some(reg => reg.active && reg.active.scriptURL.includes('service-worker.js'));
         if (!hasPwaSW) {
@@ -41,13 +38,12 @@ function MyApp({ Component, pageProps }) {
         console.error('❌ PWA SW registration failed', error);
       }
 
-      let fbRegistration = null;
       try {
-        // Only register Firebase messaging SW if not already registered
+        // Register Firebase messaging SW if not already registered
         const registrations = await navigator.serviceWorker.getRegistrations();
         const hasFirebaseSW = registrations.some(reg => reg.active && reg.active.scriptURL.includes('firebase-messaging-sw.js'));
         if (!hasFirebaseSW) {
-          fbRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          const fbRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
           console.log('✅ Firebase messaging SW registered:', fbRegistration.scope);
         } else {
           console.log('Firebase messaging SW already registered');
@@ -78,24 +74,16 @@ function MyApp({ Component, pageProps }) {
           };
           setTimeout(() => notification.close(), 5000);
         }
-
-        // Attempt to play notification sound (may be blocked if no user interaction)
         new Audio('/notification-sound.mp3').play().catch(() => {});
       });
-    }
 
-    bootstrap();
-
+      // Additional logging and device info
       console.log('🚀 Push notification bootstrap starting...');
-
       const userAgent = navigator.userAgent;
       const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
       const isAndroid = /Android/i.test(userAgent);
       const isMobile = isIOS || isAndroid;
-      const isPWA =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.navigator.standalone === true;
-
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
       console.log('📱 Device Info:', {
         isIOS, isAndroid, isMobile,
         isDesktop: !isMobile,
@@ -107,7 +95,7 @@ function MyApp({ Component, pageProps }) {
         return;
       }
 
-      // Register PWA SW
+      // Register PWA SW again just in case
       try {
         const regs = await navigator.serviceWorker.getRegistrations();
         if (!regs.some(r => r.active?.scriptURL.includes('service-worker.js'))) {
@@ -118,7 +106,7 @@ function MyApp({ Component, pageProps }) {
         console.error('❌ PWA SW registration failed:', e);
       }
 
-      // Register Firebase SW
+      // Register Firebase SW again
       try {
         const regs = await navigator.serviceWorker.getRegistrations();
         if (!regs.some(r => r.active?.scriptURL.includes('firebase-messaging-sw.js'))) {
@@ -133,35 +121,33 @@ function MyApp({ Component, pageProps }) {
       await navigator.serviceWorker.ready;
       console.log('✅ Service Worker ready');
 
-      const messaging = await getMessagingIfSupported();
-      if (!messaging) {
+      const messagingInit = await getMessagingIfSupported();
+      if (!messagingInit) {
         console.error('❌ Firebase Messaging not supported');
         return;
       }
       console.log('✅ Firebase Messaging initialized');
 
-      onMessage(messaging, (payload) => {
+      onMessage(messagingInit, async (payload) => {
         console.log('📨 Foreground message:', payload);
         const { title, body } = payload.notification || {};
         if (!title) return;
 
         // Try to play sound from available files
-        (async () => {
-          const files = [
-            '/notification-sound.mp3',
-            '/notification.mp3',
-            '/beep.mp3',
-            '/alert.mp3',
-          ];
-          for (const src of files) {
-            try {
-              const audio = new Audio(src);
-              audio.volume = 0.8;
-              await audio.play();
-              break;
-            } catch {}
-          }
-        })();
+        const files = [
+          '/notification-sound.mp3',
+          '/notification.mp3',
+          '/beep.mp3',
+          '/alert.mp3',
+        ];
+        for (const src of files) {
+          try {
+            const audio = new Audio(src);
+            audio.volume = 0.8;
+            await audio.play();
+            break;
+          } catch {}
+        }
 
         if (Notification.permission === 'granted') {
           const notif = new Notification(title, {
@@ -189,7 +175,6 @@ function MyApp({ Component, pageProps }) {
     }
 
     bootstrap().catch((e) => console.error('💥 Bootstrap failed:', e));
-
   }, [router]);
 
   return (
