@@ -1,4 +1,5 @@
 // pages/_app.js
+
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';
@@ -20,6 +21,7 @@ function MyApp({ Component, pageProps }) {
 
   useEffect(() => {
     async function bootstrap() {
+
       if (!('serviceWorker' in navigator)) {
         console.log('Service Worker not supported');
         return;
@@ -83,6 +85,111 @@ function MyApp({ Component, pageProps }) {
     }
 
     bootstrap();
+
+      console.log('🚀 Push notification bootstrap starting...');
+
+      const userAgent = navigator.userAgent;
+      const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+      const isAndroid = /Android/i.test(userAgent);
+      const isMobile = isIOS || isAndroid;
+      const isPWA =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true;
+
+      console.log('📱 Device Info:', {
+        isIOS, isAndroid, isMobile,
+        isDesktop: !isMobile,
+        isPWA,
+      });
+
+      if (!navigator.serviceWorker || !window.Notification) {
+        console.error('❌ Service Worker or Notifications not supported');
+        return;
+      }
+
+      // Register PWA SW
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        if (!regs.some(r => r.active?.scriptURL.includes('service-worker.js'))) {
+          const reg = await navigator.serviceWorker.register('/service-worker.js');
+          console.log('✅ PWA SW registered:', reg.scope);
+        }
+      } catch (e) {
+        console.error('❌ PWA SW registration failed:', e);
+      }
+
+      // Register Firebase SW
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        if (!regs.some(r => r.active?.scriptURL.includes('firebase-messaging-sw.js'))) {
+          const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.log('✅ Firebase SW registered:', reg.scope);
+        }
+      } catch (e) {
+        console.error('❌ Firebase SW registration failed:', e);
+        return;
+      }
+
+      await navigator.serviceWorker.ready;
+      console.log('✅ Service Worker ready');
+
+      const messaging = await getMessagingIfSupported();
+      if (!messaging) {
+        console.error('❌ Firebase Messaging not supported');
+        return;
+      }
+      console.log('✅ Firebase Messaging initialized');
+
+      onMessage(messaging, (payload) => {
+        console.log('📨 Foreground message:', payload);
+        const { title, body } = payload.notification || {};
+        if (!title) return;
+
+        // Try to play sound from available files
+        (async () => {
+          const files = [
+            '/notification-sound.mp3',
+            '/notification.mp3',
+            '/beep.mp3',
+            '/alert.mp3',
+          ];
+          for (const src of files) {
+            try {
+              const audio = new Audio(src);
+              audio.volume = 0.8;
+              await audio.play();
+              break;
+            } catch {}
+          }
+        })();
+
+        if (Notification.permission === 'granted') {
+          const notif = new Notification(title, {
+            body,
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            tag: 'foreground-notification',
+            requireInteraction: true,
+            vibrate: [200, 100, 200],
+            data: { url: '/owner/orders' },
+            actions: [
+              { action: 'view', title: 'View Orders' },
+              { action: 'dismiss', title: 'Dismiss' },
+            ],
+          });
+          notif.onclick = () => {
+            router.push('/owner/orders');
+            notif.close();
+          };
+          setTimeout(() => notif.close(), 15000);
+        }
+      });
+
+      console.log('🎉 Push notification setup complete');
+    }
+
+    bootstrap().catch((e) => console.error('💥 Bootstrap failed:', e));
+
   }, [router]);
 
   return (

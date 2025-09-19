@@ -90,6 +90,11 @@ export default function SettingsPage() {
     swiggy_api_secret: '',
     swiggy_webhook_secret: '',
     zomato_enabled: false,
+    useswiggy: false,
+    swiggy_api_key: '',
+    swiggy_api_secret: '',
+    swiggy_webhook_secret: '',
+    usezomato: false,
     zomato_api_key: '',
     zomato_api_secret: '',
     zomato_webhook_secret: '',
@@ -126,6 +131,8 @@ export default function SettingsPage() {
             use_own_gateway: data.use_own_gateway ?? false,
             swiggy_enabled : !!(data.swiggy_api_key && data.swiggy_api_secret && data.swiggy_webhook_secret),
             zomato_enabled: !!(data.zomato_api_key && data.zomato_api_secret && data.zomato_webhook_secret),
+            useswiggy: !!(data.swiggy_api_key && data.swiggy_api_secret && data.swiggy_webhook_secret),
+            usezomato: !!(data.zomato_api_key && data.zomato_api_secret && data.zomato_webhook_secret),
           }));
           setOriginalTables(data.tables_count || 0);
           setIsFirstTime(false);
@@ -168,12 +175,16 @@ export default function SettingsPage() {
         updated.razorpay_key_id = '';
         updated.razorpay_key_secret = '';
       }
+
       if (field === 'swiggy_enabled ' && !val) {
+      if (field === 'useswiggy' && !val) {
         updated.swiggy_api_key = '';
         updated.swiggy_api_secret = '';
         updated.swiggy_webhook_secret = '';
       }
       if (field === 'zomato_enabled' && !val) {
+
+      if (field === 'usezomato' && !val) {
         updated.zomato_api_key = '';
         updated.zomato_api_secret = '';
         updated.zomato_webhook_secret = '';
@@ -890,6 +901,98 @@ export default function SettingsPage() {
   </Button>
 </div>
 
+        <Section title="Third-party Integrations" icon="🔗">
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+            <input 
+              type="checkbox" 
+              id="useswiggy" 
+              checked={form.useswiggy} 
+              onChange={onChange('useswiggy')} 
+            />
+            <label htmlFor="useswiggy" style={{ marginLeft: 6 }}>
+              Enable Swiggy Integration
+            </label>
+          </div>
+
+          {form.useswiggy && (
+            <>
+              <Field label="Swiggy API Key">
+                <input 
+                  className="input" 
+                  value={form.swiggy_api_key} 
+                  onChange={onChange('swiggy_api_key')} 
+                />
+              </Field>
+              
+              <Field label="Swiggy API Secret">
+                <input 
+                  type="password" 
+                  className="input" 
+                  value={form.swiggy_api_secret} 
+                  onChange={onChange('swiggy_api_secret')} 
+                />
+              </Field>
+              
+              <Field label="Swiggy Webhook Secret">
+                <input 
+                  type="password" 
+                  className="input" 
+                  value={form.swiggy_webhook_secret} 
+                  onChange={onChange('swiggy_webhook_secret')} 
+                />
+              </Field>
+            </>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0 12px' }}>
+            <input 
+              type="checkbox" 
+              id="usezomato" 
+              checked={form.usezomato} 
+              onChange={onChange('usezomato')} 
+            />
+            <label htmlFor="usezomato" style={{ marginLeft: 6 }}>
+              Enable Zomato Integration
+            </label>
+          </div>
+
+          {form.usezomato && (
+            <>
+              <Field label="Zomato API Key">
+                <input 
+                  className="input" 
+                  value={form.zomato_api_key} 
+                  onChange={onChange('zomato_api_key')} 
+                />
+              </Field>
+              
+              <Field label="Zomato API Secret">
+                <input 
+                  type="password" 
+                  className="input" 
+                  value={form.zomato_api_secret} 
+                  onChange={onChange('zomato_api_secret')} 
+                />
+              </Field>
+              
+              <Field label="Zomato Webhook Secret">
+                <input 
+                  type="password" 
+                  className="input" 
+                  value={form.zomato_webhook_secret} 
+                  onChange={onChange('zomato_webhook_secret')} 
+                />
+              </Field>
+            </>
+          )}
+        </Section>
+
+        {/* Save Button */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+          <Button disabled={saving} type="submit">
+            {saving ? 'Saving...' : (isFirstTime ? 'Complete Setup' : 'Save Changes')}
+          </Button>
+        </div>
 
       </form>
 
