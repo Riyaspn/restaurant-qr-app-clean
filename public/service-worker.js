@@ -1,5 +1,4 @@
-const CACHE_NAME = 'cafeqr-cache-v1';
-const CACHE_NAME = 'cafeqr-cache-v2';
+const CACHE_NAME = 'cafeqr-cache-v2'; // Use latest cache version
 const urlsToCache = [
   '/',
   '/favicon.ico',
@@ -9,30 +8,27 @@ const urlsToCache = [
   '/styles/globals.css',
   '/styles/responsive.css',
   '/styles/theme.css',
-  // Add any other assets or routes you want to cache here
   '/index.html',
-  '/styles/globals.css',
-  '/styles/responsive.css',
-  '/styles/theme.css',
+  // Add other assets or routes you want to cache here
 ];
 
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Install');
-  self.skipWaiting(); // Activate worker immediately
-
-  self.skipWaiting();
+  self.skipWaiting(); // Activate worker immediately after installation
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching app shell and content');
-      return cache.addAll(urlsToCache);
-    })
-    .catch((err) => console.error('[Service Worker] Cache addAll failed:', err))
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('[Service Worker] Caching app shell and content');
+        return cache.addAll(urlsToCache);
+      })
+      .catch((err) => {
+        console.error('[Service Worker] Cache addAll failed:', err);
+      })
   );
 });
 
 self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activate');
-
   event.waitUntil(
     (async () => {
       await self.clients.claim();
@@ -42,15 +38,6 @@ self.addEventListener('activate', (event) => {
           if (cache !== CACHE_NAME) {
             console.log('[Service Worker] Removing old cache:', cache);
             return caches.delete(cache);
-  event.waitUntil(
-    (async () => {
-      await self.clients.claim();
-      const existingCaches = await caches.keys();
-      await Promise.all(
-        existingCaches.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Removing old cache:', cacheName);
-            return caches.delete(cacheName);
           }
         })
       );
@@ -59,29 +46,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then(async (cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      try {
-        const fetchResponse = await fetch(event.request);
-        return fetchResponse;
-      } catch (error) {
-        console.warn('[Service Worker] Fetch failed; returning nothing.', error);
-        return new Response('', {status: 503, statusText: 'Service Unavailable'});
-      }
-  // Bypass cache for audio files
+  // Bypass cache for audio files (like .mp3)
   if (event.request.url.endsWith('.mp3')) {
-    return event.respondWith(fetch(event.request));
+    event.respondWith(fetch(event.request));
+    return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
       return fetch(event.request).catch(() => {
-        // Network failed, return fallback or empty
-        return new Response('', { status: 503, statusText: 'Service Unavailable' });
+        // Network failed - respond with empty or fallback response
+        return new Response('', {
+          status: 503,
+          statusText: 'Service Unavailable',
+        });
       });
     })
   );
