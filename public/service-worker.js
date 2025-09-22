@@ -1,3 +1,5 @@
+//public/service-worker.js
+
 const CACHE_NAME = 'cafeqr-cache-v2'; // Use latest cache version
 const urlsToCache = [
   '/',

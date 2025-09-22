@@ -39,13 +39,34 @@ export default async function handler(req, res) {
 
     // Build multicast message
     const message = {
-      tokens,
-      notification: { title, body },
-      data: {
-        url: `/owner/orders?highlight=${orderId}`,
-        orderId: String(orderId),
-        restaurantId: String(restaurantId),
-      },
+      tokens,
+      notification: { title, body },
+      data: {
+        url: `/owner/orders?highlight=${orderId}`,
+        orderId: String(orderId),
+        restaurantId: String(restaurantId),
+      },
+      android: {
+        notification: {
+          channelId: 'orders',
+          sound: 'beep.wav',
+          priority: 'high', // <----- Keep this. It's correct for the notification payload.
+        }
+      },
+      // Add this new apns object for iOS-specific settings
+      apns: {
+        headers: {
+          // This is crucial for iOS to deliver notifications reliably in the background.
+          'apns-priority': '5',
+        },
+        payload: {
+          aps: {
+            'content-available': 1, // <----- This key wakes the app to process the data payload.
+            sound: 'default', // Using 'default' sound for iOS
+            badge: 1, // You can choose to manage the badge count here
+          },
+        },
+      },
       webpush: {
         headers: { Urgency: 'high' },
         fcm_options: { link: `/owner/orders?highlight=${orderId}` },

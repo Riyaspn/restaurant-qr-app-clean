@@ -1,3 +1,5 @@
+//capacitor.config.ts
+
 import { CapacitorConfig } from '@capacitor/core';
 
 const config: CapacitorConfig = {

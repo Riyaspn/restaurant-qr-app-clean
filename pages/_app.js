@@ -1,3 +1,5 @@
+//pages/_app.js
+
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';

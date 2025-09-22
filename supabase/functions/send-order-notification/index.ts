@@ -1,3 +1,5 @@
+//supabase/functions/send-order-notification/index.ts
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -48,9 +50,8 @@ async function sendFCM(token: string, title: string, body: string) {
     notification: {
       title,
       body,
-      // If you created the "orders_default" channel, include it; else omit channel and FCM default is used.
-      channel_id: 'orders_default',
-      sound: 'default' // use system default sound
+      channel_id: 'orders',
+      sound: 'beep.wav' 
     },
     data: { url: 'owner/orders' }
   };

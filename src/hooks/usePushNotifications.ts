@@ -13,8 +13,8 @@ export function usePushNotifications(onToken?: (token: string) => void) {
         await PushNotifications.createChannel({
           id: 'orders',
           name: 'Order Alerts',
-          importance: 5,         // High
-          sound: 'default',      // or 'beep.wav' if you add a custom sound
+          importance: 4,         // High
+          sound: 'beep.wav',      
           vibration: true,
         });
 
