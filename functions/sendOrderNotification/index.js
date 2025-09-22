@@ -1,5 +1,3 @@
-//functions/sendOrderNotification/index.js
-
 import { createClient } from '@supabase/supabase-js';
 import admin from 'firebase-admin';
 import fetch from 'node-fetch';
@@ -52,7 +50,6 @@ export default async function handler(req, res) {
 
 | 0).toFixed(2);
   const title = 'New Order Received';
-  // CORRECTED: Fixed the template literal syntax
   const body = `Order #${String(order.id).slice(0, 8)} has been placed.`;
 
   try {

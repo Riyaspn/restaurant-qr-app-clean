@@ -17,15 +17,21 @@ export async function sendOrderNotification(orderData, deviceTokens) {
     const message = {
       notification: {
         title: '🔔 New Order Alert!',
-        // CORRECTED: Fixed the template literal syntax
-        body: `Table ${orderData.table_number || 'N/A'} - Order #${String(orderData.id).slice(0, 8)}`,
+        body: `Table ${orderData.table_number |
+
+| 'N/A'} - Order #${String(orderData.id).slice(0, 8)}`,
       },
       data: {
         type: 'new_order',
         orderId: String(orderData.id),
         restaurantId: String(orderData.restaurant_id),
-        tableNumber: String(orderData.table_number || ''),
-        amount: String(orderData.total_inc_tax || orderData.total_amount || 0),
+        tableNumber: String(orderData.table_number |
+
+| ''),
+        amount: String(orderData.total_inc_tax |
+
+| orderData.total_amount |
+| 0),
         url: '/owner/orders',
       },
       android: {
