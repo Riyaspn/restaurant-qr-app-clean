@@ -45,12 +45,10 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     }
 
     private void sendNotification(String title, String body, String orderId) {
-        // Intent to open the app when the notification is tapped.
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.putExtra("orderId", orderId);
 
-        // PendingIntent to be used by the notification builder.
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this,
                 0,
@@ -61,10 +59,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         NotificationManager notificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        // This URI correctly references your beep.wav file in the res/raw directory
         Uri soundUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.beep);
 
-        // Create a notification channel for Android 8.0+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
@@ -73,7 +69,6 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             );
             channel.setDescription("Channel for new order notifications");
 
-            // Set sound on the channel
             AudioAttributes audioAttributes = new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
@@ -83,10 +78,9 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             notificationManager.createNotificationChannel(channel);
         }
 
-        // Build the notification
         NotificationCompat.Builder notificationBuilder =
                 new NotificationCompat.Builder(this, CHANNEL_ID)
-                        .setSmallIcon(R.mipmap.push_icon) // Your custom icon
+                        .setSmallIcon(R.mipmap.push_icon)
                         .setContentTitle(title)
                         .setContentText(body)
                         .setAutoCancel(true)
@@ -94,12 +88,10 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                         .setContentIntent(pendingIntent)
                         .setCategory(NotificationCompat.CATEGORY_SERVICE);
 
-        // For Android versions below O, set sound on the builder
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             notificationBuilder.setSound(soundUri);
         }
 
-        // Display the notification
         if (notificationManager != null && orderId != null) {
             notificationManager.notify(orderId.hashCode(), notificationBuilder.build());
         }
