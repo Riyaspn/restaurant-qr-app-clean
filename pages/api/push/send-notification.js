@@ -1,3 +1,4 @@
+//pages/api/push/send-notification.js
 import admin from 'firebase-admin';
 
 // Initialize Firebase Admin (do this once)
