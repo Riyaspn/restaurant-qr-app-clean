@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Redirect, Route } from 'react-router-dom';
 import {
   IonApp,
@@ -10,6 +10,7 @@ import {
   IonTabButton,
   IonTabs,
   setupIonicReact,
+  IonSpinner,
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import Home from './pages/Home';
@@ -18,6 +19,8 @@ import Orders from './pages/Orders';
 import Settings from './pages/Settings';
 import { home, restaurant, receipt, settings } from 'ionicons/icons';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { restoreSession, saveSession, clearSession } from './lib/session';
+import { supabase } from './services/supabase';
 
 import '@ionic/react/css/core.css';
 import '@ionic/react/css/normalize.css';
@@ -34,8 +37,46 @@ import './theme/variables.css';
 setupIonicReact();
 
 const App: React.FC = () => {
+  const [appReady, setAppReady] = useState(false);
+
   useEffect(() => {
     let mounted = true;
+
+    const initializeApp = async () => {
+      try {
+        // 1. First restore any saved session
+        await restoreSession();
+        console.log('Session restoration attempted');
+
+        // 2. Set up auth state listener to save/clear sessions
+        const { data: listener } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('Auth state changed:', event);
+            if (session) {
+              await saveSession();
+              console.log('Session saved to storage');
+            } else if (event === 'SIGNED_OUT') {
+              await clearSession();
+              console.log('Session cleared from storage');
+            }
+          }
+        );
+
+        // 3. Initialize push notifications
+        await initPush();
+
+        // 4. Mark app as ready
+        if (mounted) setAppReady(true);
+
+        // Cleanup function
+        return () => {
+          listener.subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('App initialization failed:', error);
+        if (mounted) setAppReady(true); // Still allow app to load
+      }
+    };
 
     const initPush = async () => {
       try {
@@ -79,11 +120,30 @@ const App: React.FC = () => {
       }
     };
 
-    initPush();
+    initializeApp();
+
     return () => {
       mounted = false;
     };
   }, []);
+
+  // Show loading spinner until app is ready
+  if (!appReady) {
+    return (
+      <IonApp>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          flexDirection: 'column'
+        }}>
+          <IonSpinner name="crescent" />
+          <p style={{ marginTop: '16px' }}>Loading CafeQR...</p>
+        </div>
+      </IonApp>
+    );
+  }
 
   return (
     <IonApp>

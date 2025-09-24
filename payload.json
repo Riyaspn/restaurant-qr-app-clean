@@ -1,0 +1,14 @@
+{
+  "message": {
+    "token": "fV4AocbxQkmw85nP-iPLr_:APA91bGJfKrkf0-CT31BDmkIgc-zrN6l0jM-QtLkOJerGnapq4lHEr1SCuBxfu-AFr8fhnXqNGu_4mQyjvVnkvU1NMfZ-pQc_wZD3FWSnq6zOAA1UPKvMNU",
+    "android": {
+      "priority": "HIGH"
+    },
+    "data": {
+      "title": "Test Push",
+      "body": "This is a test notification",
+      "type": "new_order",
+      "orderId": "manual-test"
+    }
+  }
+}
