@@ -1,4 +1,3 @@
-// src/App.tsx
 import React, { useEffect, useState } from 'react';
 import { Redirect, Route } from 'react-router-dom';
 import {
@@ -84,8 +83,8 @@ const App: React.FC = () => {
         await PushNotifications.createChannel({
           id: 'orders',
           name: 'Order Alerts',
-          importance: 5,       // High => sound
-          sound: 'default',    // or 'beep.wav' if added to res/raw
+          importance: 5,       // High => sound + heads-up
+          sound: 'beep.wav',    // Ensure 'beep.wav' exists in Android res/raw
           vibration: true,
         });
 
@@ -93,15 +92,21 @@ const App: React.FC = () => {
         PushNotifications.addListener('registration', (token) => {
           if (!mounted) return;
           console.log('FCM Token:', token.value);
-          // TODO: send token.value to backend if needed
+          // TODO: Send token.value to backend if needed
         });
 
         PushNotifications.addListener('registrationError', (err) => {
           console.log('FCM registration error:', JSON.stringify(err));
         });
 
+        // Foreground message handler - show explicit notification
         PushNotifications.addListener('pushNotificationReceived', (notif) => {
-          console.log('Push received (foreground):', JSON.stringify(notif));
+          console.log('Push received (foreground):', notif);
+          // Show a local notification to force heads-up display
+          new Notification(notif.title, {
+            body: notif.body,
+            icon: notif.data?.icon || '/favicon.ico',
+          });
         });
 
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
@@ -127,7 +132,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Show loading spinner until app is ready
   if (!appReady) {
     return (
       <IonApp>

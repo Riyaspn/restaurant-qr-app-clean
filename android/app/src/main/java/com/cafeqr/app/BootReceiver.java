@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
 
+import androidx.core.content.ContextCompat;
+
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BootReceiver";
 
@@ -14,12 +16,12 @@ public class BootReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         Log.d(TAG, "Received action: " + action);
 
-        if (Intent.ACTION_BOOT_COMPLETED.equals(action) || 
-            Intent.ACTION_MY_PACKAGE_REPLACED.equals(action) || 
-            Intent.ACTION_PACKAGE_REPLACED.equals(action)) {
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action) ||
+                Intent.ACTION_MY_PACKAGE_REPLACED.equals(action) ||
+                Intent.ACTION_PACKAGE_REPLACED.equals(action)) {
             Intent serviceIntent = new Intent(context, MyForegroundService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent);
+                ContextCompat.startForegroundService(context, serviceIntent);
             } else {
                 context.startService(serviceIntent);
             }

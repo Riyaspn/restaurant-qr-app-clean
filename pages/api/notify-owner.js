@@ -1,3 +1,4 @@
+// pages/api/notify-owner.js
 import admin from 'firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
@@ -18,10 +19,10 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send({ error: 'Method not allowed' });
+
   const { restaurantId, orderId, table_number, total_inc_tax, total } = req.body || {};
   if (!restaurantId || !orderId) return res.status(400).send({ error: 'Missing restaurantId or orderId' });
 
-  // Fetch tokens
   const { data: rows, error: fetchErr } = await supabase
     .from('push_subscription_restaurants')
     .select('device_token')
@@ -35,24 +36,26 @@ export default async function handler(req, res) {
     return res.status(200).send({ message: 'No subscriptions', successCount: 0 });
   }
 
-  // Build data-only message for reliable delivery
   const title = '🔔 New Order!';
   const body = `Table ${table_number}${total_inc_tax || total ? ` • ₹${Number(total_inc_tax || total).toFixed(2)}` : ''}`;
   const message = {
     tokens,
-    data: {
+    notification: {
       title,
       body,
+    },
+    data: {
       orderId: String(orderId),
       restaurantId: String(restaurantId),
-      url: `/owner/orders?highlight=${orderId}`
+      url: `/owner/orders?highlight=${orderId}`,
     },
     android: {
       priority: 'high',
       notification: {
         channelId: 'orders',
-        sound: 'beep.wav'
-      }
+        sound: 'beep.wav',
+        priority: 'high',
+      },
     },
     webpush: {
       headers: { Urgency: 'high' },
@@ -60,8 +63,8 @@ export default async function handler(req, res) {
       notification: {
         requireInteraction: true,
         icon: '/favicon.ico',
-        badge: '/favicon.ico'
-      }
+        badge: '/favicon.ico',
+      },
     },
     apns: {
       headers: { 'apns-priority': '5' },
@@ -69,15 +72,15 @@ export default async function handler(req, res) {
         aps: {
           'content-available': 1,
           sound: 'default',
-          badge: 1
-        }
-      }
-    }
+          badge: 1,
+        },
+      },
+    },
   };
 
   try {
     const response = await admin.messaging().sendEachForMulticast(message);
-    // Prune bad tokens
+
     const invalidTokens = [];
     response.responses.forEach((resp, i) => {
       if (!resp.success) {
@@ -87,16 +90,15 @@ export default async function handler(req, res) {
         }
       }
     });
+
     if (invalidTokens.length) {
-      await supabase
-        .from('push_subscription_restaurants')
-        .delete()
-        .in('device_token', invalidTokens);
+      await supabase.from('push_subscription_restaurants').delete().in('device_token', invalidTokens);
     }
+
     return res.status(200).send({
       successCount: response.successCount,
       failureCount: response.failureCount,
-      pruned: invalidTokens.length
+      pruned: invalidTokens.length,
     });
   } catch (error) {
     console.error('notify-owner error:', error);
