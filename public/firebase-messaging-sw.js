@@ -1,4 +1,5 @@
-// public/firebase-messaging-sw.js
+//public/firebase-messaging-sw.js
+
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
@@ -50,6 +51,7 @@ messaging.onBackgroundMessage((payload) => {
     renotify: true
   };
 
+  console.log('[SW] Showing notification:', title, notificationOptions);
   return self.registration.showNotification(title, notificationOptions);
 });
 
@@ -113,6 +115,7 @@ self.addEventListener('push', (event) => {
       data: payload.data || {}
     };
 
+    console.log('[SW] Showing push notification:', title, options);
     event.waitUntil(
       self.registration.showNotification(title, options)
     );

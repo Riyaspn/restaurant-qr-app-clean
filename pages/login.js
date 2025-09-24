@@ -1,3 +1,5 @@
+//pages/login.js
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -14,16 +16,22 @@ export default function LoginPage() {
   // If user is already authenticated, send to dashboard
   useEffect(() => {
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data && data.session) {
-        const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
-        router.replace(dest);
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        console.log('Session check:', data, error);
+        if (data && data.session) {
+          const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
+          router.replace(dest);
+        }
+      } catch (err) {
+        console.error('Error during session check:', err);
       }
     };
     checkSession();
 
     // Subscribe to auth changes
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth state changed:', session);
       if (session) {
         const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
         router.replace(dest);
@@ -42,28 +50,35 @@ export default function LoginPage() {
     setMessage('');
     setShowForgot(false);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      console.log('Login attempt error:', error);
+      
+      setLoading(false);
 
-    setLoading(false);
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
 
-    if (error) {
-      const msg = (error.message || '').toLowerCase();
-
-      if (msg.includes('email not confirmed')) {
-        setMessage('Please confirm your email first. Check your inbox for the verification link.');
-      } else if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-        setMessage('Incorrect email or password. Please try again.');
-        setShowForgot(true);
-      } else if (msg.includes('rate limit')) {
-        setMessage('Too many attempts. Please wait a minute and try again.');
-      } else {
-        setMessage('Login error: ' + error.message);
+        if (msg.includes('email not confirmed')) {
+          setMessage('Please confirm your email first. Check your inbox for the verification link.');
+        } else if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+          setMessage('Incorrect email or password. Please try again.');
+          setShowForgot(true);
+        } else if (msg.includes('rate limit')) {
+          setMessage('Too many attempts. Please wait a minute and try again.');
+        } else {
+          setMessage('Login error: ' + error.message);
+        }
+        return;
       }
-      return;
-    }
 
-    const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
-    router.push(dest);
+      const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
+      router.push(dest);
+    } catch (e) {
+      setLoading(false);
+      setMessage('Unexpected error during login.');
+      console.error('Unhandled login error:', e);
+    }
   };
 
   return (
