@@ -1,3 +1,5 @@
+//pages/order/payment.js
+
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
