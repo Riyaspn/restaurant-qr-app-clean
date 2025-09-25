@@ -1,4 +1,4 @@
-// functions/sendOrderNotification/index.js
+// functions/sendOrderNotification/index.js (Final Corrected Version)
 
 import { createClient } from '@supabase/supabase-js';
 import admin from 'firebase-admin';
@@ -52,35 +52,38 @@ export default async function handler(req, res) {
   const body = `#${String(order.id).slice(0, 8)} • ${count} items • ₹${total}`;
 
   try {
+    // This payload is structured for reliability with the modern V1 API
     const message = {
       tokens,
-      data: {
+      notification: {
         title,
         body,
+      },
+      data: {
         type: 'new_order',
         orderId: String(order.id),
         restaurantId: String(order.restaurant_id),
         url: '/owner/orders',
-        sound: 'beep.wav',
         timestamp: Date.now().toString(),
       },
       android: {
         priority: 'high',
-        data: { title, body, sound: 'beep.wav' },
+        notification: {
+          channelId: 'orders',
+          sound: 'beep.wav',
+        },
       },
       apns: {
-        headers: { 'apns-priority': '10' },
         payload: {
           aps: {
             'content-available': 1,
-            'mutable-content': 1,
-            sound: 'default',
+            sound: 'beep.wav',
           },
         },
       },
     };
 
-    const response = await admin.messaging().sendMulticast(message);
+    const response = await admin.messaging().sendEachForMulticast(message);
     console.log('FCM response:', response);
     return res.status(200).json({ successCount: response.successCount, failureCount: response.failureCount });
   } catch (error) {
