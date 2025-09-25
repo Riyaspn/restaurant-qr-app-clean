@@ -52,32 +52,40 @@ export default async function handler(req, res) {
   const body = `#${String(order.id).slice(0, 8)} • ${count} items • ₹${total}`;
 
   try {
-    // This payload is structured for reliability with the modern V1 API
+    // This is the most robust payload structure for ensuring killed-app delivery.
     const message = {
       tokens,
+      // 1. The top-level `notification` object tells the OS to display a notification immediately.
       notification: {
         title,
         body,
       },
+      // 2. The `data` payload is for your app to use when it's opened.
       data: {
         type: 'new_order',
         orderId: String(order.id),
-        restaurantId: String(order.restaurant_id),
         url: '/owner/orders',
         timestamp: Date.now().toString(),
       },
+      // 3. The `android` block provides critical OS-specific instructions.
       android: {
-        priority: 'high',
+        priority: 'high', // Absolutely essential for heads-up notifications.
         notification: {
-          channelId: 'orders',
-          sound: 'beep.wav',
+          channelId: 'orders', // CRITICAL: This MUST match the channel ID in your Android app.
+          sound: 'beep.wav',     // The custom sound file in `res/raw`.
+          priority: 'high',      // Ensures the notification is treated as important.
+          visibility: 'private', // Standard visibility for notifications.
         },
       },
+      // 4. The `apns` block is for iOS configuration.
       apns: {
+        headers: {
+          'apns-priority': '10', // High priority for iOS.
+        },
         payload: {
           aps: {
-            'content-available': 1,
             sound: 'beep.wav',
+            'content-available': 1,
           },
         },
       },
@@ -85,6 +93,7 @@ export default async function handler(req, res) {
 
     const response = await admin.messaging().sendEachForMulticast(message);
     console.log('FCM response:', response);
+    
     return res.status(200).json({ successCount: response.successCount, failureCount: response.failureCount });
   } catch (error) {
     console.error('Error sending notification:', error);
