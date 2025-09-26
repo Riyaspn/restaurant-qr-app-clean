@@ -1,12 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CafeQR</string>
-    <string name="title_activity_main">CafeQR</string>
+    <string name="app_name">Cafe QR</string>
+    <string name="title_activity_main">Cafe QR</string>
     <string name="package_name">com.cafeqr.app</string>
     <string name="custom_url_scheme">com.cafeqr.app</string>
-    
-    <!-- Enhanced Notification Channels -->
-    <string name="notification_channel_orders">Order Alerts</string>
-    <string name="notification_channel_orders_description">High priority notifications for new restaurant orders</string>
-    <string name="notification_channel_kitchen">Kitchen Alerts</string>
-    <string name="notification_channel_kitchen_description">Notifications for kitchen order status updates</string>
 </resources>

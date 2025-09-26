@@ -1,34 +1,32 @@
-//services/supabase.js
+// In: services/supabase.js
 
 import { createClient } from '@supabase/supabase-js';
+import { Preferences } from '@capacitor/preferences';
 
 // Read env vars
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Debug: log values in development
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  console.log('Supabase URL:', supabaseUrl);
-  console.log('Supabase Anon Key:', supabaseAnonKey);
-}
+// This is the new, critical part: A custom storage adapter for Capacitor
+const customStorageAdapter = {
+  async getItem(key) {
+    const { value } = await Preferences.get({ key });
+    return value;
+  },
+  async setItem(key, value) {
+    await Preferences.set({ key, value });
+  },
+  async removeItem(key) {
+    await Preferences.remove({ key });
+  },
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    'Supabase env vars missing: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY'
-  );
-}
-
+// Initialize the Supabase client with the custom storage adapter
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
+    storage: customStorageAdapter, // Use the Capacitor-based storage
     autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: 'cafeqr-auth-token',
+    persistSession: true,
+    detectSessionInUrl: false, // Important for Capacitor apps
   },
-  global: {
-    headers: { 'x-from': 'cafeqr-app' }
-  },
-  realtime: {
-    params: { eventsPerSecond: 10 }
-  }
 });
