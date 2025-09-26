@@ -7,7 +7,6 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { getToken } from 'firebase/messaging';
 import { getMessagingIfSupported } from '../../lib/firebaseClient';
-import { useEnhancedPushNotifications } from '../../src/hooks/useEnhancedPushNotifications';
 
 // Constants
 const STATUSES = ['new', 'in_progress', 'ready', 'completed'];
@@ -86,16 +85,7 @@ export default function OrdersPage() {
   // Audio ref and battery/ping setup
   const [audioRef, setAudioRef] = useState(null);
 
-  // Use enhanced push notifications hook
-  useEnhancedPushNotifications(
-    restaurantId,
-    user?.email,
-    (token) => {
-      console.log('Push token received:', token);
-      // Optionally store token in local storage or state
-    }
-  );
-
+  
   // Consolidated audio initialization and unlock
   useEffect(() => {
     const a = new Audio('/notification-sound.mp3');

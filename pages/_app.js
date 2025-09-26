@@ -1,3 +1,5 @@
+// In: pages/_app.js
+
 import '../styles/responsive.css';
 import '../styles/globals.css';
 import '../styles/theme.css';
@@ -5,8 +7,8 @@ import Layout from '../components/Layout';
 import { RestaurantProvider } from '../context/RestaurantContext';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
-import { onMessage } from 'firebase/messaging';
-import { getMessagingIfSupported } from '../lib/firebaseClient';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const OWNER_PREFIX = '/owner';
 const CUSTOMER_PREFIX = '/order';
@@ -17,75 +19,56 @@ function MyApp({ Component, pageProps }) {
   const showSidebar = path === OWNER_PREFIX || path.startsWith(`${OWNER_PREFIX}/`);
   const isCustomerRoute = path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`);
 
+  // This single, centralized useEffect handles all native push notification logic.
   useEffect(() => {
-    async function bootstrap() {
-      if (!('serviceWorker' in navigator)) {
-        console.log('Service Worker not supported');
-        return;
-      }
+    // Only run this logic on a native device (iOS or Android)
+    if (Capacitor.isNativePlatform()) {
+      const setupPushNotifications = async () => {
+        console.log('Initializing Capacitor Push Notifications...');
+        
+        // Remove any old listeners to ensure a clean start
+        await PushNotifications.removeAllListeners();
 
-      try {
-        // Register Firebase messaging SW if not registered
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        if (!registrations.some((r) => r.active && r.active.scriptURL.includes('firebase-messaging'))) {
-          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          console.log('Firebase messaging SW registered:', registration.scope);
-        } else {
-          console.log('Firebase messaging SW already registered');
+        // 1. Request permission
+        const permStatus = await PushNotifications.requestPermissions();
+        if (permStatus.receive !== 'granted') {
+          console.error('User denied push notification permissions.');
+          return;
         }
-      } catch (error) {
-        console.error('Firebase messaging SW registration failed', error);
-        return;
-      }
 
-      const messaging = await getMessagingIfSupported();
-      if (!messaging) {
-        console.log('Firebase messaging not supported');
-        return;
-      }
+        // 2. Register with FCM to get the device token
+        await PushNotifications.register();
 
-      // Listen for foreground messages
-      onMessage(messaging, (payload) => {
-        console.log('Foreground message received', payload);
+        // --- All Listeners Are Now Centralized Here ---
 
-        // Play custom notification sounds
-        const audioPaths = ['/beep.mp3', '/notification.mp3', '/alert.mp3'];
-        (async () => {
-          for (const path of audioPaths) {
-            try {
-              const audio = new Audio(path);
-              audio.volume = 0.8;
-              await audio.play();
-              break;
-            } catch (_e) {
-              // Try next sound if current fails
-            }
-          }
-        })();
+        // On success, we get a device token
+        PushNotifications.addListener('registration', (token) => {
+          console.log('✅ Push registration success, token: ' + token.value);
+          // You should send this token to your backend server to associate it with the user
+        });
 
-        const { title, body } = payload.notification || {};
-        if (title && Notification.permission === 'granted') {
-          const notification = new Notification(title, {
-            body,
-            icon: '/favicon.ico',
-            badge: '/favicon.ico',
-            requireInteraction: true,
-          });
-          notification.onclick = () => {
-            router.push('/owner/orders');
-            notification.close();
-          };
-          setTimeout(() => notification.close(), 15000);
-        }
-      });
+        // On error, log it
+        PushNotifications.addListener('registrationError', (error) => {
+          console.error('❌ Error on push registration: ' + JSON.stringify(error));
+        });
 
-      console.log('Firebase messaging initialized');
+        // Show a notification when the app is open
+        PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          console.log('🔵 Push received in foreground:', notification);
+          // You can add a toast or an in-app alert here if you want
+        });
+
+        // Handle the user tapping on a notification
+        PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+          console.log('🔵 Push action performed (notification tapped):', notification);
+          // When the user taps the notification, navigate to the orders page
+          router.push('/owner/orders');
+        });
+      };
+
+      setupPushNotifications().catch(console.error);
     }
-
-    bootstrap().catch((e) => {
-      console.error('Push bootstrap failed', e);
-    });
-  }, [router]);
+  }, [router]); // router is a dependency for the action listener
 
   return (
     <RestaurantProvider>
