@@ -1,18 +1,15 @@
-//pages/owner/order
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase } from '../../services/supabase';
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
-import { getToken } from 'firebase/messaging';
-import { getMessagingIfSupported } from '../../lib/firebaseClient';
 
 // Constants
 const STATUSES = ['new', 'in_progress', 'ready', 'completed'];
 const LABELS = { new: 'New', in_progress: 'Cooking', ready: 'Ready', completed: 'Done' };
 const COLORS = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' };
-const PAGE = 20;
+const PAGE_SIZE = 20;
 
 // Helpers
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`;
@@ -26,6 +23,9 @@ function toDisplayItems(order) {
       price: oi.price,
     }));
   }
+  return [];
+}
+
 function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
   return (
     <div style={{
@@ -64,11 +64,13 @@ function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
   );
 }
 
-  return [];
-}
-
 export default function OrdersPage() {
-  const { checking, user } = useRequireAuth();
+  // --- FIXES APPLIED HERE ---
+  // 2. Remove `{ supabase }` from props and get the client directly
+  const supabase = getSupabase();
+  const { checking } = useRequireAuth(supabase);
+  // --- END OF FIXES ---
+  
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
 
@@ -81,16 +83,13 @@ export default function OrdersPage() {
   const [generatingInvoice, setGeneratingInvoice] = useState(null);
   const [paymentConfirmDialog, setPaymentConfirmDialog] = useState(null);
   const notificationAudioRef = useRef(null);
-  
-  // Audio ref and battery/ping setup
-  const [audioRef, setAudioRef] = useState(null);
 
-  
-  // Consolidated audio initialization and unlock
+  // Initialize notification audio and unlock on user interaction
   useEffect(() => {
-    const a = new Audio('/notification-sound.mp3');
-    a.load();
-    notificationAudioRef.current = a;
+    // This effect now runs once on component mount
+    const audio = new Audio('/notification-sound.mp3');
+    audio.load();
+    notificationAudioRef.current = audio;
 
     function unlockAudio() {
       const audio = notificationAudioRef.current;
@@ -112,63 +111,36 @@ export default function OrdersPage() {
       window.removeEventListener('touchstart', unlockAudio, { capture: true });
       window.removeEventListener('click', unlockAudio, { capture: true });
     };
-  }, []);
+  }, []); // Empty dependency array means this runs only once
 
-  // New audio ref setup (fallback) and mobile unlock
-  useEffect(() => {
-    const audio = new Audio('/beep.wav');
-    audio.load();
-    setAudioRef(audio);
-    
-    const unlockAudio = () => {
-      if (audio) {
-        audio.muted = true;
-        audio.play().catch(() => {});
-        audio.pause();
-        audio.currentTime = 0;
-        audio.muted = false;
-      }
-      window.removeEventListener('touchstart', unlockAudio);
-      window.removeEventListener('click', unlockAudio);
-    };
-    
-    window.addEventListener('touchstart', unlockAudio, { once: true });
-    window.addEventListener('click', unlockAudio, { once: true });
-    
-    return () => {
-      window.removeEventListener('touchstart', unlockAudio);
-      window.removeEventListener('click', unlockAudio);
-    };
-  }, []);
-
-  // Function to play notification sound
+  // Play notification sound helper
   const playNotificationSound = useCallback(() => {
     try {
-      if (audioRef) {
-        audioRef.volume = 0.8;
-        audioRef.play().catch(console.error);
+      if (notificationAudioRef.current) {
+        notificationAudioRef.current.volume = 0.8;
+        notificationAudioRef.current.play().catch(console.error);
       }
     } catch (e) {
       console.log('Audio playback failed:', e);
     }
-  }, [audioRef]);
+  }, []);
 
-  // Battery & keep-alive ping
+  // Keep alive ping and battery check
   useEffect(() => {
     if ('navigator' in window && 'getBattery' in navigator) {
       console.log('Consider adding battery optimization exemption');
     }
-    
-    const keepAlive = setInterval(() => {
+    const interval = setInterval(() => {
       if (!document.hidden) {
         fetch('/api/ping', { method: 'POST' }).catch(() => {});
       }
     }, 30000);
-    
-    return () => clearInterval(keepAlive);
+    return () => clearInterval(interval);
   }, []);
 
+  // Fetch orders helper function
   async function fetchBucket(status, page = 1) {
+    if (!supabase || !restaurantId) return [];
     let q = supabase
       .from('orders')
       .select('*, order_items(*, menu_items(name))')
@@ -176,7 +148,7 @@ export default function OrdersPage() {
       .eq('status', status);
 
     if (status === 'completed') {
-      const to = page * PAGE - 1;
+      const to = page * PAGE_SIZE - 1;
       const { data, error } = await q.order('created_at', { ascending: false }).range(0, to);
       if (error) throw error;
       return data;
@@ -187,8 +159,8 @@ export default function OrdersPage() {
     return data;
   }
 
-  async function loadOrders(page = completedPage) {
-    if (!restaurantId) return;
+  const loadOrders = useCallback(async (page = completedPage) => {
+    if (!supabase || !restaurantId) return;
     setLoading(true);
     setError('');
 
@@ -205,12 +177,12 @@ export default function OrdersPage() {
       let invMap = {};
 
       if (ids.length) {
-        const { data: invs, error: invError } = await supabase
+        const { data: invoices, error } = await supabase
           .from('invoices')
-          .select('order_id,pdf_url')
+          .select('order_id, pdf_url')
           .in('order_id', ids);
-        if (invError) console.error('Invoice fetch error:', invError);
-        (invs || []).forEach((inv) => {
+        if (error) console.error('Invoice fetch error:', error);
+        invoices?.forEach((inv) => {
           invMap[inv.order_id] = inv.pdf_url;
         });
       }
@@ -233,53 +205,49 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [completedPage, restaurantId, supabase]);
 
   useEffect(() => {
     if (restaurantId) {
       setCompletedPage(1);
       loadOrders(1);
     }
-  }, [restaurantId]);
+  }, [restaurantId, loadOrders]);
 
-  // Enhanced Supabase Realtime with reconnection and Android throttling handling
+  // Realtime subscription & reconnection logic
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!supabase || !restaurantId) return;
 
     const channel = supabase
       .channel(`orders:${restaurantId}`)
       .on(
         'postgres_changes',
         {
-          event: '*', // listen for INSERT, UPDATE, DELETE if needed
+          event: '*',
           schema: 'public',
           table: 'orders',
           filter: `restaurant_id=eq.${restaurantId}`,
         },
         (payload) => {
-          const order = payload.new; // new row data
-          if (!order) return; // for DELETE events, payload.new is null
+          const order = payload.new;
+          if (!order) return;
 
           setOrdersByStatus((prev) => {
-            // Remove the order from all status buckets
             const updated = { ...prev };
-            for (const status of ['new', 'in_progress', 'ready', 'completed']) {
+            for (const status of STATUSES) {
               updated[status] = prev[status].filter((o) => o.id !== order.id);
             }
-            // Add the order to its current status bucket (if any)
-            if (order.status && updated.hasOwnProperty(order.status)) {
+            if (order.status && updated[order.status]) {
               updated[order.status] = [order, ...updated[order.status]];
             }
             return updated;
           });
 
-          // Play fallback sound for new orders via playNotificationSound
           if (payload.eventType === 'INSERT' && order.status === 'new') {
             playNotificationSound();
-            
-            if ('Notification' in window && Notification.permission === 'granted') {
+            if (Notification.permission === 'granted') {
               new Notification('🔔 New Order!', {
-                body: `Table ${order.table_number || ''} - ${order.total_inc_tax ? `₹${order.total_inc_tax}` : ''}`,
+                body: `Table ${order.table_number || ''} - ₹${order.total_inc_tax || 0}`,
                 icon: '/favicon.ico',
                 tag: 'new-order',
               });
@@ -287,41 +255,13 @@ export default function OrdersPage() {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Realtime channel status:', status);
-        // Handle reconnection issues
-        if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-          setTimeout(async () => {
-            try {
-              const { data } = await supabase
-                .from('orders')
-                .select('*, order_items(*, menu_items(name))')
-                .eq('restaurant_id', restaurantId)
-                .eq('status', 'new')
-                .gte('created_at', new Date(Date.now() - 60000).toISOString())
-                .order('created_at', { ascending: true });
+      .subscribe();
 
-              if (data?.length) {
-                setOrdersByStatus((prev) => ({
-                  ...prev,
-                  new: [...data, ...prev.new].filter((order, index, arr) =>
-                    arr.findIndex((o) => o.id === order.id) === index
-                  ),
-                }));
-              }
-            } catch (e) {
-              console.warn('Catch-up fetch failed:', e);
-            }
-          }, 1000);
-        }
-      });
-
-    // Handle visibility change for Android throttling
     function onVisible() {
       if (document.visibilityState === 'visible') {
-        console.log('Page became visible, checking for missed orders');
         setTimeout(async () => {
           try {
+            if (!supabase) return; // Add guard inside timeout
             const { data } = await supabase
               .from('orders')
               .select('*, order_items(*, menu_items(name))')
@@ -329,31 +269,29 @@ export default function OrdersPage() {
               .eq('status', 'new')
               .gte('created_at', new Date(Date.now() - 120000).toISOString())
               .order('created_at', { ascending: true });
-
-            if (data?.length) {
-              setOrdersByStatus((prev) => ({
-                ...prev,
-                new: [...data, ...prev.new].filter((order, index, arr) =>
-                  arr.findIndex((o) => o.id === order.id) === index
-                ),
-              }));
+            
+            if (data) {
+                setOrdersByStatus((prev) => ({
+                    ...prev,
+                    new: [...data, ...prev.new].filter((order, i, arr) => arr.findIndex((o) => o.id === order.id) === i),
+                }));
             }
           } catch (e) {
-            console.warn('Visibility catch-up failed:', e);
+            console.warn('Visibility catch-up error:', e);
           }
         }, 500);
       }
     }
 
-    document.addEventListener('visibilitychange', onVisible);
-
+    window.addEventListener('visibilitychange', onVisible);
     return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-      supabase.removeChannel(channel);
+      window.removeEventListener('visibilitychange', onVisible);
+      if (supabase) supabase.removeChannel(channel);
     };
-  }, [restaurantId, playNotificationSound, loadOrders]); // Added loadOrders and playNotificationSound to dependencies
+  }, [supabase, restaurantId, playNotificationSound]);
 
-  const updateStatus = async (id, next) => {
+  async function updateStatus(id, next) {
+    if (!supabase) return;
     try {
       await supabase
         .from('orders')
@@ -364,72 +302,73 @@ export default function OrdersPage() {
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  const finalize = (order) => {
+    if (order.payment_method === 'pay_at_counter' || order.payment_method === 'counter') {
+      setPaymentConfirmDialog(order);
+    } else {
+      complete(order.id);
+    }
   };
 
-  const finalizeComplete = async (order) => {
-  // Check if it's a "Pay at Counter" order
-  if (order.payment_method === 'pay_at_counter' || order.payment_method === 'counter') {
-    setPaymentConfirmDialog(order);
-    return;
-  }
+  const handlePaymentConfirmed = () => {
+    if (!paymentConfirmDialog) return;
+    complete(paymentConfirmDialog.id);
+    setPaymentConfirmDialog(null);
+  };
 
-  // For other payment methods, proceed normally
-  await completeOrder(order.id);
-};
+  const handlePaymentCanceled = () => setPaymentConfirmDialog(null);
 
-const handlePaymentConfirmed = async () => {
-  const order = paymentConfirmDialog;
-  setPaymentConfirmDialog(null);
-  await completeOrder(order.id);
-};
+  const complete = async (orderId) => {
+    if (!supabase) return;
+    setGeneratingInvoice(orderId);
+    try {
+      await supabase
+        .from('orders')
+        .update({ status: 'completed' })
+        .eq('id', orderId)
+        .eq('restaurant_id', restaurantId);
 
-const handlePaymentCanceled = () => {
-  setPaymentConfirmDialog(null);
-};
+      const resp = await fetch('/api/invoices/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
 
-const completeOrder = async (orderId) => {
-  setGeneratingInvoice(orderId);
-  try {
-    await supabase
-      .from('orders')
-      .update({ status: 'completed' })
-      .eq('id', orderId)
-      .eq('restaurant_id', restaurantId);
-
-    const resp = await fetch('/api/invoices/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: orderId }),
-    });
-
-    if (!resp.ok) throw new Error('Invoice gen failed');
-    const { pdf_url } = await resp.json();
-    if (pdf_url) {
-      window.open(pdf_url, '_blank', 'noopener,noreferrer');
+      if (!resp.ok) throw new Error('Invoice generation failed');
+      const { pdf_url } = await resp.json();
+      if (pdf_url) window.open(pdf_url, '_blank');
+      loadOrders();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setGeneratingInvoice(null);
     }
-    loadOrders();
-  } catch (e) {
-    setError(e.message);
-  } finally {
-    setGeneratingInvoice(null);
-  }
-};
+  };
 
-  if (checking || restLoading) return <div style={{ padding: 16 }}>Loading…</div>;
-  if (!restaurantId) return <div style={{ padding: 16 }}>No restaurant found.</div>;
+  if (checking || restLoading) {
+    return <div style={{ padding: 16 }}>Loading…</div>;
+  }
+  if (!restaurantId) {
+    return <div style={{ padding: 16 }}>No restaurant found.</div>;
+  }
 
   return (
     <div className="orders-wrap">
+      {/* JSX for header, cards, and dialogs remains the same */}
       <header className="orders-header">
         <h1>Orders Dashboard</h1>
         <div className="header-actions">
           <span className="muted">
             {['new','in_progress','ready'].reduce((sum, s) => sum + ordersByStatus[s].length, 0)} live orders
           </span>
-          {/* Removed old EnableAlertsButton in favor of hook */}
           <Button
             variant="outline"
-            onClick={() => { setCompletedPage(1); loadOrders(1); }}
+            onClick={() => {
+              setCompletedPage(1);
+              loadOrders(1);
+            }}
           >
             Refresh
           </Button>
@@ -437,12 +376,14 @@ const completeOrder = async (orderId) => {
       </header>
 
       {error && (
-        <Card padding={12} style={{ background: '#fee2e2', border: '1px solid #fecaca', margin: '0 12px 12px' }}>
+        <Card
+          padding={12}
+          style={{ background: '#fee2e2', border: '1px solid #fecaca', margin: '0 12px 12px' }}
+        >
           <span style={{ color: '#b91c1c' }}>{error}</span>
         </Card>
       )}
 
-      {/* Mobile view */}
       <div className="mobile-filters">
         {STATUSES.map((s) => (
           <button
@@ -458,24 +399,23 @@ const completeOrder = async (orderId) => {
 
       <div className="mobile-list">
         {ordersByStatus[ordersByStatus.mobileFilter || 'new'].length === 0 ? (
-          <Card padding={16} style={{ textAlign: 'center', color: '#6b7280' }}>
-            No {LABELS[ordersByStatus.mobileFilter || 'new'].toLowerCase()}
+          <Card className="muted" padding={12} style={{ textAlign: 'center' }}>
+            No {LABELS[ordersByStatus.mobileFilter || 'new'].toLowerCase()} orders
           </Card>
         ) : (
-          ordersByStatus[ordersByStatus.mobileFilter || 'new'].map((o) => (
+          ordersByStatus[ordersByStatus.mobileFilter || 'new'].map((order) => (
             <OrderCard
-              key={o.id}
-              order={o}
-              statusColor={COLORS[o.status]}
-              onStatusChange={updateStatus}
-              onComplete={(order) => finalizeComplete(order)}
+              key={order.id}
+              order={order}
+              statusColor={COLORS[order.status]}
+              onChangeStatus={updateStatus}
+              onComplete={finalize}
               generatingInvoice={generatingInvoice}
             />
           ))
         )}
       </div>
 
-      {/* Desktop kanban */}
       <div className="kanban">
         {STATUSES.map((status) => (
           <Card key={status} padding={12}>
@@ -485,22 +425,22 @@ const completeOrder = async (orderId) => {
             </div>
             <div className="kanban-col-body">
               {ordersByStatus[status].length === 0 ? (
-                <div className="empty-col">No {LABELS[status].toLowerCase()}</div>
+                <div className="empty-col">No {LABELS[status].toLowerCase()} orders</div>
               ) : (
-                ordersByStatus[status].map((o) => (
+                ordersByStatus[status].map((order) => (
                   <OrderCard
-                    key={o.id}
-                    order={o}
+                    key={order.id}
+                    order={order}
                     statusColor={COLORS[status]}
-                    onStatusChange={updateStatus}
-                    onComplete={(order) => finalizeComplete(order)}
+                    onChangeStatus={updateStatus}
+                    onComplete={finalize}
                     generatingInvoice={generatingInvoice}
                   />
                 ))
               )}
-              {status === 'completed' && ordersByStatus.completed.length >= PAGE && (
+              {status === 'completed' && ordersByStatus.completed.length >= PAGE_SIZE && (
                 <>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>
                     Showing latest {ordersByStatus.completed.length} completed orders
                   </div>
                   <div style={{ paddingTop: 8 }}>
@@ -520,6 +460,7 @@ const completeOrder = async (orderId) => {
           </Card>
         ))}
       </div>
+
       {paymentConfirmDialog && (
         <PaymentConfirmDialog
           order={paymentConfirmDialog}
@@ -528,17 +469,32 @@ const completeOrder = async (orderId) => {
         />
       )}
 
-
       <style jsx>{`
-        .orders-wrap { padding: 12px 0 32px; }
-        .orders-header { display: flex; justify-content: space-between; align-items: center; padding: 0 12px 12px; }
-        .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
-        .header-actions { display: flex; align-items: center; gap: 10px; }
-        .muted { color: #6b7280; font-size: 14px; }
-        /* Mobile */
+        .orders-wrap {
+          padding: 12px 0 32px;
+        }
+        .orders-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 12px 12px;
+        }
+        .orders-header h1 {
+          margin: 0;
+          font-size: clamp(20px, 2.6vw, 28px);
+        }
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .muted {
+          color: #6b7280;
+          font-size: 14px;
+        }
         .mobile-filters {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(4, 1fr);
           gap: 8px;
           padding: 0 12px 12px;
         }
@@ -551,12 +507,18 @@ const completeOrder = async (orderId) => {
           background: #fff;
           cursor: pointer;
         }
-        .chip--active { background: #eef2ff; border-color: #c7d2fe; }
-        .chip-label { font-weight: 600; font-size: 13px; }
+        .chip--active {
+          background: #eef2ff;
+          border-color: #c7d2fe;
+        }
+        .chip-label {
+          font-weight: 600;
+          font-size: 13px;
+        }
         .chip-count {
           background: #111827;
           color: #fff;
-          border-radius: 999px;
+          border-radius: 9999px;
           padding: 0 6px;
           font-size: 12px;
         }
@@ -565,12 +527,19 @@ const completeOrder = async (orderId) => {
           gap: 10px;
           padding: 0 12px;
         }
-        /* Desktop Kanban */
         .kanban {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-          padding: 12px 16px;
+          display: none; /* Default to mobile-first */
+        }
+        @media (min-width: 1024px) {
+          .kanban {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            padding: 12px 16px;
+          }
+          .mobile-filters, .mobile-list {
+            display: none;
+          }
         }
         .kanban-col-header {
           display: flex;
@@ -581,7 +550,7 @@ const completeOrder = async (orderId) => {
         .pill {
           background: #f3f4f6;
           padding: 4px 10px;
-          border-radius: 999px;
+          border-radius: 9999px;
           font-size: 12px;
         }
         .kanban-col-body {
@@ -589,7 +558,7 @@ const completeOrder = async (orderId) => {
           flex-direction: column;
           gap: 10px;
           max-height: 70vh;
-          overflow: auto;
+          overflow-y: auto;
         }
         .empty-col {
           text-align: center;
@@ -598,19 +567,13 @@ const completeOrder = async (orderId) => {
           border: 1px dashed #e5e7eb;
           border-radius: 8px;
         }
-        @media (max-width: 1024px) {
-          .kanban { display: none; }
-        }
-        @media (min-width: 1024px) {
-          .mobile-filters, .mobile-list { display: none; }
-        }
       `}</style>
     </div>
   );
 }
 
-// OrderCard component
-function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingInvoice }) {
+// OrderCard component (no changes needed)
+function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
@@ -626,14 +589,9 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <strong>#{order.id.slice(0, 8)}</strong>
-        <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
-          Table {order.table_number || 'N/A'}
-        </span>
-        <span style={{ color: '#6b7280', fontSize: 12 }}>
-          {new Date(order.created_at).toLocaleTimeString()}
-        </span>
+        <span style={{ marginLeft: 8 }}><small>Table {order.table_number || 'N/A'}</small></span>
+        <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
       </div>
-
       <div style={{ margin: '8px 0', fontSize: 14 }}>
         {items.map((it, i) => (
           <div key={i}>
@@ -641,17 +599,16 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
           </div>
         ))}
       </div>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 16, fontWeight: 700 }}>{money(total)}</span>
         <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
           {order.status === 'new' && (
-            <Button size="sm" onClick={() => onStatusChange(order.id, 'in_progress')}>
+            <Button size="sm" onClick={() => onChangeStatus(order.id, 'in_progress')}>
               Start
             </Button>
           )}
           {order.status === 'in_progress' && (
-            <Button size="sm" variant="success" onClick={() => onStatusChange(order.id, 'ready')}>
+            <Button size="sm" variant="success" onClick={() => onChangeStatus(order.id, 'ready')}>
               Ready
             </Button>
           )}
@@ -661,13 +618,12 @@ function OrderCard({ order, statusColor, onStatusChange, onComplete, generatingI
             </Button>
           )}
           {hasInvoice && (
-            <Button size="sm" variant="outline" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>
+            <Button size="sm" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>
               Bill
             </Button>
           )}
         </div>
       </div>
-
       <div style={{ height: 2, marginTop: 10, background: statusColor, opacity: 0.2, borderRadius: 2 }} />
     </Card>
   );

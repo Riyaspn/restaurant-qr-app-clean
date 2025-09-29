@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
-import { supabase } from '../../services/supabase';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT
+
 
 function Section({ title, icon, children }) {
   return (
@@ -36,7 +37,8 @@ function Field({ label, required, children, hint }) {
 }
 
 export default function SettingsPage() {
-  const { checking } = useRequireAuth();
+  const supabase = getSupabase();
+  const { checking } = useRequireAuth(supabase);
   const { restaurant, loading: loadingRestaurant } = useRestaurant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,7 +101,7 @@ export default function SettingsPage() {
   const [isFirstTime, setIsFirstTime] = useState(false);
 
   useEffect(() => {
-    if (!restaurant?.id) return;
+   if (!restaurant?.id || !supabase) return;
     async function load() {
       setLoading(true);
       setError('');
@@ -112,9 +114,17 @@ export default function SettingsPage() {
         if (profileError) throw profileError;
 
         if (profile) {
+          // *** FIX STARTS HERE ***
+          // Sanitize the fetched data to replace any null values with empty strings.
+          // This prevents the "value prop on input should not be null" warning.
+          const sanitizedProfile = Object.entries(profile).reduce((acc, [key, value]) => {
+            acc[key] = value === null ? '' : value;
+            return acc;
+          }, {});
+          // *** FIX ENDS HERE ***
           setForm(prev => ({
             ...prev,
-            ...profile,
+            ...sanitizedProfile, // Use the sanitized data
             default_tax_rate: profile.default_tax_rate ?? 5,
             prices_include_tax: profile.prices_include_tax ?? true,
             profile_category: profile.profile_category || 'food_and_beverages',
@@ -149,7 +159,7 @@ export default function SettingsPage() {
       }
     }
     load();
-  }, [restaurant?.id]);
+  }, [restaurant?.id, restaurant?.name, supabase]);
 
   const onChange = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;

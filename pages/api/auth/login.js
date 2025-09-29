@@ -1,8 +1,12 @@
-//pages/api/auth/login.js
-
-import { supabase } from '../../../services/supabase';
+import { getSupabase } from '../../../services/supabase'
 
 export default async function handler(req, res) {
+  const supabase = getSupabase()
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+
   const { email, password } = req.body;
   console.log('Login attempt for:', email);
 

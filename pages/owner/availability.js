@@ -1,10 +1,11 @@
-// pages/owner/availability.js
+//pages/owner/availability.js
+
 import React, { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../services/supabase'
 import { useRequireAuth } from '../../lib/useRequireAuth'
 import { useRestaurant } from '../../context/RestaurantContext'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT ADDED
 
 const DAYS = [
   { label: 'Mon', dow: 1 },
@@ -27,7 +28,10 @@ function defaultHours() {
 }
 
 export default function AvailabilityPage() {
-  const { checking } = useRequireAuth()
+  // 2. & 3. APPLY SINGLETON PATTERN
+  const supabase = getSupabase();
+  const { checking } = useRequireAuth(supabase);
+  
   const { restaurant, loading: loadingRestaurant, refresh } = useRestaurant()
 
   const [hours, setHours] = useState(defaultHours())
@@ -43,7 +47,7 @@ export default function AvailabilityPage() {
   }, [restaurant])
 
   useEffect(() => {
-    if (!restaurantId || checking || loadingRestaurant) return
+    if (!restaurantId || checking || loadingRestaurant || !supabase) return
     const load = async () => {
       setLoading(true)
       setErr('')
@@ -78,7 +82,7 @@ export default function AvailabilityPage() {
       }
     }
     load()
-  }, [restaurantId, checking, loadingRestaurant])
+  }, [restaurantId, checking, loadingRestaurant, supabase])
 
   const enabledCount = useMemo(() => hours.filter(h => h.enabled).length, [hours])
 
@@ -86,6 +90,7 @@ export default function AvailabilityPage() {
   if (!restaurantId) return <div style={{ padding: 24 }}>No restaurant found.</div>
 
   const togglePause = async () => {
+    if (!supabase) return
     setSaving(true)
     setErr('')
     try {
@@ -118,6 +123,7 @@ export default function AvailabilityPage() {
   }
 
   const saveHours = async () => {
+    if (!supabase) return
     setSaving(true)
     setErr('')
     try {
@@ -144,7 +150,7 @@ export default function AvailabilityPage() {
 
   return (
     <div className="container" style={{ padding: '20px 0 40px' }}>
-      <h1 className="h1">Item Availability</h1>
+      <h1 className="h1">Store Availability</h1>
 
       {err && (
         <Card padding={12} style={{ borderColor: '#fecaca', background: '#fff1f2', marginBottom: 12 }}>
@@ -218,7 +224,7 @@ export default function AvailabilityPage() {
                       value={h.open}
                       onChange={e => setRow(h.dow, { open: e.target.value })}
                       disabled={!h.enabled}
-                      style={{ width: 140, fontSize: 16 }} /* prevent iOS auto-zoom */ /* [web:199][web:198][web:208] */
+                      style={{ width: 140, fontSize: 16 }}
                     />
                   </td>
                   <td style={{ textAlign: 'center' }}>to</td>
@@ -229,7 +235,7 @@ export default function AvailabilityPage() {
                       value={h.close}
                       onChange={e => setRow(h.dow, { close: e.target.value })}
                       disabled={!h.enabled}
-                      style={{ width: 140, fontSize: 16 }} /* [web:199][web:198][web:208] */
+                      style={{ width: 140, fontSize: 16 }}
                     />
                   </td>
                   <td className="hide-sm">

@@ -1,11 +1,18 @@
-// pages/order/success.js
 import { useRouter } from 'next/router'
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../../services/supabase'
+// 1. IMPORT the singleton function
+import { getSupabase } from '../../services/supabase'
 
+// 2. REMOVE the supabase prop
 export default function OrderSuccess() {
   const router = useRouter()
+  // 3. GET the singleton instance
+  const supabase = getSupabase();
   const { id: orderId, method } = router.query
+  
+  // 2. REMOVE the useRequireAuth hook
+  // const { checking } = useRequireAuth(supabase)
+
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState(null)
   const [error, setError] = useState('')
@@ -21,17 +28,21 @@ export default function OrderSuccess() {
     ;(async () => {
       setLoading(true)
       try {
+        // 3. USE the singleton instance
         const { data: o, error: e } = await supabase
           .from('orders')
           .select('*')
           .eq('id', orderId)
           .single()
         if (e || !o) throw e || new Error('Order not found')
+
+        // 3. USE the singleton instance
         const { data: inv } = await supabase
           .from('invoices')
           .select('*')
           .eq('order_id', orderId)
           .single()
+          
         if (!cancelled) {
           setOrder({ ...o, invoice: inv || null })
           if (inv?.pdf_url) setInvoiceArrived(true)
@@ -45,7 +56,7 @@ export default function OrderSuccess() {
     return () => {
       cancelled = true
     }
-  }, [orderId])
+  }, [orderId]) // supabase is no longer a dependency
 
   // 2. Real-time subscription for invoice arrival
   useEffect(() => {
@@ -53,6 +64,7 @@ export default function OrderSuccess() {
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe()
     }
+    // 3. USE the singleton instance
     const channel = supabase
       .channel(`invoice-${orderId}`)
       .on(
@@ -73,13 +85,14 @@ export default function OrderSuccess() {
     return () => {
       channel.unsubscribe()
     }
-  }, [orderId])
+  }, [orderId]) // supabase is no longer a dependency
 
   // 3. Manual invoice check
   const checkForInvoice = async () => {
     if (!orderId || checkingInvoice) return
     setCheckingInvoice(true)
     try {
+      // 3. USE the singleton instance
       const { data: inv } = await supabase
         .from('invoices')
         .select('*')
@@ -96,7 +109,7 @@ export default function OrderSuccess() {
     }
   }
 
-  // 4. Countdown and redirect after invoice
+  // The functions below do not use supabase and need no changes.
   useEffect(() => {
     if (!invoiceArrived) return
     const id = setTimeout(() => {
@@ -105,7 +118,6 @@ export default function OrderSuccess() {
     return () => clearTimeout(id)
   }, [invoiceArrived, router])
 
-  // 5. Countdown before invoice
   useEffect(() => {
     if (invoiceArrived) return
     if (timer <= 0) {
@@ -116,17 +128,18 @@ export default function OrderSuccess() {
     return () => clearTimeout(id)
   }, [timer, invoiceArrived])
 
-  // 6. Order More Items
   const handleMore = () => {
     const rId = order?.restaurant_id
-    if (rId) {
-      router.push(`/order?restaurant=${rId}`)
+    const tNum = order?.table_number
+    if (rId && tNum) {
+      router.push(`/order?r=${rId}&t=${tNum}`)
     } else {
       router.push('/')
     }
   }
 
   if (!orderId) return <div style={{ padding: 20 }}>No order found.</div>
+  // 2. REMOVE the checking condition
   if (loading) return <div style={{ padding: 20 }}>Loading order details...</div>
   if (error) return <div style={{ padding: 20, color: 'red' }}>{error}</div>
 
@@ -148,23 +161,7 @@ export default function OrderSuccess() {
           <div>
             <p style={{ color: 'green' }}>✅ Your bill is ready!</p>
             <button
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/invoices/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order_id: order.id })
-                  })
-                  if (res.ok) {
-                    const { pdf_url } = await res.json()
-                    window.open(pdf_url, '_blank')
-                  } else {
-                    alert('Failed to fetch bill. Please try again shortly.')
-                  }
-                } catch {
-                  alert('Error generating bill. Please try again.')
-                }
-              }}
+              onClick={() => window.open(invoiceUrl, '_blank')}
               style={{
                 display: 'inline-block',
                 padding: '12px 24px',

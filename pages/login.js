@@ -1,82 +1,55 @@
-//pages/login.js
+// In: pages/login.js
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { supabase } from '../services/supabase';
+import { getSupabase } from '../services/supabase'; // 1. IMPORT
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = getSupabase(); // 2. GET the singleton instance
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [showForgot, setShowForgot] = useState(false);
 
-  // If user is already authenticated, send to dashboard
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        console.log('Session check:', data, error);
-        if (data && data.session) {
-          const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
-          router.replace(dest);
-        }
-      } catch (err) {
-        console.error('Error during session check:', err);
-      }
-    };
-    checkSession();
-
-    // Subscribe to auth changes
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('Auth state changed:', session);
-      if (session) {
-        const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
-        router.replace(dest);
-      }
-    });
-
-    return () => {
-      if (sub && sub.subscription) sub.subscription.unsubscribe();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // *** FIX: REMOVED the problematic useEffect hook that was causing the refresh loop.
+  // Auth redirection is now handled by the useRequireAuth hook on protected pages.
+  // This page is public and does not need to check the session itself.
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!supabase) return;
     setLoading(true);
     setMessage('');
     setShowForgot(false);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      console.log('Login attempt error:', error);
       
-      setLoading(false);
-
       if (error) {
+        setLoading(false);
         const msg = (error.message || '').toLowerCase();
-
         if (msg.includes('email not confirmed')) {
           setMessage('Please confirm your email first. Check your inbox for the verification link.');
-        } else if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+        } else if (msg.includes('invalid login credentials')) {
           setMessage('Incorrect email or password. Please try again.');
           setShowForgot(true);
-        } else if (msg.includes('rate limit')) {
-          setMessage('Too many attempts. Please wait a minute and try again.');
         } else {
           setMessage('Login error: ' + error.message);
         }
         return;
       }
 
+      // On successful login, Supabase now automatically handles the session.
+      // The user will be redirected by the auth guard on the next page they visit.
       const dest = (router.query && router.query.redirect) ? String(router.query.redirect) : '/owner';
       router.push(dest);
+
     } catch (e) {
       setLoading(false);
-      setMessage('Unexpected error during login.');
+      setMessage('An unexpected error occurred during login.');
       console.error('Unhandled login error:', e);
     }
   };

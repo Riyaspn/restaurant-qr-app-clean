@@ -1,12 +1,18 @@
-// pages/order/index.js
 import { useRouter } from 'next/router'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../../services/supabase'
 import Link from 'next/link'
+// 1. IMPORT the singleton function
+import { getSupabase } from '../../services/supabase'
 
+// 2. REMOVE the supabase prop
 export default function OrderPage() {
+  // 3. GET the singleton instance
+  const supabase = getSupabase();
   const router = useRouter()
   const { r: restaurantId, t: tableNumber } = router.query
+
+  // 2. REMOVE the useRequireAuth hook
+  // const { checking } = useRequireAuth(supabase)
 
   // Core state
   const [restaurant, setRestaurant] = useState(null)
@@ -25,7 +31,7 @@ export default function OrderPage() {
     menuMapRef.current = m
   }
 
-  // Load persisted cart for this restaurant/table
+  // Load persisted cart for this restaurant/table (no changes needed)
   useEffect(() => {
     if (!restaurantId || !tableNumber) return
     const key = `cart_${restaurantId}_${tableNumber}`
@@ -35,7 +41,7 @@ export default function OrderPage() {
     }
   }, [restaurantId, tableNumber])
 
-  // Persist cart changes
+  // Persist cart changes (no changes needed)
   useEffect(() => {
     if (!restaurantId || !tableNumber) return
     const key = `cart_${restaurantId}_${tableNumber}`
@@ -52,6 +58,7 @@ export default function OrderPage() {
         setLoading(true)
         setError('')
 
+        // 3. USE the singleton instance
         const { data: rest, error: restErr } = await supabase
           .from('restaurants')
           .select('id, name, online_paused, restaurant_profiles(brand_color, phone)')
@@ -61,7 +68,7 @@ export default function OrderPage() {
         if (!rest) throw new Error('Restaurant not found')
         if (rest.online_paused) throw new Error('Restaurant is currently closed')
 
-        // Fetch all items for realtime friendliness; we'll control visibility in UI
+        // 3. USE the singleton instance
         const { data: menu, error: menuErr } = await supabase
           .from('menu_items')
           .select('id, name, price, description, category, veg, status')
@@ -72,7 +79,6 @@ export default function OrderPage() {
 
         const cleaned = (menu || []).map((item, i) => ({
           ...item,
-          // lightweight “previous design” badges
           rating: Number((3.8 + Math.random() * 1.0).toFixed(1)),
           popular: i % 4 === 0
         }))
@@ -91,11 +97,13 @@ export default function OrderPage() {
 
     loadData()
     return () => { cancelled = true }
-  }, [restaurantId])
+  }, [restaurantId]) // supabase is no longer a dependency
 
-  // Realtime: patch menu item changes (status/price/name/etc.) without clearing cart
+  // Realtime
   useEffect(() => {
     if (!restaurantId) return
+
+    // 3. USE the singleton instance
     const channel = supabase
       .channel(`menu-items-${restaurantId}`)
       .on(
@@ -134,9 +142,9 @@ export default function OrderPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [restaurantId])
-
-  // Cart helpers (preserve “previous UI” behavior)
+  }, [restaurantId]) // supabase is no longer a dependency
+  
+  // All functions below (addToCart, etc.) do not use supabase and need no changes.
   const addToCart = (item) => {
     if (item.status && item.status !== 'available') {
       alert('This item is currently out of stock.')
@@ -156,7 +164,6 @@ export default function OrderPage() {
 
   const getItemQuantity = (itemId) => cart.find(c => c.id === itemId)?.quantity || 0
 
-  // Filters and grouping (same as previous design)
   const filteredItems = useMemo(() => {
     const q = (searchQuery || '').toLowerCase()
     return (menuItems || []).filter(item => {
@@ -179,6 +186,7 @@ export default function OrderPage() {
   const cartTotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.quantity, 0), [cart])
   const cartItemsCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart])
 
+  // 2. REMOVE the checking condition
   if (loading) return <div style={{padding: 40, textAlign: 'center'}}>Loading menu...</div>
   if (error) return <div style={{padding: 40, textAlign: 'center', color: 'red'}}>{error}</div>
 
@@ -193,7 +201,6 @@ export default function OrderPage() {
         fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif'
       }}
     >
-      {/* Header - previous design style */}
       <header
         style={{
           padding: '1rem',
@@ -208,7 +215,7 @@ export default function OrderPage() {
           onClick={() => router.back()}
           style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
         >
-          ←
+          {'<'}
         </button>
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
@@ -221,7 +228,6 @@ export default function OrderPage() {
         </div>
       </header>
 
-      {/* Search bar */}
       <div style={{ padding: '1rem', background: '#fff' }}>
         <input
           type="text"
@@ -238,7 +244,6 @@ export default function OrderPage() {
         />
       </div>
 
-      {/* Filter chips */}
       <div
         style={{
           display: 'flex',
@@ -273,7 +278,6 @@ export default function OrderPage() {
         ))}
       </div>
 
-      {/* Menu sections */}
       <div>
         {Object.entries(groupedItems).map(([category, items]) => (
           <section key={category} style={{ background: '#fff', marginBottom: 8 }}>
@@ -424,7 +428,6 @@ export default function OrderPage() {
         ))}
       </div>
 
-      {/* Sticky cart bar */}
       {cartItemsCount > 0 && (
         <div
           style={{

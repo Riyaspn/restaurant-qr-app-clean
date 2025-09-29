@@ -1,8 +1,16 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { supabase } from '../services/supabase'
+// 1. IMPORT the singleton function
+import { getSupabase } from '../services/supabase'
 
+// 2. REMOVE the supabase prop
 export default function SignupPage() {
+  // 3. GET the singleton instance
+  const supabase = getSupabase();
+
+  // 2. REMOVE the useRequireAuth hook
+  // const { checking } = useRequireAuth(supabase)
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,6 +21,7 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+    // 3. USE the singleton instance
     const { error } = await supabase.auth.signUp({
       email,
       password
@@ -25,7 +34,7 @@ export default function SignupPage() {
       ) {
         setMessage(
           <span>
-            This email is already registered and confirmed. Please{' '}
+            This email is already registered. Please{' '}
             <Link href="/login" style={{ color: '#0070f3', textDecoration: 'underline' }}>
               log in
             </Link>{' '}
@@ -38,10 +47,13 @@ export default function SignupPage() {
       }
     } else {
       setMessage(
-        'If you have not confirmed your email yet, a confirmation link has been sent (or re-sent). Please check your inbox before logging in.'
+        'A confirmation link has been sent to your email. Please check your inbox to complete the signup.'
       )
     }
   }
+
+  // 2. REMOVE the loading check
+  // if (checking) return <div style={{ padding: 20 }}>Loading...</div>
 
   return (
     <div style={{ maxWidth: 400, margin: '0 auto', padding: 20 }}>
@@ -82,7 +94,6 @@ export default function SignupPage() {
             border: '1px solid ' + (typeof message === 'string' && message.startsWith('Error') ? '#ff0000' : '#00aa00'),
             borderRadius: 4,
             marginBottom: 10,
-            color: typeof message === 'string' ? 'inherit' : undefined,
           }}
         >
           {message}

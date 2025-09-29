@@ -1,53 +1,59 @@
-// pages/owner/billing.js
-import React, { useEffect, useState } from 'react'
-import { useRestaurant } from '../../context/RestaurantContext'
-import { supabase } from '../../services/supabase'
-import Button from '../../components/ui/Button'
-import Card from '../../components/ui/Card'
+// In: pages/owner/billing.js
+
+import React, { useEffect, useState } from 'react';
+import { useRestaurant } from '../../context/RestaurantContext';
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT ADDED
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 
 export default function BillingPage() {
-  const { restaurant } = useRestaurant()
-  const today = new Date().toISOString().slice(0, 10)
+  // 2. & 3. APPLY SINGLETON PATTERN
+  const supabase = getSupabase();
+  const { restaurant } = useRestaurant();
+  const today = new Date().toISOString().slice(0, 10);
 
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
-  const [invoices, setInvoices] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const reload = async () => {
-    if (!restaurant?.id) return
-    setLoading(true)
-    setError('')
+    if (!restaurant?.id || !supabase) return;
+
+    setLoading(true);
+    setError('');
     try {
-      const start = `${from}T00:00:00Z`
-      const end = `${to}T23:59:59Z`
+      const start = `${from}T00:00:00Z`;
+      const end = `${to}T23:59:59Z`;
       const { data, error } = await supabase
         .from('invoices')
         .select('id, invoice_no, invoice_date, total_inc_tax, pdf_url')
         .eq('restaurant_id', restaurant.id)
         .gte('invoice_date', start)
         .lte('invoice_date', end)
-        .order('invoice_date', { ascending: false })
-      if (error) throw error
-      setInvoices(data || [])
+        .order('invoice_date', { ascending: false });
+      if (error) throw error;
+      setInvoices(data || []);
     } catch (e) {
-      setError(e.message || 'Failed to load invoices')
+      setError(e.message || 'Failed to load invoices');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    reload()
+    if (supabase && restaurant?.id) {
+      reload();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurant?.id, from, to])
+  }, [restaurant?.id, from, to, supabase]);
 
   const exportCsv = () => {
-    if (!restaurant?.id) return
-    const qs = new URLSearchParams({ from, to, restaurant_id: restaurant.id }).toString()
-    window.location.href = `/api/reports/sales?${qs}`
-  }
+    if (!restaurant?.id) return;
+    const qs = new URLSearchParams({ from, to, restaurant_id: restaurant.id }).toString();
+    window.location.href = `/api/reports/sales?${qs}`;
+  };
 
   return (
     <div className="container" style={{ padding: '20px 8px 40px' }}>
@@ -57,11 +63,11 @@ export default function BillingPage() {
         <div className="filters">
           <label className="field">
             <span className="label">From:</span>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ fontSize: 16 }} /> {/* prevent iOS zoom [web:199][web:198][web:208] */}
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={{ fontSize: 16 }} />
           </label>
           <label className="field">
             <span className="label">To:</span>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ fontSize: 16 }} /> {/* [web:199][web:198][web:208] */}
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} style={{ fontSize: 16 }} />
           </label>
           <div className="cta">
             <Button onClick={reload} disabled={loading}>{loading ? 'Loading…' : 'Load Invoices'}</Button>
@@ -102,37 +108,24 @@ export default function BillingPage() {
       </Card>
 
       <style jsx>{`
-        .filters {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0,1fr));
-          gap: 10px;
-          align-items: end;
-        }
-        .field { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
-        .label { color: #374151; }
-        .cta { display: flex; gap: 8px; justify-content: flex-end; grid-column: 3 / -1; flex-wrap: wrap; }
-        .invoice-list { display: grid; gap: 12px; }
-        .invoice-row {
-          display: grid;
-          grid-template-columns: auto auto 1fr auto auto auto;
-          gap: 8px; align-items: center;
-        }
-        .spacer { flex: 1; }
-        .sep { color: #9ca3af; }
-        .inv-no { overflow-wrap: anywhere; }
-        .inv-date { color: #6b7280; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .filters { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
+        .label { font-size: 14px; color: #6b7280; }
+        .cta { margin-left: auto; display: flex; gap: 8px; }
+        .invoice-list { display: flex; flex-direction: column; gap: 8px; }
+        .invoice-row { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 4px; background: #f9fafb; }
+        .inv-no { font-family: monospace; }
+        .inv-date { color: #6b7280; font-size: 14px; }
         .inv-amt { font-weight: 600; }
-
-        @media (max-width: 900px) {
-          .filters { grid-template-columns: repeat(2, minmax(0,1fr)); }
-          .cta { grid-column: 1 / -1; justify-content: flex-start; }
-        }
-        @media (max-width: 560px) {
-          .invoice-row { grid-template-columns: 1fr; }
-          .sep { display: none; }
-          .spacer { display: none; }
+        .spacer { flex: 1; }
+        .sep { color: #d1d5db; }
+        .muted { color: #6b7280; }
+        @media (max-width: 600px) {
+          .filters { flex-direction: column; align-items: stretch; }
+          .cta { margin-left: 0; }
         }
       `}</style>
     </div>
-  )
+  );
 }

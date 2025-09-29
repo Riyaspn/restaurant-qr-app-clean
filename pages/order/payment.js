@@ -1,12 +1,18 @@
-//pages/order/payment.js
-
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../services/supabase';
+// 1. IMPORT the singleton function
+import { getSupabase } from '../../services/supabase';
 
+// 2. REMOVE the supabase prop
 export default function PaymentPage() {
   const router = useRouter();
+  // 3. GET the singleton instance
+  const supabase = getSupabase();
   const { r: restaurantId, t: tableNumber, total } = router.query;
+  
+  // 2. REMOVE the useRequireAuth hook
+  // const { checking } = useRequireAuth(supabase);
+
   const [restaurant, setRestaurant] = useState(null);
   const [cart, setCart] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState('cash');
@@ -27,11 +33,12 @@ export default function PaymentPage() {
   }, [total, cart]);
 
   useEffect(() => {
+    // 3. USE the singleton instance (already available)
     if (restaurantId) loadRestaurantData();
-  }, [restaurantId]);
+  }, [restaurantId]); // supabase is no longer a dependency
 
   useEffect(() => {
-    if (restaurantId && tableNumber) {
+    if (typeof window !== 'undefined' && restaurantId && tableNumber) {
       try {
         const stored = localStorage.getItem(`cart_${restaurantId}_${tableNumber}`);
         if (stored) setCart(JSON.parse(stored) || []);
@@ -52,6 +59,7 @@ export default function PaymentPage() {
 
   const loadRestaurantData = async () => {
     try {
+      // 3. USE the singleton instance
       const { data, error } = await supabase
         .from('restaurants')
         .select(`
@@ -81,6 +89,7 @@ export default function PaymentPage() {
     }
   };
 
+  // The functions below do not use the supabase client directly and need no changes
   const notifyOwner = async (payload) => {
     try {
       await fetch('/api/notify-owner', {
@@ -207,7 +216,6 @@ export default function PaymentPage() {
       }
 
       if (selectedPayment === 'route') {
-        // Handle Route payment here
         const resp = await fetch('/api/route/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -242,7 +250,7 @@ export default function PaymentPage() {
         localStorage.setItem('pending_order', JSON.stringify(pendingOrder));
 
         const options = {
-          key: data.key_id, // This will be your master Razorpay key for Route
+          key: data.key_id,
           order_id: data.order_id,
           amount: data.amount,
           currency: data.currency,
@@ -269,26 +277,18 @@ export default function PaymentPage() {
 
   const brandColor = restaurant?.restaurant_profiles?.brand_color || '#f59e0b';
 
-  // Dynamic payment methods based on restaurant settings
   const getPaymentMethods = () => {
-    const methods = [
-      { id: 'cash', name: 'Pay at Counter', icon: '💵' }
-    ];
-
+    const methods = [{ id: 'cash', name: 'Pay at Counter', icon: '💵' }];
     if (paymentSettings.online_payment_enabled) {
       if (paymentSettings.use_own_gateway) {
-        methods.push({ id: 'byo', name: 'Online Payment (BYO Gateway)', icon: '🌐' });
+        methods.push({ id: 'byo', name: 'Online Payment', icon: '🌐' });
       } else {
-        methods.push(
-          { id: 'route', name: 'UPI Payment', icon: '📱' },
-          { id: 'route', name: 'Card Payment', icon: '💳' }
-        );
+        methods.push({ id: 'route', name: 'UPI / Cards / Netbanking', icon: '💳' });
       }
     }
-
     return methods;
   };
-
+  
   const paymentMethods = getPaymentMethods();
 
   return (
@@ -307,7 +307,7 @@ export default function PaymentPage() {
           onClick={() => router.back()}
           style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
         >
-          ←
+          {'<'}
         </button>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, flex: 1, textAlign: 'center' }}>
           Payment

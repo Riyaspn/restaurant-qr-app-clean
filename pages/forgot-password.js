@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '../services/supabase'
+// 1. IMPORT the singleton function
+import { getSupabase } from '../services/supabase'
 
 export default function ForgotPassword() {
+  // 2. GET the singleton instance
+  const supabase = getSupabase();
+
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
@@ -11,9 +15,12 @@ export default function ForgotPassword() {
     e.preventDefault()
     setMsg('')
     setLoading(true)
+
+    // 3. USE the singleton instance and ensure window is defined
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined
     })
+    
     setLoading(false)
     if (error) {
       setMsg(`Error: ${error.message}`)

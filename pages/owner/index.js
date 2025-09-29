@@ -1,79 +1,83 @@
-// pages/owner/index.js
-import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { supabase } from '../../services/supabase'
-import { useRequireAuth } from '../../lib/useRequireAuth'
-import { useRestaurant } from '../../context/RestaurantContext'
+//pages/owner/index.js
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRequireAuth } from '../../lib/useRequireAuth';
+import { useRestaurant } from '../../context/RestaurantContext';
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT ADDED
 
 function formatCurrency(n) {
-  const num = Number(n || 0)
-  return `₹${num.toFixed(2)}`
+  const num = Number(n || 0);
+  return `₹${num.toFixed(2)}`;
 }
 function startOfTodayISO() {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
 }
 
 export default function OwnerOverview() {
-  const { checking } = useRequireAuth()
-  const { restaurant, loading: restLoading, error: restError } = useRestaurant()
+  // 2. & 3. APPLY SINGLETON PATTERN
+  const supabase = getSupabase();
+  const { checking } = useRequireAuth(supabase);
+  
+  const { restaurant, loading: restLoading, error: restError } = useRestaurant();
 
-  const [stats, setStats] = useState({ liveOrders: 0, revenueToday: 0, avgTicket: 0, outOfStock: 0 })
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [err, setErr] = useState('')
+  const [stats, setStats] = useState({ liveOrders: 0, revenueToday: 0, avgTicket: 0, outOfStock: 0 });
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
 
-  const restaurantId = restaurant?.id || ''
+  const restaurantId = restaurant?.id || '';
 
   useEffect(() => {
-    if (checking || restLoading) return
+    if (!supabase || checking || restLoading) return;
     if (!restaurantId) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
-    let cancel = false
+    let cancel = false;
 
     async function fetchOverview() {
       try {
-        setErr('')
-        const startISO = startOfTodayISO()
+        setErr('');
+        const startISO = startOfTodayISO();
 
         const { count: liveCount, error: liveErr } = await supabase
           .from('orders')
           .select('id', { count: 'exact', head: true })
           .eq('restaurant_id', restaurantId)
-          .in('status', ['new', 'in_progress', 'ready'])
-        if (liveErr) throw liveErr
-        const liveOrders = typeof liveCount === 'number' ? liveCount : 0
+          .in('status', ['new', 'in_progress', 'ready']);
+        if (liveErr) throw liveErr;
+        const liveOrders = typeof liveCount === 'number' ? liveCount : 0;
 
         const { data: todayRows, error: todayErr } = await supabase
           .from('orders')
-          .select('total_amount,total,status,created_at')
+          .select('total_inc_tax, status, created_at') // Simplified select
           .eq('restaurant_id', restaurantId)
-          .gte('created_at', startISO)
-        if (todayErr) throw todayErr
+          .gte('created_at', startISO);
+        if (todayErr) throw todayErr;
 
-        const rows = Array.isArray(todayRows) ? todayRows : []
-        const totalFor = (o) => Number(o.total_amount ?? o.total ?? 0)
-        const revenueToday = rows.reduce((a, o) => a + totalFor(o), 0)
-        const completed = rows.filter((o) => String(o.status) === 'completed')
+        const rows = Array.isArray(todayRows) ? todayRows : [];
+        const totalFor = (o) => Number(o.total_inc_tax ?? 0);
+        const revenueToday = rows.reduce((a, o) => a + totalFor(o), 0);
+        const completed = rows.filter((o) => String(o.status) === 'completed');
         const avgTicket = completed.length > 0
           ? completed.reduce((a, o) => a + totalFor(o), 0) / completed.length
-          : 0
+          : 0;
 
         const { count: outCount, error: outErr } = await supabase
           .from('menu_items')
           .select('id', { count: 'exact', head: true })
           .eq('restaurant_id', restaurantId)
-          .eq('is_available', false)
-        if (outErr) throw outErr
+          .eq('status', 'out_of_stock'); // Corrected from 'is_available'
+        if (outErr) throw outErr;
 
-        if (!cancel) setStats({ liveOrders, revenueToday, avgTicket, outOfStock: outCount || 0 })
+        if (!cancel) setStats({ liveOrders, revenueToday, avgTicket, outOfStock: outCount || 0 });
       } catch (e) {
         if (!cancel) {
-          setErr(e?.message || 'Failed to load KPIs')
-          setStats({ liveOrders: 0, revenueToday: 0, avgTicket: 0, outOfStock: 0 })
+          setErr(e?.message || 'Failed to load KPIs');
+          setStats({ liveOrders: 0, revenueToday: 0, avgTicket: 0, outOfStock: 0 });
         }
       }
     }
@@ -82,28 +86,28 @@ export default function OwnerOverview() {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('id,created_at,status,total_amount,total')
+          .select('id, created_at, status, total_inc_tax') // Simplified select
           .eq('restaurant_id', restaurantId)
           .order('created_at', { ascending: false })
-          .limit(10)
-        if (error) throw error
-        if (!cancel) setOrders(Array.isArray(data) ? data : [])
+          .limit(10);
+        if (error) throw error;
+        if (!cancel) setOrders(Array.isArray(data) ? data : []);
       } catch (e) {
         if (!cancel) {
-          setErr((prev) => prev || e?.message || 'Failed to load recent orders')
-          setOrders([])
+          setErr((prev) => prev || e?.message || 'Failed to load recent orders');
+          setOrders([]);
         }
       } finally {
-        if (!cancel) setLoading(false)
+        if (!cancel) setLoading(false);
       }
     }
 
-    fetchOverview()
-    fetchRecentOrders()
-    return () => { cancel = true }
-  }, [checking, restLoading, restaurantId])
+    fetchOverview();
+    fetchRecentOrders();
+    return () => { cancel = true; };
+  }, [checking, restLoading, restaurantId, supabase]);
 
-  if (checking || restLoading) return <div style={{ padding: 24 }}>Loading…</div>
+  if (checking || restLoading) return <div style={{ padding: 24 }}>Loading…</div>;
 
   if (!restaurantId) {
     return (
@@ -115,7 +119,7 @@ export default function OwnerOverview() {
             : 'No restaurant is linked to this login (owner_email).'}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -155,7 +159,7 @@ export default function OwnerOverview() {
         }
       `}</style>
     </>
-  )
+  );
 }
 
 function KpiGrid({ stats }) {
@@ -164,7 +168,7 @@ function KpiGrid({ stats }) {
     { label: 'Revenue Today', value: formatCurrency(stats.revenueToday) },
     { label: 'Avg Ticket', value: formatCurrency(stats.avgTicket) },
     { label: 'Out of Stock', value: stats.outOfStock },
-  ]
+  ];
   return (
     <div className="kpi-grid">
       {tiles.map((t) => (
@@ -191,7 +195,7 @@ function KpiGrid({ stats }) {
         }
       `}</style>
     </div>
-  )
+  );
 }
 
 function QuickActions() {
@@ -214,7 +218,7 @@ function QuickActions() {
         }
       `}</style>
     </>
-  )
+  );
 }
 
 function RecentOrders({ orders, loading }) {
@@ -232,7 +236,7 @@ function RecentOrders({ orders, loading }) {
               <span className="id">#{String(o.id).slice(0, 8)}</span>
               <span className="date">{o.created_at ? new Date(o.created_at).toLocaleString() : '--'}</span>
               <span className={`status ${String(o.status || 'new')}`}>{String(o.status || 'new')}</span>
-              <span className="total">{formatCurrency(o.total_amount ?? o.total ?? 0)}</span>
+              <span className="total">{formatCurrency(o.total_inc_tax ?? 0)}</span>
             </div>
           ))
         )}
@@ -272,5 +276,5 @@ function RecentOrders({ orders, loading }) {
         }
       `}</style>
     </>
-  )
+  );
 }

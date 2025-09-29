@@ -15,69 +15,41 @@ const CUSTOMER_PREFIX = '/order';
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
-  const path = router.pathname || '';
-  const showSidebar = path === OWNER_PREFIX || path.startsWith(`${OWNER_PREFIX}/`);
-  const isCustomerRoute = path === CUSTOMER_PREFIX || path.startsWith(`${CUSTOMER_PREFIX}/`);
 
-  // This single, centralized useEffect handles all native push notification logic.
+  // This hook is for push notifications and remains unchanged.
   useEffect(() => {
-    // Only run this logic on a native device (iOS or Android)
     if (Capacitor.isNativePlatform()) {
       const setupPushNotifications = async () => {
-        console.log('Initializing Capacitor Push Notifications...');
-        
-        // Remove any old listeners to ensure a clean start
         await PushNotifications.removeAllListeners();
-
-        // 1. Request permission
         const permStatus = await PushNotifications.requestPermissions();
-        if (permStatus.receive !== 'granted') {
-          console.error('User denied push notification permissions.');
-          return;
-        }
-
-        // 2. Register with FCM to get the device token
+        if (permStatus.receive !== 'granted') return;
         await PushNotifications.register();
-
-        // --- All Listeners Are Now Centralized Here ---
-
-        // On success, we get a device token
-        PushNotifications.addListener('registration', (token) => {
-          console.log('✅ Push registration success, token: ' + token.value);
-          // You should send this token to your backend server to associate it with the user
-        });
-
-        // On error, log it
-        PushNotifications.addListener('registrationError', (error) => {
-          console.error('❌ Error on push registration: ' + JSON.stringify(error));
-        });
-
-        // Show a notification when the app is open
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          console.log('🔵 Push received in foreground:', notification);
-          // You can add a toast or an in-app alert here if you want
-        });
-
-        // Handle the user tapping on a notification
+        PushNotifications.addListener('registration', (token) => console.log('Push registration success:', token.value));
+        PushNotifications.addListener('registrationError', (error) => console.error('Push registration error:', error));
+        PushNotifications.addListener('pushNotificationReceived', (notification) => console.log('Push received:', notification));
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-          console.log('🔵 Push action performed (notification tapped):', notification);
-          // When the user taps the notification, navigate to the orders page
+          console.log('Push action performed:', notification);
           router.push('/owner/orders');
         });
       };
-
       setupPushNotifications().catch(console.error);
     }
-  }, [router]); // router is a dependency for the action listener
+  }, [router]);
+
+  const path = router.pathname || '';
+  const showSidebar = path.startsWith(OWNER_PREFIX);
+  const isCustomerRoute = path.startsWith(CUSTOMER_PREFIX);
 
   return (
-    <RestaurantProvider>
+    // RestaurantProvider no longer needs any props.
+    <RestaurantProvider> 
       <Layout
         title={pageProps?.title}
         showSidebar={showSidebar}
         hideChrome={isCustomerRoute}
         showHeader={isCustomerRoute}
       >
+        {/* The supabase prop is removed from Component. */}
         <Component {...pageProps} />
       </Layout>
     </RestaurantProvider>

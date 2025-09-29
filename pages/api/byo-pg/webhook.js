@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { supabase } from '../../../services/supabase';
+import { getSupabase } from '../../../services/supabase';
 
 export const config = { api: { bodyParser: false } };
 
@@ -12,6 +12,12 @@ const readBody = (req) =>
   });
 
 export default async function handler(req, res) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    console.error('Supabase client not initialized');
+    return res.status(500).send('Internal Server Error');
+  }
+
   if (req.method !== 'POST') {
     res.status(405).end();
     return;

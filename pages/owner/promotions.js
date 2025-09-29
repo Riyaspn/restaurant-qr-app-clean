@@ -1,13 +1,13 @@
-// pages/owner/promotions.js
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../../services/supabase'
+import { getSupabase } from '../../services/supabase'
 import { useRequireAuth } from '../../lib/useRequireAuth'
 import { useRestaurant } from '../../context/RestaurantContext'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 
 export default function PromotionsPage() {
-  const { checking } = useRequireAuth()
+  const supabase = getSupabase()
+  const { checking } = useRequireAuth(supabase)
   const { restaurant, loading: restLoading } = useRestaurant()
 
   const [promotions, setPromotions] = useState([])
@@ -20,7 +20,7 @@ export default function PromotionsPage() {
 
   useEffect(() => {
     if (checking || restLoading || !restaurantId) return
-    // TODO: Replace mock with Supabase query when table exists
+    // TODO: Replace mock with real Supabase query when promotions table exists
     setPromotions([])
   }, [checking, restLoading, restaurantId])
 
@@ -209,7 +209,7 @@ function PromotionForm({ promotion, onSave, onClose }) {
               placeholder="e.g., Weekend Special, First Time Customer"
               required
               autoFocus
-              style={{ fontSize: 16 }} /* prevent iOS zoom [web:199][web:198][web:208] */
+              style={{ fontSize: 16 }}
             />
           </div>
 
@@ -219,7 +219,7 @@ function PromotionForm({ promotion, onSave, onClose }) {
               <select
                 value={form.type}
                 onChange={(e) => setForm(prev => ({ ...prev, type: e.target.value }))}
-                style={{ fontSize: 16 }} /* [web:199][web:198][web:208] */
+                style={{ fontSize: 16 }}
               >
                 <option value="percent">Percentage</option>
                 <option value="amount">Fixed Amount</option>
@@ -235,7 +235,7 @@ function PromotionForm({ promotion, onSave, onClose }) {
                 onChange={(e) => setForm(prev => ({ ...prev, value: e.target.value }))}
                 placeholder={form.type === 'percent' ? '10' : '100'}
                 required
-                style={{ fontSize: 16 }} /* [web:199][web:198][web:208] */
+                style={{ fontSize: 16 }}
               />
             </div>
           </div>
@@ -249,7 +249,7 @@ function PromotionForm({ promotion, onSave, onClose }) {
               value={form.min_order}
               onChange={(e) => setForm(prev => ({ ...prev, min_order: e.target.value }))}
               placeholder="Optional"
-              style={{ fontSize: 16 }} /* [web:199][web:198][web:208] */
+              style={{ fontSize: 16 }}
             />
           </div>
 
@@ -260,7 +260,7 @@ function PromotionForm({ promotion, onSave, onClose }) {
                 type="date"
                 value={form.start_date}
                 onChange={(e) => setForm(prev => ({ ...prev, start_date: e.target.value }))}
-                style={{ fontSize: 16 }} /* [web:199][web:198][web:208] */
+                style={{ fontSize: 16 }}
               />
             </div>
             <div className="form-group">
@@ -269,7 +269,7 @@ function PromotionForm({ promotion, onSave, onClose }) {
                 type="date"
                 value={form.end_date}
                 onChange={(e) => setForm(prev => ({ ...prev, end_date: e.target.value }))}
-                style={{ fontSize: 16 }} /* [web:199][web:198][web:208] */
+                style={{ fontSize: 16 }}
               />
             </div>
           </div>
@@ -293,8 +293,24 @@ function PromotionForm({ promotion, onSave, onClose }) {
       </div>
 
       <style jsx>{`
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 12px; }
-        .modal-card { background: #fff; width: min(600px, 95vw); max-height: 90vh; overflow-y: auto; border-radius: 12px; padding: 24px; }
+        .modal-overlay {
+          position: fixed;
+          inset: 0; 
+          background: rgba(0,0,0,0.5); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          z-index: 1000; 
+          padding: 12px;
+        }
+        .modal-card {
+          background: #fff; 
+          width: min(600px, 95vw); 
+          max-height: 90vh; 
+          overflow-y: auto; 
+          border-radius: 12px; 
+          padding: 24px;
+        }
         .form-group { margin-bottom: 16px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .form-group label { display: block; margin-bottom: 4px; font-weight: 500; }

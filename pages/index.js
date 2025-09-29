@@ -1,18 +1,28 @@
-// pages/index.js
-import { supabase } from '../services/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
+// 1. IMPORT the singleton function
+import { getSupabase } from '../services/supabase'
 
+// 2. REMOVE the supabase prop from the component
 export default function Home() {
+  // Get the Supabase client instance from our singleton
+  const supabase = getSupabase();
+
+  // 2. REMOVE the useRequireAuth hook as it's not needed on a public page
+  // const { checking } = useRequireAuth(supabase)
+  // if (checking) return null; // This is no longer needed
+
   const handleGoogleLogin = async () => {
+    // 3. USE the singleton instance directly
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo:
-          'https://restaurant-qr-app-clean-jippa8oyp-riyas-p-ns-projects.vercel.app/dashboard',
+        // It's recommended to use a relative path for redirectTo,
+        // as this works better across different environments (local, staging, prod).
+        redirectTo: '/owner', 
       },
-    });
-  };
+    })
+  }
 
   return (
     <div
@@ -178,5 +188,5 @@ export default function Home() {
         </section>
       </div>
     </div>
-  );
+  )
 }

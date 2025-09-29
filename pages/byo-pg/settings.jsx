@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from 'react';
+// 1. IMPORT the singleton function
+import { getSupabase } from '../../services/supabase';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
-import { supabase } from '../../services/supabase';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 
+// 2. REMOVE the supabase prop
 export default function ByoPgSettings() {
+  // 2. REMOVE the supabase prop from the hook call
   const { checking } = useRequireAuth();
+  // 3. GET the singleton instance
+  const supabase = getSupabase();
   const { restaurant } = useRestaurant();
   const [form, setForm] = useState({ key_id: '', key_secret: '' });
   const [loading, setLoading] = useState(true);
@@ -15,6 +20,8 @@ export default function ByoPgSettings() {
 
   useEffect(() => {
     if (!restaurant?.id) return;
+
+    // 3. USE the singleton instance
     supabase
       .from('restaurant_profiles')
       .select('razorpay_key_id,razorpay_key_secret')
@@ -26,7 +33,7 @@ export default function ByoPgSettings() {
         }
         setLoading(false);
       });
-  }, [restaurant]);
+  }, [restaurant]); // supabase is no longer a dependency
 
   const save = async (e) => {
     e.preventDefault();
@@ -34,12 +41,15 @@ export default function ByoPgSettings() {
     setMsg({ error: '', success: '' });
     try {
       if (!form.key_id || !form.key_secret) throw new Error('Both fields are required');
+
+      // 3. USE the singleton instance
       await supabase.from('restaurant_profiles').upsert({
         restaurant_id: restaurant.id,
         razorpay_key_id: form.key_id.trim(),
         razorpay_key_secret: form.key_secret.trim(),
       }, { onConflict: 'restaurant_id' });
-      setMsg({ success: 'API keys saved', error: '' });
+      
+      setMsg({ success: 'API keys saved successfully!', error: '' });
     } catch (e) {
       setMsg({ error: e.message, success: '' });
     } finally {
@@ -53,8 +63,8 @@ export default function ByoPgSettings() {
     <div style={{ maxWidth: 600, margin: 'auto', padding: 16 }}>
       <h2>Payment Gateway Settings</h2>
       <Card padding={24} style={{ marginBottom: 24 }}>
-        {msg.error && <div style={{ color: 'red' }}>{msg.error}</div>}
-        {msg.success && <div style={{ color: 'green' }}>{msg.success}</div>}
+        {msg.error && <div style={{ color: 'red', marginBottom: 16 }}>{msg.error}</div>}
+        {msg.success && <div style={{ color: 'green', marginBottom: 16 }}>{msg.success}</div>}
         <form onSubmit={save}>
           <div style={{ marginBottom: 16 }}>
             <label>Razorpay Key ID *</label>

@@ -1,119 +1,111 @@
-// components/LibraryPicker.js
-import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../services/supabase';
-import Button from './ui/Button';
+import React, { useEffect, useMemo, useState } from 'react'
+import Button from './ui/Button'
 
-export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [list, setList] = useState([]);
-  const [cats, setCats] = useState([]);       // [{id,name}]
-  const [q, setQ] = useState('');
-  const [vegOnly, setVegOnly] = useState(false);
-  const [cat, setCat] = useState('all');      // category_id filter
-  const [selected, setSelected] = useState({}); // id -> price
+export default function LibraryPicker({ supabase, open, onClose, restaurantId, onAdded }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [list, setList] = useState([])
+  const [cats, setCats] = useState([])       // [{id,name}]
+  const [q, setQ] = useState('')
+  const [vegOnly, setVegOnly] = useState(false)
+  const [cat, setCat] = useState('all')      // category_id filter
+  const [selected, setSelected] = useState({}) // id -> price
 
-  // Packaged/tax defaults
-  const [markPackaged, setMarkPackaged] = useState(false);
-  const [defaultTax, setDefaultTax] = useState(0);
-  const [defaultCess, setDefaultCess] = useState(0);
+  const [markPackaged, setMarkPackaged] = useState(false)
+  const [defaultTax, setDefaultTax] = useState(0)
+  const [defaultCess, setDefaultCess] = useState(0)
 
-  // Reset on open
   useEffect(() => {
-    if (!open) return;
-    setSelected({});
-    setQ('');
-    setVegOnly(false);
-    setCat('all');
-    setMarkPackaged(false);
-    setDefaultTax(0);
-    setDefaultCess(0);
-  }, [open]);
+    if (!open) return
+    setSelected({})
+    setQ('')
+    setVegOnly(false)
+    setCat('all')
+    setMarkPackaged(false)
+    setDefaultTax(0)
+    setDefaultCess(0)
+  }, [open])
 
-  // Lock background scroll on iOS while modal open
   useEffect(() => {
-    if (!open) return;
-    document.body.classList.add('modal-open');
-    return () => document.body.classList.remove('modal-open');
-  }, [open]); // [web:254]
+    if (!open) return
+    document.body.classList.add('modal-open')
+    return () => document.body.classList.remove('modal-open')
+  }, [open])
 
-  // Load categories (global + restaurant) and library items
   useEffect(() => {
-    if (!open || !restaurantId) return;
+    if (!supabase) return
+    if (!open || !restaurantId) return
     const load = async () => {
-      setLoading(true);
-      setError('');
+      setLoading(true); setError('')
       try {
         const { data: categories, error: catErr } = await supabase
           .from('categories')
           .select('id,name')
           .or(`is_global.eq.true,restaurant_id.eq.${restaurantId}`)
           .order('sort_order', { ascending: true })
-          .order('name', { ascending: true });
-        if (catErr) throw catErr;
+          .order('name', { ascending: true })
+        if (catErr) throw catErr
 
         const { data: items, error: libErr } = await supabase
           .from('menu_library_items')
-          .select('id,name,default_price,veg,description,image_url,category_id');
-        if (libErr) throw libErr;
+          .select('id,name,default_price,veg,description,image_url,category_id')
+        if (libErr) throw libErr
 
-        setCats(categories || []);
-        setList(items || []);
+        setCats(categories || [])
+        setList(items || [])
       } catch (e) {
-        setError(e.message || 'Failed to load library');
+        setError(e.message || 'Failed to load library')
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    load();
-  }, [open, restaurantId]);
+    }
+    load()
+  }, [open, restaurantId, supabase])
 
-  // Filters
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = q.trim().toLowerCase()
     return (list || []).filter(it => {
-      if (vegOnly && !it.veg) return false;
-      if (cat !== 'all' && it.category_id !== cat) return false;
-      if (!needle) return true;
-      return (it.name || '').toLowerCase().includes(needle);
-    });
-  }, [list, vegOnly, cat, q]);
+      if (vegOnly && !it.veg) return false
+      if (cat !== 'all' && it.category_id !== cat) return false
+      if (!needle) return true
+      return (it.name || '').toLowerCase().includes(needle)
+    })
+  }, [list, vegOnly, cat, q])
 
-  const toggle = (it) => {
+  const toggle = it => {
     setSelected(prev => {
-      const next = { ...prev };
-      if (next[it.id] !== undefined) delete next[it.id];
-      else next[it.id] = Number(it.default_price ?? 0);
-      return next;
-    });
-  };
+      const next = { ...prev }
+      if (next[it.id] !== undefined) delete next[it.id]
+      else next[it.id] = Number(it.default_price ?? 0)
+      return next
+    })
+  }
 
   const setPrice = (id, price) => {
-    const num = Number(price);
-    setSelected(prev => ({ ...prev, [id]: Number.isFinite(num) ? num : 0 }));
-  };
+    const num = Number(price)
+    setSelected(prev => ({ ...prev, [id]: Number.isFinite(num) ? num : 0 }))
+  }
 
   const addSelected = async () => {
-    const ids = Object.keys(selected);
-    if (!ids.length) return onClose?.();
+    if (!supabase) return
+    const ids = Object.keys(selected)
+    if (!ids.length) return onClose?.()
     if (!restaurantId) {
-      setError('Restaurant not selected.');
-      return;
+      setError('Restaurant not selected.')
+      return
     }
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('')
     try {
       const rows = ids.map(id => {
-        const it = list.find(x => x.id === id);
-        const price = Number(selected[id] ?? it?.default_price ?? 0);
-        // Resolve category name via categories table (1:1 with Add Item / filter)
-        const catName = cats.find(c => c.id === it?.category_id)?.name || 'main';
+        const it = list.find(x => x.id === id)
+        const price = Number(selected[id] ?? it?.default_price ?? 0)
+        const catName = cats.find(c => c.id === it?.category_id)?.name || 'main'
         return {
           restaurant_id: restaurantId,
           name: it?.name || '',
           price: Number.isFinite(price) ? price : 0,
           veg: !!it?.veg,
-          category: catName, // write the canonical name for grouping
+          category: catName,
           is_available: true,
           description: it?.description ?? null,
           image_url: it?.image_url ?? null,
@@ -121,25 +113,25 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
           is_packaged_good: !!markPackaged,
           tax_rate: Number(defaultTax || 0),
           compensation_cess_rate: Number(defaultCess || 0),
-        };
-      });
+        }
+      })
 
       const { data, error } = await supabase
         .from('menu_items')
         .insert(rows)
-        .select('id, name, price, category, veg, status, hsn, tax_rate, is_packaged_good, compensation_cess_rate, image_url, description');
-      if (error) throw error;
+        .select('id, name, price, category, veg, status, hsn, tax_rate, is_packaged_good, compensation_cess_rate, image_url, description')
+      if (error) throw error
 
-      onAdded?.(data || []);
-      onClose?.();
+      onAdded?.(data || [])
+      onClose?.()
     } catch (e) {
-      setError(e.message || 'Failed to add selected items');
+      setError(e.message || 'Failed to add selected items')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  if (!open) return null;
+  if (!open) return null
 
   return (
     <div className="lib-overlay" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose?.()}>
@@ -228,8 +220,8 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
                   {filtered.length === 0 ? (
                     <tr><td colSpan={4} style={{ padding: 12, color: '#6b7280' }}>No items match your filters.</td></tr>
                   ) : filtered.map(it => {
-                    const checked = selected[it.id] !== undefined;
-                    const currentPrice = selected[it.id] ?? it.default_price ?? 0;
+                    const checked = selected[it.id] !== undefined
+                    const currentPrice = selected[it.id] ?? it.default_price ?? 0
                     return (
                       <tr key={it.id}>
                         <td>
@@ -255,7 +247,7 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
                           />
                         </td>
                       </tr>
-                    );
+                    )
                   })}
                 </tbody>
               </table>
@@ -308,5 +300,5 @@ export default function LibraryPicker({ open, onClose, restaurantId, onAdded }) 
         .lib-foot { position: sticky; bottom: 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid #e5e7eb; background: #fff; display: flex; gap: 8px; justify-content: flex-end; }
       `}</style>
     </div>
-  );
+  )
 }

@@ -1,11 +1,18 @@
-// pages/reset-password.js
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { supabase } from '../services/supabase'
 import Link from 'next/link'
+// 1. IMPORT the singleton function
+import { getSupabase } from '../services/supabase'
 
+// 2. REMOVE the supabase prop
 export default function ResetPassword() {
   const router = useRouter()
+  // 3. GET the singleton instance
+  const supabase = getSupabase();
+
+  // 2. REMOVE the useRequireAuth hook
+  // const { checking } = useRequireAuth(supabase)
+
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
   const [loading, setLoading] = useState(false)
@@ -15,6 +22,7 @@ export default function ResetPassword() {
 
   useEffect(() => {
     if (!router.isReady) return
+
     let token = router.query.access_token
     let type = router.query.type
 
@@ -39,23 +47,32 @@ export default function ResetPassword() {
 
   const onSubmit = async (e) => {
     e.preventDefault()
-    if (newPw.length < 6) return setMsg('Password must be ≥6 characters.')
+    if (newPw.length < 6) return setMsg('Password must be at least 6 characters.')
     if (newPw !== confirmPw) return setMsg('Passwords do not match.')
+
     setLoading(true)
+    // 3. USE the singleton instance
     const { error } = await supabase.auth.updateUser({ password: newPw })
     setLoading(false)
-    if (error) return setMsg(`Error: ${error.message}`)
-    setMsg('Password updated. Redirecting…')
-    setTimeout(() => router.push('/login'), 1500)
+
+    if (error) {
+      return setMsg(`Error: ${error.message}`)
+    }
+
+    setMsg('Password updated successfully! Redirecting to login...')
+    setTimeout(() => router.push('/login'), 2000)
   }
 
+  // 2. REMOVE the checking state
+  // if (checking) return <div style={{ padding: '2rem', maxWidth: 480, margin: 'auto' }}>Loading…</div>
+  
   if (errorInfo) {
     return (
       <div style={{ padding: '2rem', maxWidth: 480, margin: 'auto' }}>
         <h1>Reset Password</h1>
         <p style={{ color: 'red' }}>{errorInfo.description}</p>
         <p>
-          <Link  href="/forgot-password">Request new reset link</Link >
+          <Link href="/forgot-password">Request a new reset link</Link>
         </p>
       </div>
     )

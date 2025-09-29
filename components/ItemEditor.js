@@ -1,8 +1,6 @@
-// components/ItemEditor.js
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../services/supabase'
 
-export default function ItemEditor({ open, onClose, item, restaurantId, onSaved, onError }) {
+export default function ItemEditor({ supabase, open, onClose, item, restaurantId, onSaved, onError }) {
   const isEdit = !!item?.id
 
   // Categories (global + restaurant)
@@ -27,6 +25,7 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
   // Load categories the same way as Menu/Library
   useEffect(() => {
+    if (!supabase) return
     if (!open || !restaurantId) return
     const loadCats = async () => {
       setLoadingCats(true)
@@ -46,7 +45,7 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
       }
     }
     loadCats()
-  }, [open, restaurantId])
+  }, [open, restaurantId, supabase])
 
   useEffect(() => {
     setName(item?.name || '')
@@ -75,6 +74,7 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
   // Create a new restaurant-scoped category quickly
   const createCategory = async () => {
+    if (!supabase) return
     const newName = prompt('New category name')
     const cleaned = (newName || '').trim()
     if (!cleaned) return
@@ -94,6 +94,7 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
   const save = async (e) => {
     e.preventDefault()
+    if (!supabase) return
     setErr('')
     if (!canSubmit) {
       return onError?.('Please fill required fields with valid values.')
@@ -178,7 +179,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
 
           <label style={{ display: 'block' }}>
             <div style={label}>Category</div>
-            {/* If categories loaded, show a select; else fallback to text input */}
             {cats.length ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6 }}>
                 <select
@@ -186,7 +186,6 @@ export default function ItemEditor({ open, onClose, item, restaurantId, onSaved,
                   onChange={(e) => setCategory(e.target.value)}
                   style={{ ...input, height: 36 }}
                 >
-                  {/* options by name to keep menu_items.category as name */}
                   {cats.map(c => (
                     <option key={c.id} value={c.name}>{c.name}</option>
                   ))}

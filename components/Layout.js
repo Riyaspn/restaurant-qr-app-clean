@@ -16,6 +16,8 @@ import {
   FaSignOutAlt,
 } from 'react-icons/fa';
 import { signOutAndRedirect } from '../lib/authActions';
+import { getSupabase } from '../services/supabase'; // import the supabase client getter
+
 
 export default function Layout({
   children,
@@ -187,6 +189,7 @@ function Header({ isCustomer, onHamburger, showSidebar }) {
 }
 
 function Sidebar({ collapsed }) {
+  const supabase = getSupabase(); // get the supabase client instance
   const router = useRouter();
   const { restaurant } = useRestaurant();
 
@@ -209,10 +212,15 @@ function Sidebar({ collapsed }) {
   });
 
   async function handleSignOut() {
+    const supabase = getSupabase()
+    if (!supabase) {
+      alert('Supabase client not initialized')
+      return
+    }
     try {
-      await signOutAndRedirect(router.replace);
+      await signOutAndRedirect(supabase, router.replace)
     } catch (err) {
-      alert(`Sign out failed: ${err?.message || 'Unknown error'}`);
+      alert(`Sign out failed: ${err.message}`)
     }
   }
 

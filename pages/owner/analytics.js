@@ -1,39 +1,46 @@
-// pages/owner/analytics.js
-import React, { useEffect, useState } from 'react'
-import { supabase } from '../../services/supabase'
-import { useRequireAuth } from '../../lib/useRequireAuth'
-import { useRestaurant } from '../../context/RestaurantContext'
-import Button from '../../components/ui/Button'
-import Card from '../../components/ui/Card'
+//pages/owner/analytics.js
+
+import React, { useEffect, useState } from 'react';
+import { useRequireAuth } from '../../lib/useRequireAuth';
+import { useRestaurant } from '../../context/RestaurantContext';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT ADDED
 
 export default function AnalyticsPage() {
-  const { checking } = useRequireAuth()
-  const { restaurant, loading: restLoading } = useRestaurant()
+  // 2. & 3. APPLY SINGLETON PATTERN
+  const supabase = getSupabase();
+  const { checking } = useRequireAuth(supabase);
+  
+  const { restaurant, loading: restLoading } = useRestaurant();
 
-  const [timeRange, setTimeRange] = useState('today')
+  const [timeRange, setTimeRange] = useState('today');
   const [stats, setStats] = useState({
     orders: 0,
     revenue: 0,
     avgOrderValue: 0,
     topItems: [],
     hourlyData: [],
-  })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const restaurantId = restaurant?.id || ''
+  const restaurantId = restaurant?.id || '';
 
   useEffect(() => {
-    if (checking || restLoading || !restaurantId) return
-    loadAnalytics()
+    if (checking || restLoading || !restaurantId || !supabase) return;
+    loadAnalytics();
+    // The supabase dependency is stable, but loadAnalytics is not, so keep it for now.
+    // To optimize further, wrap loadAnalytics in useCallback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checking, restLoading, restaurantId, timeRange])
+  }, [checking, restLoading, restaurantId, timeRange, supabase]);
 
   const loadAnalytics = async () => {
-    setLoading(true)
-    setError('')
+    if (!supabase) return; // Guard
+    setLoading(true);
+    setError('');
     try {
-      const { start, end } = getDateRange(timeRange)
+      const { start, end } = getDateRange(timeRange);
 
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
@@ -41,69 +48,67 @@ export default function AnalyticsPage() {
         .eq('restaurant_id', restaurantId)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
-        .neq('status', 'cancelled')
+        .neq('status', 'cancelled');
 
-      if (ordersError) throw ordersError
-      const orderData = Array.isArray(orders) ? orders : []
+      if (ordersError) throw ordersError;
+      const orderData = Array.isArray(orders) ? orders : [];
 
-      const totalOrders = orderData.length
-      // Prefer total_inc_tax (new column), fallback to total_amount
+      const totalOrders = orderData.length;
       const totalRevenue = orderData.reduce((sum, o) =>
-        sum + Number(o.total_inc_tax ?? o.total_amount ?? 0), 0)
-      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
+        sum + Number(o.total_inc_tax ?? o.total_amount ?? 0), 0);
+      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-      // Top items from compact JSON (fallback); if not present you can join order_items
-      const itemCounts = {}
+      const itemCounts = {};
       orderData.forEach(o => {
         if (Array.isArray(o.items)) {
           o.items.forEach(it => {
-            const name = it.name || 'Unknown Item'
-            itemCounts[name] = (itemCounts[name] || 0) + (Number(it.quantity) || 1)
-          })
+            const name = it.name || 'Unknown Item';
+            itemCounts[name] = (itemCounts[name] || 0) + (Number(it.quantity) || 1);
+          });
         }
-      })
+      });
       const topItems = Object.entries(itemCounts)
-        .sort(([,a],[,b]) => b - a).slice(0, 5)
-        .map(([name, quantity]) => ({ name, quantity }))
+        .sort(([, a], [, b]) => b - a).slice(0, 5)
+        .map(([name, quantity]) => ({ name, quantity }));
 
-      const hourlyData = generateHourlyData(orderData, timeRange === 'today')
+      const hourlyData = generateHourlyData(orderData, timeRange === 'today');
 
-      setStats({ orders: totalOrders, revenue: totalRevenue, avgOrderValue, topItems, hourlyData })
+      setStats({ orders: totalOrders, revenue: totalRevenue, avgOrderValue, topItems, hourlyData });
     } catch (e) {
-      setError(e.message || 'Failed to load analytics')
+      setError(e.message || 'Failed to load analytics');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getDateRange = (range) => {
-    const now = new Date()
-    const start = new Date()
+    const now = new Date();
+    const start = new Date();
     switch (range) {
-      case 'today': start.setHours(0,0,0,0); return { start, end: now }
-      case 'week':  start.setDate(now.getDate() - 7); return { start, end: now }
-      case 'month': start.setDate(now.getDate() - 30); return { start, end: now }
-      default:      start.setHours(0,0,0,0); return { start, end: now }
+      case 'today': start.setHours(0, 0, 0, 0); return { start, end: now };
+      case 'week': start.setDate(now.getDate() - 7); return { start, end: now };
+      case 'month': start.setDate(now.getDate() - 30); return { start, end: now };
+      default: start.setHours(0, 0, 0, 0); return { start, end: now };
     }
-  }
+  };
 
   const generateHourlyData = (orders, isToday) => {
-    if (!isToday) return []
-    const hourlyRevenue = new Array(24).fill(0)
+    if (!isToday) return [];
+    const hourlyRevenue = new Array(24).fill(0);
     orders.forEach(o => {
-      const hour = new Date(o.created_at).getHours()
-      hourlyRevenue[hour] += Number(o.total_inc_tax ?? o.total_amount ?? 0)
-    })
+      const hour = new Date(o.created_at).getHours();
+      hourlyRevenue[hour] += Number(o.total_inc_tax ?? o.total_amount ?? 0);
+    });
     return hourlyRevenue.map((revenue, hour) => ({
-      hour: `${hour.toString().padStart(2,'0')}:00`,
+      hour: `${hour.toString().padStart(2, '0')}:00`,
       revenue: Math.round(revenue),
-    }))
-  }
+    }));
+  };
 
-  const formatCurrency = (n) => `₹${Number(n).toFixed(2)}`
+  const formatCurrency = (n) => `₹${Number(n).toFixed(2)}`;
 
-  if (checking || restLoading) return <div style={{ padding: 24 }}>Loading…</div>
-  if (!restaurantId) return <div style={{ padding: 24 }}>No restaurant found</div>
+  if (checking || restLoading) return <div style={{ padding: 24 }}>Loading…</div>;
+  if (!restaurantId) return <div style={{ padding: 24 }}>No restaurant found</div>;
 
   return (
     <>
@@ -190,10 +195,10 @@ export default function AnalyticsPage() {
             <Card padding="20px" style={{ marginTop: 20 }}>
               <h3 style={{ marginTop: 0, color: '#6b7280' }}>Coming Soon</h3>
               <div style={{ color: '#9ca3af', fontSize: 14 }}>
-                • Sales trend charts<br/>
-                • Peak hours heatmap<br/>
-                • HSN- and tax-slab-wise summaries<br/>
-                • Order completion times<br/>
+                • Sales trend charts<br />
+                • Peak hours heatmap<br />
+                • HSN- and tax-slab-wise summaries<br />
+                • Order completion times<br />
                 • Revenue forecasting
               </div>
             </Card>
@@ -202,7 +207,7 @@ export default function AnalyticsPage() {
       </div>
 
       <style jsx>{`
-        .analytics-page { max-width: 1200px; margin: 0 auto; }
+        .analytics-page { max-width: 1200px; margin: 0 auto; padding: 1rem; }
         .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
         .page-header h1 { margin: 0; font-size: 2rem; }
         .subtitle { color: #6b7280; margin: 4px 0 0 0; }
@@ -227,6 +232,7 @@ export default function AnalyticsPage() {
         .hour-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
         .revenue-amount { font-size: 14px; font-weight: 600; color: #111827; }
         @media (max-width: 768px) {
+          .analytics-page { padding: 0.5rem; }
           .page-header { flex-direction: column; gap: 16px; align-items: stretch; }
           .time-filters { justify-content: center; }
           .charts-grid { grid-template-columns: 1fr; }
@@ -234,5 +240,5 @@ export default function AnalyticsPage() {
         }
       `}</style>
     </>
-  )
+  );
 }

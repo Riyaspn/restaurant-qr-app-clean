@@ -1,11 +1,12 @@
 // pages/kitchen/index.js
 
 import React, { useEffect, useRef, useState } from 'react';
-import { supabase } from '../../services/supabase';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
+import { getSupabase } from '../../services/supabase'; // 1. IMPORT
+
 
 // Helper to handle both JSONB items and relational order_items
 function toDisplayItems(order) {
@@ -247,8 +248,9 @@ function EnableAlertsButton({ restaurantId, userEmail }) {
   );
 }
 
-export default function KitchenPage() {
-  const { checking, user } = useRequireAuth();
+export default function KitchenPage() { 
+  const supabase = getSupabase(); // Get the singleton instance
+  const { checking, user } = useRequireAuth(); 
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
   const [newOrders, setNewOrders] = useState([]);
@@ -266,7 +268,7 @@ export default function KitchenPage() {
 
   // Initial fetch of new orders
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId || !supabase) return;
     
     const fetchOrders = async () => {
       try {
@@ -294,11 +296,11 @@ export default function KitchenPage() {
     };
     
     fetchOrders();
-  }, [restaurantId]);
+  }, [restaurantId, supabase]);
 
   // Real-time subscription with improved error handling and reconnection
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId || !supabase) return;
 
     const setupRealTimeSubscription = () => {
       // Clean up existing channel and timeout
@@ -318,7 +320,7 @@ export default function KitchenPage() {
       console.log('🔗 Creating channel:', channelName);
       
       const channel = supabase
-        .channel(channelName)
+        .channel(`kitchen-orders-${restaurantId}-${Date.now()}`)
         .on(
           'postgres_changes',
           {
@@ -450,7 +452,7 @@ export default function KitchenPage() {
         reconnectTimeoutRef.current = null;
       }
     };
-  }, [restaurantId]);
+  }, [restaurantId, supabase]);
 
   // Handler to move order to "in_progress"
   const handleStart = async (orderId) => {

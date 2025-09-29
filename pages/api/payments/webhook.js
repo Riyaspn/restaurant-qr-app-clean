@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
-import { supabase } from '../../../services/supabase';
+import { getSupabase } from '../../../services/supabase';
 
 export const config = { api: { bodyParser: false } };
 
@@ -18,33 +18,41 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-async function getRouteAccount(orderId) {
-  const { data: ord } = await supabase
+async function getRouteAccount(supabase, orderId) {
+  const { data: ord, error: ordErr } = await supabase
     .from('orders')
     .select('restaurant_id')
     .eq('id', orderId)
     .single();
-  if (!ord) return null;
+  if (ordErr || !ord) return null;
 
-  const { data: rest } = await supabase
+  const { data: rest, error: restErr } = await supabase
     .from('restaurants')
     .select('route_account_id')
     .eq('id', ord.restaurant_id)
     .single();
+  if (restErr || !rest) return null;
 
-  return rest?.route_account_id || null;
+  return rest.route_account_id;
 }
 
 export default async function handler(req, res) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    console.error('Supabase client not initialized');
+    return res.status(500).send('Internal Server Error');
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).send('Method not allowed');
   }
+
   const raw = await readRawBody(req);
   const signature = req.headers['x-razorpay-signature'];
   if (!signature) {
     return res.status(400).send('Signature missing');
   }
-  // Use the payment webhook secret
+
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   const expected = crypto
     .createHmac('sha256', webhookSecret)
@@ -55,13 +63,12 @@ export default async function handler(req, res) {
     return res.status(400).send('Invalid signature');
   }
 
-  // Acknowledge receipt
-  res.status(200).send('OK');
+  res.status(200).send('OK'); // Acknowledge immediately
 
   const { event, payload } = JSON.parse(raw);
   if (event === 'payment.captured') {
     const { id: payId, order_id, amount, currency } = payload.payment.entity;
-    const routeAccount = await getRouteAccount(order_id);
+    const routeAccount = await getRouteAccount(supabase, order_id);
     if (!routeAccount) {
       console.warn('No Route account for order', order_id);
       return;
@@ -78,8 +85,10 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error('Transfer creation failed:', e);
     }
-  } else if (event === 'payment.downtime.started' || event === 'payment.downtime.resolved') {
-    // Handle downtime events if needed or just log
+  } else if (
+    event === 'payment.downtime.started' ||
+    event === 'payment.downtime.resolved'
+  ) {
     console.log(`Payment downtime event received: ${event}`);
   } else {
     console.log('Unhandled event:', event);
