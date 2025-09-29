@@ -1,76 +1,84 @@
-// pages/api/notify-owner.js
+//pages/api/notify-owner.js
+
 import admin from 'firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
+// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  privateKey = privateKey.replace(/\\n/g, '\n');
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
   admin.initializeApp({
     credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
   });
 }
 
+// Initialize Supabase client
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_URL, // Use SUPABASE_URL, not NEXT_PUBLIC_SUPABASE_URL on the server
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).send({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).send({ error: 'Method not allowed' });
+  }
 
-  const { restaurantId, orderId, table_number, total_inc_tax, total } = req.body || {};
-  if (!restaurantId || !orderId) return res.status(400).send({ error: 'Missing restaurantId or orderId' });
+  const { restaurantId, orderId, orderItems } = req.body || {};
+  if (!restaurantId || !orderId) {
+    return res.status(400).send({ error: 'Missing restaurantId or orderId' });
+  }
 
+  // 1. Fetch device tokens
   const { data: rows, error: fetchErr } = await supabase
     .from('push_subscription_restaurants')
     .select('device_token')
     .eq('restaurant_id', restaurantId);
+
   if (fetchErr) {
-    console.error('Fetch tokens error:', fetchErr);
+    console.error('Error fetching push subscriptions:', fetchErr);
     return res.status(500).send({ error: 'Failed to fetch push subscriptions' });
   }
+
   const tokens = rows.map(r => r.device_token).filter(Boolean);
   if (tokens.length === 0) {
-    return res.status(200).send({ message: 'No subscriptions', successCount: 0 });
+    return res.status(200).send({ message: 'No devices subscribed', successCount: 0 });
   }
 
-  const title = '🔔 New Order!';
-  const body = `Table ${table_number}${total_inc_tax || total ? ` • ₹${Number(total_inc_tax || total).toFixed(2)}` : ''}`;
+  // 2. Construct the rich notification content
+  const itemCount = Array.isArray(orderItems)
+    ? orderItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
+    : 0;
+  const title = '🔔 New Order Received!';
+  const body = `A new order with ${itemCount} items has been placed.`;
+
+  // 3. CRITICAL: Build the robust FCM message payload
   const message = {
     tokens,
+    // This `notification` object makes the alert VISIBLE
     notification: {
       title,
       body,
     },
+    // This `data` object is for your app to use
     data: {
       orderId: String(orderId),
-      restaurantId: String(restaurantId),
       url: `/owner/orders?highlight=${orderId}`,
     },
+    // This `android` object is ESSENTIAL for background delivery
     android: {
       priority: 'high',
       notification: {
-        channelId: 'orders',
+        channelId: 'orders', // MUST match the channel ID in your app
         sound: 'beep.wav',
         priority: 'high',
       },
     },
-    webpush: {
-      headers: { Urgency: 'high' },
-      fcm_options: { link: `/owner/orders?highlight=${orderId}` },
-      notification: {
-        requireInteraction: true,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-      },
-    },
+    // This `apns` object is for iOS
     apns: {
-      headers: { 'apns-priority': '5' },
+      headers: { 'apns-priority': '10' },
       payload: {
         aps: {
-          'content-available': 1,
           sound: 'default',
           badge: 1,
         },
@@ -79,8 +87,10 @@ export default async function handler(req, res) {
   };
 
   try {
-    const response = await admin.messaging().sendEachForMulticast(message);
+    // 4. Send the message
+    const response = await admin.messaging().sendMulticast(message);
 
+    // 5. Clean up invalid tokens (your existing logic is good)
     const invalidTokens = [];
     response.responses.forEach((resp, i) => {
       if (!resp.success) {
@@ -91,8 +101,8 @@ export default async function handler(req, res) {
       }
     });
 
-    if (invalidTokens.length) {
-      await supabase.from('push_subscription_restaurants').delete().in('device_token', invalidTokens);
+    if (invalidTokens.length > 0) {
+      await supabase.from('push_subscriptions').delete().in('device_token', invalidTokens);
     }
 
     return res.status(200).send({
@@ -101,7 +111,7 @@ export default async function handler(req, res) {
       pruned: invalidTokens.length,
     });
   } catch (error) {
-    console.error('notify-owner error:', error);
+    console.error('FCM send failed:', error);
     return res.status(500).send({ error: 'Failed to send notifications' });
   }
 }
