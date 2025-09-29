@@ -9,6 +9,9 @@ import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { getFirebaseConfig } from '../services/firebase'; // We will use a helper for this
+import { initializeApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const OWNER_PREFIX = '/owner';
 const CUSTOMER_PREFIX = '/order';
@@ -16,20 +19,70 @@ const CUSTOMER_PREFIX = '/order';
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
 
-  // This hook is for push notifications and remains unchanged.
+  // =================================================================================
+  // HOOK 1: Register the Firebase Service Worker
+  // This is the NEW and critical part that was missing.
+  // =================================================================================
+  useEffect(() => {
+    // This runs only in the browser, not on the server
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const firebaseConfig = getFirebaseConfig();
+      const app = initializeApp(firebaseConfig);
+      const messaging = getMessaging(app);
+
+      // Register the service worker
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then((registration) => {
+          console.log('✅ Firebase Service Worker registered successfully');
+          // Request notification permission and get token
+          return getToken(messaging, { serviceWorkerRegistration: registration });
+        })
+        .catch((err) => {
+          console.error('❌ Service Worker registration failed:', err);
+        });
+        
+      // Handle foreground messages
+      onMessage(messaging, (payload) => {
+          console.log('Foreground message received.', payload);
+          // Here you could show a custom in-app notification if you want
+      });
+    }
+  }, []);
+
+  // =================================================================================
+  // HOOK 2: Capacitor Push Notification Listeners
+  // Your existing code, slightly cleaned up.
+  // =================================================================================
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       const setupPushNotifications = async () => {
         await PushNotifications.removeAllListeners();
+        
         const permStatus = await PushNotifications.requestPermissions();
-        if (permStatus.receive !== 'granted') return;
+        if (permStatus.receive !== 'granted') {
+          console.warn('Push notification permission not granted.');
+          return;
+        }
+        
         await PushNotifications.register();
-        PushNotifications.addListener('registration', (token) => console.log('Push registration success:', token.value));
-        PushNotifications.addListener('registrationError', (error) => console.error('Push registration error:', error));
-        PushNotifications.addListener('pushNotificationReceived', (notification) => console.log('Push received:', notification));
-        PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-          console.log('Push action performed:', notification);
-          router.push('/owner/orders');
+
+        PushNotifications.addListener('registration', (token) => {
+          console.log('Capacitor Push registration success:', token.value);
+        });
+
+        PushNotifications.addListener('registrationError', (error) => {
+          console.error('Capacitor Push registration error:', error);
+        });
+
+        PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          console.log('Capacitor Push received (foreground/background):', notification);
+          // This is where your sound comes from.
+        });
+
+        PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+          console.log('Capacitor Push action performed (tap):', action);
+          const url = action.notification?.data?.url || '/owner/orders';
+          router.push(url);
         });
       };
       setupPushNotifications().catch(console.error);
@@ -41,15 +94,13 @@ function MyApp({ Component, pageProps }) {
   const isCustomerRoute = path.startsWith(CUSTOMER_PREFIX);
 
   return (
-    // RestaurantProvider no longer needs any props.
-    <RestaurantProvider> 
+    <RestaurantProvider>
       <Layout
         title={pageProps?.title}
         showSidebar={showSidebar}
         hideChrome={isCustomerRoute}
         showHeader={isCustomerRoute}
       >
-        {/* The supabase prop is removed from Component. */}
         <Component {...pageProps} />
       </Layout>
     </RestaurantProvider>
