@@ -1,5 +1,3 @@
-//pages/api/notify-owner.js
-
 import admin from 'firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
@@ -15,7 +13,7 @@ if (!admin.apps.length) {
 
 // Initialize Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL, // Use SUPABASE_URL, not NEXT_PUBLIC_SUPABASE_URL on the server
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
@@ -52,45 +50,33 @@ export default async function handler(req, res) {
   const title = '🔔 New Order Received!';
   const body = `A new order with ${itemCount} items has been placed.`;
 
-  // 3. CRITICAL: Build the robust FCM message payload
+  // 3. Build the robust FCM message payload
   const message = {
     tokens,
-    // This `notification` object makes the alert VISIBLE
-    notification: {
-      title,
-      body,
-    },
-    // This `data` object is for your app to use
+    notification: { title, body },
     data: {
       orderId: String(orderId),
       url: `/owner/orders?highlight=${orderId}`,
     },
-    // This `android` object is ESSENTIAL for background delivery
     android: {
       priority: 'high',
       notification: {
-        channelId: 'orders', // MUST match the channel ID in your app
+        channelId: 'orders',
         sound: 'beep.wav',
         priority: 'high',
       },
     },
-    // This `apns` object is for iOS
     apns: {
       headers: { 'apns-priority': '10' },
-      payload: {
-        aps: {
-          sound: 'default',
-          badge: 1,
-        },
-      },
+      payload: { aps: { sound: 'default', badge: 1 } },
     },
   };
 
   try {
-    // 4. Send the message
-    const response = await admin.messaging().sendMulticast(message);
+    // 4. THE FIX: Send the message using sendEachForMulticast
+    const response = await admin.messaging().sendEachForMulticast(message);
 
-    // 5. Clean up invalid tokens (your existing logic is good)
+    // 5. Clean up invalid tokens
     const invalidTokens = [];
     response.responses.forEach((resp, i) => {
       if (!resp.success) {
@@ -102,7 +88,7 @@ export default async function handler(req, res) {
     });
 
     if (invalidTokens.length > 0) {
-      await supabase.from('push_subscriptions').delete().in('device_token', invalidTokens);
+      await supabase.from('push_subscription_restaurants').delete().in('device_token', invalidTokens);
     }
 
     return res.status(200).send({
@@ -115,3 +101,4 @@ export default async function handler(req, res) {
     return res.status(500).send({ error: 'Failed to send notifications' });
   }
 }
+
