@@ -26,7 +26,7 @@ function toDisplayItems(order) {
   return [];
 }
 
-// UI Component: PaymentConfirmDialog (No Changes Needed)
+// UI Component: PaymentConfirmDialog (No Changes)
 function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
   return (
     <div style={{
@@ -67,7 +67,7 @@ function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
 
 export default function OrdersPage() {
   const supabase = getSupabase();
-  const { user, checking } = useRequireAuth(supabase); // Get user object
+  const { user, checking } = useRequireAuth(supabase);
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
 
@@ -82,44 +82,41 @@ export default function OrdersPage() {
   const notificationAudioRef = useRef(null);
 
   // ========================================================================
-  // === CHANGE 1: ADDED - Logic to save the FCM token to the database ===
+  // === CHANGE 1: Logic to save the FCM token to the database ===
   // ========================================================================
   useEffect(() => {
     const saveToken = async () => {
-      if (!user || !supabase) return; // Wait for user and supabase client
+      if (!user || !supabase) return;
 
-      // Retrieve the token that _app.js placed in storage.
       const fcmToken = localStorage.getItem('fcm_token');
       
       if (fcmToken) {
-        console.log('Orders page: Found FCM token, saving to database...');
+        console.log('✅ Orders page: Found FCM token, saving to database...');
         try {
-          // Update the user's profile with the new FCM token
           const { error: updateError } = await supabase
-            .from('profiles') // Assuming your user table is named 'profiles'
+            .from('profiles')
             .update({ fcm_token: fcmToken })
             .eq('id', user.id);
 
           if (updateError) {
-            console.error('Error saving FCM token:', updateError);
+            console.error('❌ Error saving FCM token:', updateError);
           } else {
             console.log('✅ FCM token saved to user profile.');
           }
         } catch (e) {
-            console.error('Exception while saving FCM token:', e);
+            console.error('❌ Exception while saving FCM token:', e);
         }
       } else {
-        console.log('Orders page: Waiting for FCM token from _app.js...');
+        console.log('⏳ Orders page: Waiting for FCM token from _app.js...');
       }
     };
 
-    // Run this check when the user object is available.
     if (user) {
         saveToken();
     }
-  }, [user, supabase]); // Dependency array ensures this runs when the user is authenticated.
+  }, [user, supabase]);
 
-  // Initialize notification audio (No Changes Needed)
+  // Initialize notification audio (No Changes)
   useEffect(() => {
     const audio = new Audio('/notification-sound.mp3');
     audio.load();
@@ -147,7 +144,7 @@ export default function OrdersPage() {
     };
   }, []);
 
-  // Play notification sound helper (No Changes Needed)
+  // Play notification sound helper (No Changes)
   const playNotificationSound = useCallback(() => {
     try {
       if (notificationAudioRef.current) {
@@ -159,7 +156,7 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Keep alive ping (No Changes Needed)
+  // Keep alive ping (No Changes)
   useEffect(() => {
     if ('navigator' in window && 'getBattery' in navigator) {
       console.log('Consider adding battery optimization exemption');
@@ -172,7 +169,7 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch orders helper function (No Changes Needed)
+  // Fetch orders helper function (No Changes)
   async function fetchBucket(status, page = 1) {
     if (!supabase || !restaurantId) return [];
     let q = supabase
@@ -193,7 +190,7 @@ export default function OrdersPage() {
     return data;
   }
 
-  // loadOrders function (No Changes Needed)
+  // loadOrders function (No Changes)
   const loadOrders = useCallback(async (page = completedPage) => {
     if (!supabase || !restaurantId) return;
     setLoading(true);
@@ -279,10 +276,8 @@ export default function OrdersPage() {
           });
 
           // ========================================================================
-          // === CHANGE 2: SIMPLIFIED - Only play a sound for foreground alerts. ===
+          // === CHANGE 2: Only play a sound. Visual notifications are now handled globally. ===
           // ========================================================================
-          // The visual notification is now handled by _app.js (for native)
-          // and firebase-messaging-sw.js (for web background).
           if (payload.eventType === 'INSERT' && order.status === 'new') {
             playNotificationSound();
           }
@@ -294,7 +289,7 @@ export default function OrdersPage() {
       if (document.visibilityState === 'visible') {
         setTimeout(async () => {
           try {
-            if (!supabase) return; // Add guard inside timeout
+            if (!supabase) return;
             const { data } = await supabase
               .from('orders')
               .select('*, order_items(*, menu_items(name))')
@@ -323,7 +318,7 @@ export default function OrdersPage() {
     };
   }, [supabase, restaurantId, playNotificationSound]);
 
-  // All remaining functions (updateStatus, finalize, etc.) and JSX are unchanged.
+  // All remaining functions and JSX are unchanged.
 
   async function updateStatus(id, next) {
     if (!supabase) return;
@@ -504,7 +499,6 @@ export default function OrdersPage() {
       )}
 
       <style jsx>{`
-        /* Your existing styles remain unchanged */
         .orders-wrap {
           padding: 12px 0 32px;
         }
@@ -607,7 +601,7 @@ export default function OrdersPage() {
   );
 }
 
-// OrderCard component (No changes needed)
+// OrderCard component (No Changes)
 function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
