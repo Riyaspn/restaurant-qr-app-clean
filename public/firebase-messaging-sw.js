@@ -4,9 +4,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
-// =================================================================================
-// ACTION REQUIRED: Replace this with your project's actual Firebase config
-// =================================================================================
+// This configuration is correct based on your screenshot.
 const firebaseConfig = {
   apiKey: "AIzaSyATyNkWG6l1VMuaxrOtvDtraYSJwjtDmSE",
   authDomain: "cafe-qr-notifications.firebaseapp.com",
@@ -18,39 +16,37 @@ const firebaseConfig = {
 
 // Initialize the Firebase app in the service worker
 firebase.initializeApp(firebaseConfig);
-
 const messaging = firebase.messaging();
 
-// This handler is for when the app is in the background or killed.
+// THIS IS THE CORRECTED HANDLER
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message: ', payload);
 
-  const notificationTitle = payload.notification.title;
+  // ROBUST PAYLOAD HANDLING: Check for data first, then notification.
+  const notificationTitle = payload.data?.title || payload.notification?.title || 'New Order';
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icon-192x192.png', // A path to an icon in your /public folder
-    badge: '/icon-192x192.png', // A path to a badge icon
+    body: payload.data?.body || payload.notification?.body || 'You have a new order waiting.',
+    icon: '/icon-192x192.png', // Make sure this file exists in your /public folder
+    badge: '/icon-192x192.png',
     data: payload.data // Pass along the data payload for the click event
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  // This is the command that tells the Android OS to show the notification.
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // This handler is for when a user clicks on the notification
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const urlToOpen = event.notification.data?.url || '/owner/orders';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window for the app is already open, focus it
       for (const client of clientList) {
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus().then(c => c.navigate(urlToOpen));
         }
       }
-      // Otherwise, open a new window
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
