@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { getSupabase } from '../../services/supabase'; // 1. IMPORT
+import { getSupabase } from '../../services/supabase';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
 import Button from '../../components/ui/Button';
@@ -26,6 +26,7 @@ function toDisplayItems(order) {
   return [];
 }
 
+// UI Component: PaymentConfirmDialog (No Changes Needed)
 function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
   return (
     <div style={{
@@ -65,12 +66,8 @@ function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
 }
 
 export default function OrdersPage() {
-  // --- FIXES APPLIED HERE ---
-  // 2. Remove `{ supabase }` from props and get the client directly
   const supabase = getSupabase();
-  const { checking } = useRequireAuth(supabase);
-  // --- END OF FIXES ---
-  
+  const { user, checking } = useRequireAuth(supabase); // Get user object
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
 
@@ -84,9 +81,46 @@ export default function OrdersPage() {
   const [paymentConfirmDialog, setPaymentConfirmDialog] = useState(null);
   const notificationAudioRef = useRef(null);
 
-  // Initialize notification audio and unlock on user interaction
+  // ========================================================================
+  // === CHANGE 1: ADDED - Logic to save the FCM token to the database ===
+  // ========================================================================
   useEffect(() => {
-    // This effect now runs once on component mount
+    const saveToken = async () => {
+      if (!user || !supabase) return; // Wait for user and supabase client
+
+      // Retrieve the token that _app.js placed in storage.
+      const fcmToken = localStorage.getItem('fcm_token');
+      
+      if (fcmToken) {
+        console.log('Orders page: Found FCM token, saving to database...');
+        try {
+          // Update the user's profile with the new FCM token
+          const { error: updateError } = await supabase
+            .from('profiles') // Assuming your user table is named 'profiles'
+            .update({ fcm_token: fcmToken })
+            .eq('id', user.id);
+
+          if (updateError) {
+            console.error('Error saving FCM token:', updateError);
+          } else {
+            console.log('✅ FCM token saved to user profile.');
+          }
+        } catch (e) {
+            console.error('Exception while saving FCM token:', e);
+        }
+      } else {
+        console.log('Orders page: Waiting for FCM token from _app.js...');
+      }
+    };
+
+    // Run this check when the user object is available.
+    if (user) {
+        saveToken();
+    }
+  }, [user, supabase]); // Dependency array ensures this runs when the user is authenticated.
+
+  // Initialize notification audio (No Changes Needed)
+  useEffect(() => {
     const audio = new Audio('/notification-sound.mp3');
     audio.load();
     notificationAudioRef.current = audio;
@@ -111,9 +145,9 @@ export default function OrdersPage() {
       window.removeEventListener('touchstart', unlockAudio, { capture: true });
       window.removeEventListener('click', unlockAudio, { capture: true });
     };
-  }, []); // Empty dependency array means this runs only once
+  }, []);
 
-  // Play notification sound helper
+  // Play notification sound helper (No Changes Needed)
   const playNotificationSound = useCallback(() => {
     try {
       if (notificationAudioRef.current) {
@@ -125,7 +159,7 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Keep alive ping and battery check
+  // Keep alive ping (No Changes Needed)
   useEffect(() => {
     if ('navigator' in window && 'getBattery' in navigator) {
       console.log('Consider adding battery optimization exemption');
@@ -138,7 +172,7 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch orders helper function
+  // Fetch orders helper function (No Changes Needed)
   async function fetchBucket(status, page = 1) {
     if (!supabase || !restaurantId) return [];
     let q = supabase
@@ -159,6 +193,7 @@ export default function OrdersPage() {
     return data;
   }
 
+  // loadOrders function (No Changes Needed)
   const loadOrders = useCallback(async (page = completedPage) => {
     if (!supabase || !restaurantId) return;
     setLoading(true);
@@ -243,15 +278,13 @@ export default function OrdersPage() {
             return updated;
           });
 
+          // ========================================================================
+          // === CHANGE 2: SIMPLIFIED - Only play a sound for foreground alerts. ===
+          // ========================================================================
+          // The visual notification is now handled by _app.js (for native)
+          // and firebase-messaging-sw.js (for web background).
           if (payload.eventType === 'INSERT' && order.status === 'new') {
             playNotificationSound();
-            if (Notification.permission === 'granted') {
-              new Notification('🔔 New Order!', {
-                body: `Table ${order.table_number || ''} - ₹${order.total_inc_tax || 0}`,
-                icon: '/favicon.ico',
-                tag: 'new-order',
-              });
-            }
           }
         }
       )
@@ -289,6 +322,8 @@ export default function OrdersPage() {
       if (supabase) supabase.removeChannel(channel);
     };
   }, [supabase, restaurantId, playNotificationSound]);
+
+  // All remaining functions (updateStatus, finalize, etc.) and JSX are unchanged.
 
   async function updateStatus(id, next) {
     if (!supabase) return;
@@ -356,7 +391,6 @@ export default function OrdersPage() {
 
   return (
     <div className="orders-wrap">
-      {/* JSX for header, cards, and dialogs remains the same */}
       <header className="orders-header">
         <h1>Orders Dashboard</h1>
         <div className="header-actions">
@@ -470,6 +504,7 @@ export default function OrdersPage() {
       )}
 
       <style jsx>{`
+        /* Your existing styles remain unchanged */
         .orders-wrap {
           padding: 12px 0 32px;
         }
@@ -572,7 +607,7 @@ export default function OrdersPage() {
   );
 }
 
-// OrderCard component (no changes needed)
+// OrderCard component (No changes needed)
 function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
