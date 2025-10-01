@@ -1,3 +1,5 @@
+//pages/api/notify-owner.js
+
 import admin from 'firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
@@ -61,8 +63,8 @@ export default async function handler(req, res) {
     android: {
       priority: 'high',
       notification: {
-        channelId: 'orders',
-        sound: 'beep.wav',
+        channelId: 'orders_v2',
+        sound: 'beep',
         priority: 'high',
       },
     },

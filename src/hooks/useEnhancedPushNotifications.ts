@@ -15,11 +15,11 @@ export function useEnhancedPushNotifications(
     async function init() {
       try {
         await PushNotifications.createChannel({
-          id: 'orders',
+          id: 'orders_v2',
           name: 'Order Alerts',
           description: 'High priority new order alerts',
           importance: 4,
-          sound: 'beep.wav',
+          sound: 'beep',
           vibration: true,
         });
         const perm = await PushNotifications.requestPermissions();

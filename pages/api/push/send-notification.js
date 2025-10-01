@@ -32,8 +32,8 @@ export async function sendOrderNotification(orderData, deviceTokens) {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'orders',
-          sound: 'beep.wav',
+          channelId: 'orders_v2',
+          sound: 'beep',
           vibrationPattern: ['200', '100', '200', '100', '200'],
         }
       },

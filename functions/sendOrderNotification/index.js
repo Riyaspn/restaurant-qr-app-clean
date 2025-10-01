@@ -81,8 +81,8 @@ export default async function handler(req, res) {
     android: {
       priority: 'high',
       notification: {
-        channelId: 'orders', // MUST match the ID created in your app
-        sound: 'beep.wav',   // The sound file in android/app/src/main/res/raw
+        channelId: 'orders_v2', // MUST match the ID created in your app
+        sound: 'beep',   // The sound file in android/app/src/main/res/raw
         priority: 'high',    // Ensures the notification is treated as important
       },
     },
