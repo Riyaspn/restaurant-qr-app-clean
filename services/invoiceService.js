@@ -49,8 +49,10 @@ export class InvoiceService {
       // Effective flags for restaurant service items
       const gstEnabled = (order.gst_enabled ?? profile?.gst_enabled) ?? false
       const baseRate = Number(profile?.default_tax_rate ?? 5)
+      // Use restaurant profile as the single source of truth for inclusion
+      const includeFlag = profile?.prices_include_tax
       const servicePricesIncludeTax = gstEnabled
-        ? (order.prices_include_tax ?? profile?.prices_include_tax ?? true)
+        ? (includeFlag === true || includeFlag === 'true' || includeFlag === 1 || includeFlag === '1')
         : false
 
       // 3) Normalize items with packaged branching
@@ -62,17 +64,14 @@ export class InvoiceService {
         const unitExStamped  = Number(oi.unit_price_ex_tax ?? 0)
         const legacy         = Number(oi.price ?? 0)
         let unitResolved
-        if (isPackaged) {
-          unitResolved = unitIncStamped || legacy
-        } else {
-          unitResolved = servicePricesIncludeTax
-            ? (unitIncStamped || legacy)
-            : (unitExStamped || legacy)
-        }
+        // Resolve unit based on restaurant inclusion only
+        unitResolved = servicePricesIncludeTax
+          ? (unitIncStamped || legacy)
+          : (unitExStamped || legacy)
         return {
           name: oi.item_name || oi.name || 'Item',
           qty,
-          taxRate,
+          taxRate: isPackaged ? taxRate : Number(isFinite(baseRate) ? baseRate : 0),
           unitResolved: Number(unitResolved),
           hsn: oi.hsn || '',
           isPackaged
@@ -82,7 +81,7 @@ export class InvoiceService {
       // 4) Compute totals with same branching
       const computed = enrichedItems.reduce((acc, it) => {
         const r = it.taxRate / 100
-        if (it.isPackaged || servicePricesIncludeTax) {
+        if (servicePricesIncludeTax) {
           const inc = it.unitResolved * it.qty
           const ex  = r > 0 ? inc / (1 + r) : inc
           const tax = inc - ex
@@ -145,17 +144,22 @@ export class InvoiceService {
           inc = ex + tax
           unitExResolved = it.unitResolved
         }
+        // Round at line level for stability
+        const exR = Number(ex.toFixed(2))
+        const taxR = Number(tax.toFixed(2))
+        const incR = Number(inc.toFixed(2))
+        const unitExR = Number(unitExResolved.toFixed(2))
         await supabase.from('invoice_items').insert({
           invoice_id: inv.id,
           line_no: lineNo++,
           item_name: it.name,
           hsn: it.hsn || null,
           qty: it.qty,
-          unit_rate_ex_tax: Number(unitExResolved.toFixed(2)),
+          unit_rate_ex_tax: unitExR,
           tax_rate: it.taxRate,
-          tax_amount: Number(tax.toFixed(2)),
-          line_total_ex_tax: Number(ex.toFixed(2)),
-          line_total_inc_tax: Number(inc.toFixed(2))
+          tax_amount: taxR,
+          line_total_ex_tax: exR,
+          line_total_inc_tax: incR
         })
       }
 

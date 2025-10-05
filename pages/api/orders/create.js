@@ -56,7 +56,7 @@ export default async function handler(req, res) {
     const gstEnabled = !!profile?.gst_enabled
     const baseRate = Number(profile?.default_tax_rate ?? 5)
     const serviceRate = gstEnabled ? baseRate : 0
-    const serviceInclude = gstEnabled ? !!profile?.prices_include_tax : false
+    const serviceInclude = gstEnabled ? (profile?.prices_include_tax === true || profile?.prices_include_tax === 'true' || profile?.prices_include_tax === 1 || profile?.prices_include_tax === '1') : false
 
     // Totals
     let subtotalEx = 0
@@ -75,35 +75,32 @@ export default async function handler(req, res) {
 
       let unitEx, unitInc, lineEx, tax, lineInc, effectiveRate
 
-      if (isPackaged) {
-        // Packaged goods: MRP inclusive, use item's tax rate
-        effectiveRate = itemTaxRate
+      // Use item's own tax rate if packaged, otherwise restaurant base rate
+      effectiveRate = isPackaged ? itemTaxRate : serviceRate
+      if (serviceInclude) {
         unitInc = unit
         unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc
         lineInc = unitInc * qty
         lineEx = unitEx * qty
         tax = lineInc - lineEx
       } else {
-        // Service items: use restaurant profile
-        effectiveRate = serviceRate
-        if (serviceInclude) {
-          unitInc = unit
-          unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc
-          lineInc = unitInc * qty
-          lineEx = unitEx * qty
-          tax = lineInc - lineEx
-        } else {
-          unitEx = unit
-          lineEx = unitEx * qty
-          tax = (effectiveRate / 100) * lineEx
-          lineInc = lineEx + tax
-          unitInc = effectiveRate > 0 ? unitEx * (1 + effectiveRate / 100) : unitEx
-        }
+        unitEx = unit
+        lineEx = unitEx * qty
+        tax = (effectiveRate / 100) * lineEx
+        lineInc = lineEx + tax
+        unitInc = effectiveRate > 0 ? unitEx * (1 + effectiveRate / 100) : unitEx
       }
 
-      subtotalEx += lineEx
-      totalTax += tax
-      totalInc += lineInc
+      // Round at line level to avoid floating drift
+      const lineExR = Number(lineEx.toFixed(2))
+      const taxR = Number(tax.toFixed(2))
+      const lineIncR = Number(lineInc.toFixed(2))
+      const unitExR = Number(unitEx.toFixed(2))
+      const unitIncR = Number(unitInc.toFixed(2))
+
+      subtotalEx += lineExR
+      totalTax += taxR
+      totalInc += lineIncR
 
       return {
         order_id: null,
@@ -111,9 +108,9 @@ export default async function handler(req, res) {
         quantity: qty,
         price: unit,
         item_name: it.name,
-        unit_price_ex_tax: Number(unitEx.toFixed(2)),
-        unit_price_inc_tax: Number(unitInc.toFixed(2)),
-        unit_tax_amount: Number((unitInc - unitEx).toFixed(2)),
+        unit_price_ex_tax: unitExR,
+        unit_price_inc_tax: unitIncR,
+        unit_tax_amount: Number((unitIncR - unitExR).toFixed(2)),
         tax_rate: effectiveRate,
         hsn: it.hsn || null,
         is_packaged_good: isPackaged
