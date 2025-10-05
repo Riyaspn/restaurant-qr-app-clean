@@ -53,7 +53,7 @@ export default function SettingsPage() {
     gst_enabled: false,
     gstin: '',
     default_tax_rate: 5,
-    prices_include_tax: true,
+    prices_include_tax: false,
     shipping_name: '',
     shipping_phone: '',
     shipping_address_line1: '',
@@ -122,11 +122,17 @@ export default function SettingsPage() {
             return acc;
           }, {});
           // *** FIX ENDS HERE ***
+          // Normalize stored booleans that might be strings from older saves
+          const normalizedPricesInclude = (sanitizedProfile.prices_include_tax === true
+            || sanitizedProfile.prices_include_tax === 'true'
+            || sanitizedProfile.prices_include_tax === 1
+            || sanitizedProfile.prices_include_tax === '1');
+
           setForm(prev => ({
             ...prev,
             ...sanitizedProfile, // Use the sanitized data
             default_tax_rate: profile.default_tax_rate ?? 5,
-            prices_include_tax: profile.prices_include_tax ?? true,
+            prices_include_tax: profile.prices_include_tax != null ? normalizedPricesInclude : false,
             profile_category: profile.profile_category || 'food_and_beverages',
             profile_subcategory: profile.profile_subcategory || 'restaurant',
             business_type: profile.business_type || 'individual',
@@ -145,12 +151,15 @@ export default function SettingsPage() {
 
         const { data: restData, error: restError } = await supabase
           .from('restaurants')
-          .select('route_account_id')
+          .select('name, route_account_id')
           .eq('id', restaurant.id)
           .single();
 
-        if (!restError && restData?.route_account_id) {
-          setRouteAccountId(restData.route_account_id);
+        if (!restError) {
+          if (restData?.route_account_id) setRouteAccountId(restData.route_account_id);
+          if (restData?.name) {
+            setForm(prev => ({ ...prev, restaurant_name: restData.name }));
+          }
         }
       } catch (e) {
         setError(e.message || 'Failed to load settings');
@@ -660,23 +669,21 @@ export default function SettingsPage() {
             </>
           )}
           <div style={{ display: 'flex', gap: 24 }}>
-            <Field label="Default Tax Rate" required>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={form.default_tax_rate}
-                onChange={onChange('default_tax_rate')}
-              />
+            <Field label="Default Tax Rate (GST %)" required hint="Common GST slabs in India are 5% and 18%">
+              <select className="input" value={String(form.default_tax_rate)} onChange={onChange('default_tax_rate')}>
+                <option value={"5"}>5%</option>
+                <option value={"18"}>18%</option>
+              </select>
             </Field>
 
-            <Field label="Prices Include Tax" required>
-              <select value={form.prices_include_tax} onChange={onChange('prices_include_tax')}>
-                <option value={true}>Yes</option>
-                <option value={false}>No</option>
-              </select>
+            <Field label="Prices Include Tax" required hint="If checked, item prices you enter are tax-inclusive">
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!form.prices_include_tax}
+                  onChange={onChange('prices_include_tax')}
+                />
+              </label>
             </Field>
           </div>
         </Section>

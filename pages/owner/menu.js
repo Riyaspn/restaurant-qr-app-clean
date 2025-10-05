@@ -288,11 +288,13 @@ export default function MenuPage() {
         onClose={() => setEditorItem(null)}
         item={editorItem?.id ? editorItem : null}
         restaurantId={restaurantId}
+        supabase={supabase}
         onSaved={handleSaved}
       />
       <LibraryPicker
         open={showLibrary}
         onClose={() => setShowLibrary(false)}
+        supabase={supabase}
         restaurantId={restaurantId}
         onAdded={(rows) => {
           if (rows?.length) setItems(prev => [...rows, ...prev]);

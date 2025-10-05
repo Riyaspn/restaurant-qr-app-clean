@@ -1,4 +1,8 @@
 /* styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Global Reset & Basics */
 html, body {
   margin: 0;
