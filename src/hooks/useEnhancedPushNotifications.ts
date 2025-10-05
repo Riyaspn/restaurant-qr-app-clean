@@ -15,11 +15,11 @@ export function useEnhancedPushNotifications(
     async function init() {
       try {
         await PushNotifications.createChannel({
-          id: 'orders_v2',
+          id: 'order',
           name: 'Order Alerts',
           description: 'High priority new order alerts',
           importance: 4,
-          sound: 'beep',
+          sound: 'beep.wav',
           vibration: true,
         });
         const perm = await PushNotifications.requestPermissions();
@@ -37,7 +37,7 @@ export function useEnhancedPushNotifications(
                 restaurantId,
                 userEmail,
                 platform: Capacitor.getPlatform(),
-                channelId: 'orders'
+                channelId: 'orders_v3'
               })
             });
             if (res.ok) onToken?.(token.value);

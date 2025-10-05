@@ -1,18 +1,27 @@
-//functions/sendOrderNotification/index.js
-
+// functions/sendOrderNotification/index.js
 import { createClient } from '@supabase/supabase-js';
 import admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK - this should only run once
+function normalizePrivateKey(raw) {
+  if (!raw) return '';
+  let key = raw.trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1);
+  }
+  if (key.includes('\\n')) key = key.replace(/\\n/g, '\n');
+  key = key.replace(/\r\n/g, '\n');
+  if (!key.endsWith('\n')) key = key + '\n';
+  return key;
+}
+
+// Initialize Firebase Admin SDK - once
 if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  // Vercel/Supabase automatically handle newline characters in environment variables.
-  // This replace() is a safeguard.
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error('Missing Firebase Admin credentials in environment variables.');
+    throw new Error('Missing Firebase Admin credentials in env.');
   }
 
   admin.initializeApp({
@@ -20,41 +29,34 @@ if (!admin.apps.length) {
   });
 }
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Supabase
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function handler(req, res) {
-  // Ensure the request is a POST request
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { order } = req.body || {};
+  if (!order || !order.restaurant_id || !order.id) {
+    return res.status(400).json({ error: 'Missing order or essential fields.' });
   }
 
-  const { order } = req.body;
-  if (!order) {
-    return res.status(400).json({ error: 'Missing order data in request body.' });
-  }
-
-  // Fetch device tokens for the specified restaurant
+  // Fetch device tokens
   const { data: subs, error: tokenError } = await supabase
-    .from('push_subscription_restaurants') // Ensure this is your correct view/table name
+    .from('push_subscription_restaurants')
     .select('device_token')
     .eq('restaurant_id', order.restaurant_id);
 
   if (tokenError) {
-    console.error('Supabase error fetching tokens:', tokenError);
+    console.error('[sendOrderNotification] token fetch error', tokenError);
     return res.status(500).json({ error: tokenError.message });
   }
 
   const tokens = (subs || []).map(s => s.device_token).filter(Boolean);
-  if (tokens.length === 0) {
-    console.log(`No device tokens found for restaurant_id: ${order.restaurant_id}`);
-    return res.status(200).json({ message: 'No subscribed devices found for this restaurant.' });
+  if (!tokens.length) {
+    console.log(`[sendOrderNotification] no tokens for restaurant ${order.restaurant_id}`);
+    return res.status(200).json({ message: 'No subscribed devices', successCount: 0, failureCount: 0 });
   }
 
-  // --- Construct Notification Content ---
   const itemCount = Array.isArray(order.items)
     ? order.items.reduce((sum, item) => sum + (item.quantity || 1), 0)
     : 0;
@@ -62,56 +64,53 @@ export default async function handler(req, res) {
   const title = 'New Order Received';
   const body = `Order #${String(order.id).slice(-4)} • ${itemCount} items • ₹${totalAmount}`;
 
-  // --- FCM Message Payload ---
-  // This structure is critical for cross-platform, background delivery.
   const message = {
     tokens,
-    // The `notification` object is used by the OS to display the alert
-    notification: {
-      title,
-      body,
-    },
-    // The `data` object is for your app's custom logic
+    notification: { title, body },
     data: {
       type: 'new_order',
       orderId: String(order.id),
-      url: '/owner/orders', // Deep link for when the user taps the notification
+      url: '/owner/orders'
     },
-    // `android` specific configuration
     android: {
       priority: 'high',
       notification: {
-        channelId: 'orders_v2', // MUST match the ID created in your app
-        sound: 'beep',   // The sound file in android/app/src/main/res/raw
-        priority: 'high',    // Ensures the notification is treated as important
-      },
+        channelId: 'orders_v3',
+        sound: 'beep',
+        priority: 'high'
+      }
     },
-    // `apns` specific configuration for iOS
     apns: {
-      headers: {
-        'apns-priority': '10', // High priority for immediate delivery
-      },
-      payload: {
-        aps: {
-          sound: 'beep.wav',
-          'content-available': 1, // Wakes up the app for background processing
-        },
-      },
-    },
+      headers: { 'apns-priority': '10' },
+      payload: { aps: { sound: 'beep.wav', 'content-available': 1 } }
+    }
   };
 
   try {
-    const response = await admin.messaging().sendMulticast(message);
-    console.log(`Successfully sent ${response.successCount} messages`);
-    if (response.failureCount > 0) {
-      console.error('Failed to send to some devices:', response.responses);
+    // Use the supported multicast API
+    const response = await admin.messaging().sendEachForMulticast(message);
+
+    // Prune invalid tokens
+    const invalid = [];
+    response.responses.forEach((r, idx) => {
+      if (!r.success) {
+        const code = r.error?.code || '';
+        if (code.includes('registration-token-not-registered') || code.includes('invalid-argument')) {
+          invalid.push(tokens[idx]);
+        }
+      }
+    });
+    if (invalid.length) {
+      await supabase.from('push_subscription_restaurants').delete().in('device_token', invalid);
     }
+
     return res.status(200).json({
       successCount: response.successCount,
       failureCount: response.failureCount,
+      pruned: invalid.length
     });
-  } catch (error) {
-    console.error('FCM send error:', error);
-    return res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error('[sendOrderNotification] FCM send error', err);
+    return res.status(500).json({ error: err?.message || 'FCM send failed' });
   }
 }

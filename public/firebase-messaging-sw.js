@@ -1,55 +1,92 @@
 // /public/firebase-messaging-sw.js
 
-// Import the Firebase scripts
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+/* global importScripts, firebase, self, clients */
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+} catch (e) {
+  // If CDN fails, keep SW alive (no push), but do not crash install/activate.
+  console.warn('[fcm-sw] importScripts failed:', e?.message || e);
+}
 
-// This configuration is correct based on your screenshot.
-const firebaseConfig = {
-  apiKey: "AIzaSyATyNkWG6l1VMuaxrOtvDtraYSJwjtDmSE",
-  authDomain: "cafe-qr-notifications.firebaseapp.com",
-  projectId: "cafe-qr-notifications",
-  storageBucket: "cafe-qr-notifications.firebasestorage.app",
-  messagingSenderId: "620603470804",
-  appId: "1:620603470804:web:fb903bb1ef725098d1dc41"
-};
-
-// Initialize the Firebase app in the service worker
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-// THIS IS THE CORRECTED HANDLER
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message: ', payload);
-
-  // ROBUST PAYLOAD HANDLING: Check for data first, then notification.
-  const notificationTitle = payload.data?.title || payload.notification?.title || 'New Order';
-  const notificationOptions = {
-    body: payload.data?.body || payload.notification?.body || 'You have a new order waiting.',
-    icon: '/icon-192x192.png', // Make sure this file exists in your /public folder
-    badge: '/icon-192x192.png',
-    data: payload.data // Pass along the data payload for the click event
-  };
-
-  // This is the command that tells the Android OS to show the notification.
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+// No-op install/activate to avoid uncaught rejections blocking activation
+self.addEventListener('install', (event) => {
+  event.waitUntil(Promise.resolve());
+});
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients?.claim?.() || Promise.resolve());
 });
 
-// This handler is for when a user clicks on the notification
+let messaging;
+try {
+  firebase?.initializeApp?.({
+    apiKey: "AIzaSyATyNkWG6l1VMuaxrOtvDtraYSJwjtDmSE",
+    authDomain: "cafe-qr-notifications.firebaseapp.com",
+    projectId: "cafe-qr-notifications",
+    storageBucket: "cafe-qr-notifications.firebasestorage.app",
+    messagingSenderId: "620603470804",
+    appId: "1:620603470804:web:fb903bb1ef725098d1dc41"
+  });
+  messaging = firebase?.messaging?.();
+} catch (e) {
+  // Still allow SW to run without FCM
+  console.warn('[fcm-sw] firebase init failed:', e?.message || e);
+}
+
+// Helper to safely show notifications without throwing
+async function safeShowNotification(title, options) {
+  try {
+    // Fallback assets if custom ones are missing
+    const finalOptions = {
+      icon: options?.icon || '/icon-192x192.png',
+      badge: options?.badge || '/icon-192x192.png',
+      ...options
+    };
+    return await self.registration.showNotification(title, finalOptions);
+  } catch (e) {
+    console.warn('[fcm-sw] showNotification failed:', e?.message || e);
+    return null;
+  }
+}
+
+// Background payload handler
+try {
+  messaging?.onBackgroundMessage?.((payload) => {
+    try {
+      const title = payload?.data?.title || payload?.notification?.title || 'New Order';
+      const body = payload?.data?.body || payload?.notification?.body || 'You have a new order.';
+      const url = payload?.data?.url || '/owner/orders';
+
+      const options = {
+        body,
+        icon: '/icon-192x192.png',
+        badge: '/icon-192x192.png',
+        data: { url, ...payload?.data }
+      };
+
+      return safeShowNotification(title, options);
+    } catch (e) {
+      console.warn('[fcm-sw] onBackgroundMessage error:', e?.message || e);
+      return null;
+    }
+  });
+} catch (e) {
+  console.warn('[fcm-sw] registering background listener failed:', e?.message || e);
+}
+
+// Click → focus or open
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/owner/orders';
-
+  const urlToOpen = event?.notification?.data?.url || '/owner/orders';
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus().then(c => c.navigate(urlToOpen));
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ('focus' in c && c.url?.includes(self.location.origin)) {
+          return c.focus().then(() => (c.navigate ? c.navigate(urlToOpen) : null));
         }
       }
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
+      if (clients.openWindow) return clients.openWindow(urlToOpen);
+      return null;
     })
   );
 });

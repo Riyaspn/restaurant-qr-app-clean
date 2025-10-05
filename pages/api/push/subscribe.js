@@ -1,58 +1,90 @@
 // pages/api/push/subscribe.js
-
 import { createClient } from '@supabase/supabase-js';
 
+function prefix(s = '', n = 24) { return String(s).slice(0, n); }
+
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`[subscribe] missing env ${name}`);
+  return v;
+}
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  requireEnv('SUPABASE_URL'),
+  requireEnv('SUPABASE_SERVICE_ROLE_KEY') // must be service role to bypass RLS
 );
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    const { deviceToken, restaurantId, userEmail, platform } = req.body;
-
-    // Validate required fields
-    if (!restaurantId || !platform) {
-      return res.status(400).json({
-        error: 'Missing required fields: restaurantId and platform are required'
+    // Allow quick GET snapshots while testing
+    if (req.method === 'GET') {
+      const rid = req.query.rid || req.query.restaurantId;
+      if (!rid) return res.status(400).json({ error: 'rid required' });
+      const { data, error } = await supabase
+        .from('push_subscription_restaurants')
+        .select('device_token, platform, updated_at')
+        .eq('restaurant_id', rid);
+      if (error) return res.status(500).json({ error: error.message });
+      return res.status(200).json({
+        prefixes: (data || []).map(r => prefix(r.device_token)),
+        count: data?.length || 0
       });
     }
 
-    // Build payload
-    const now = new Date().toISOString();
-    const payload = {
-      device_token: deviceToken || null,
-      restaurant_id: restaurantId,
-      user_email: userEmail || null,
-      platform,
-      created_at: now,
-      updated_at: now
-    };
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    // Upsert subscription record
-    const { data, error: upsertError } = await supabase
-      .from('push_subscription_restaurants')
-      .upsert(payload, {
-        onConflict: 'device_token,restaurant_id',
-        ignoreDuplicates: false
-      })
-      .select();
+    const body = req.body || {};
+    const deviceToken = body.deviceToken || body.token || body.fcmToken || body.fcm_token;
+    const restaurantId = body.restaurantId || body.rid;
+    const platform = body.platform || body.os || 'android';
+    const userEmail = body.userEmail ?? body.email ?? null;
 
-    if (upsertError) {
-      console.error('Subscribe error:', upsertError);
-      return res.status(500).json({ error: upsertError.message });
+    if (!restaurantId || !platform || !deviceToken || typeof deviceToken !== 'string' || deviceToken.length < 20) {
+      console.error('[subscribe] bad input', {
+        rid: restaurantId, platform, hasToken: !!deviceToken, len: deviceToken?.length
+      });
+      return res.status(400).json({ error: 'restaurantId, platform, and deviceToken are required' });
     }
 
+    const tokenPrefix = prefix(deviceToken);
+    const now = new Date().toISOString();
+
+    const payload = {
+      restaurant_id: restaurantId,
+      device_token: deviceToken,
+      platform,
+      user_email: userEmail,
+      last_seen_at: now,
+      updated_at: now,
+      created_at: now
+    };
+
+    console.log('[subscribe] upsert begin', { rid: restaurantId, tokenPrefix, platform });
+
+    const { data, error } = await supabase
+      .from('push_subscription_restaurants')
+      .upsert(payload, {
+        onConflict: 'restaurant_id,device_token',
+        ignoreDuplicates: false
+      })
+      .select('id, restaurant_id, device_token')
+      .limit(1);
+
+    if (error) {
+      console.error('[subscribe] upsert error', { rid: restaurantId, tokenPrefix, code: error.code, msg: error.message, details: error.details });
+      return res.status(500).json({ error: error.message });
+    }
+
+    console.log('[subscribe] upsert ok', { rid: restaurantId, tokenPrefix, rowId: data?.[0]?.id });
+
     return res.status(200).json({
-      message: 'Subscribed successfully',
-      subscription: data[0] || null
+      ok: true,
+      rid: restaurantId,
+      prefix: tokenPrefix,
+      subscription: data?.[0] || null
     });
-  } catch (err) {
-    console.error('Unexpected error in subscribe handler:', err);
+  } catch (e) {
+    console.error('[subscribe] exception', e?.message || e);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

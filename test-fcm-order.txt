@@ -1,0 +1,10 @@
+(async () => {
+  const token = localStorage.getItem('fcm_token');
+  const restaurantId = '5c712271-3fb0-4160-8972-0d8aa5a66dd2';
+  const res = await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ restaurantId, platform: 'android', deviceToken: token })
+  });
+  console.log('manual subscribe', res.status, await res.text());
+})();
