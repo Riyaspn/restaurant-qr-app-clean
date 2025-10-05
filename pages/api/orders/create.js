@@ -57,7 +57,6 @@ export default async function handler(req, res) {
     const gstEnabled = !!profile?.gst_enabled;
     const baseRate = Number(profile?.default_tax_rate ?? 5);
     const serviceRate = gstEnabled ? baseRate : 0;
-    const serviceInclude = gstEnabled ? !!profile?.prices_include_tax : false;
     const gstEnabled = !!profile?.gst_enabled
     const baseRate = Number(profile?.default_tax_rate ?? 5)
     const serviceRate = gstEnabled ? baseRate : 0
