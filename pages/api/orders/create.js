@@ -53,17 +53,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to load settings' });
     }
 
-<<<<<<< HEAD
+
     const gstEnabled = !!profile?.gst_enabled;
     const baseRate = Number(profile?.default_tax_rate ?? 5);
     const serviceRate = gstEnabled ? baseRate : 0;
     const serviceInclude = gstEnabled ? !!profile?.prices_include_tax : false;
-=======
     const gstEnabled = !!profile?.gst_enabled
     const baseRate = Number(profile?.default_tax_rate ?? 5)
     const serviceRate = gstEnabled ? baseRate : 0
     const serviceInclude = gstEnabled ? (profile?.prices_include_tax === true || profile?.prices_include_tax === 'true' || profile?.prices_include_tax === 1 || profile?.prices_include_tax === '1') : false
->>>>>>> 95b3706d58e198615f55db98720466fe5d3caf1f
 
     // Compute totals and normalized order_items
     let subtotalEx = 0;
@@ -80,7 +78,6 @@ export default async function handler(req, res) {
 
       let unitEx, unitInc, lineEx, tax, lineInc, effectiveRate;
 
-<<<<<<< HEAD
       if (isPackaged) {
         effectiveRate = itemTaxRate;
         unitInc = unit;
@@ -108,7 +105,6 @@ export default async function handler(req, res) {
       subtotalEx += lineEx;
       totalTax += tax;
       totalInc += lineInc;
-=======
       // Use item's own tax rate if packaged, otherwise restaurant base rate
       effectiveRate = isPackaged ? itemTaxRate : serviceRate
       if (serviceInclude) {
@@ -135,7 +131,6 @@ export default async function handler(req, res) {
       subtotalEx += lineExR
       totalTax += taxR
       totalInc += lineIncR
->>>>>>> 95b3706d58e198615f55db98720466fe5d3caf1f
 
       return {
         order_id: null,
