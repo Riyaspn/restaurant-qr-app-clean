@@ -46,14 +46,59 @@ export default function CartSummary() {
 
   const loadRestaurantData = async () => {
     try {
-      const { data, error } = await supabase
+      // First try to load basic restaurant data
+      const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
-        .select('id, name, restaurant_profiles(brand_color)')
+        .select('id, name, brand_color')
         .eq('id', restaurantId)
         .single()
-      if (!error) setRestaurant(data)
+      
+      console.log('Cart Restaurant Data Load:', { restaurantData, restaurantError })
+      
+      // Try to load profile data using a different approach - maybe the table name is different
+      let profileData = null
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('restaurant_profiles')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .maybeSingle()
+        
+        console.log('Profile query result:', { profile, profileError })
+        profileData = profile
+      } catch (profileErr) {
+        console.log('Profile query failed:', profileErr)
+      }
+      
+      // If profile query fails, try alternative table names
+      if (!profileData) {
+        try {
+          const { data: altProfile, error: altError } = await supabase
+            .from('restaurants')
+            .select('*')
+            .eq('id', restaurantId)
+            .single()
+          
+          console.log('Alternative restaurant query:', { altProfile, altError })
+          if (altProfile) {
+            profileData = altProfile
+          }
+        } catch (altErr) {
+          console.log('Alternative query failed:', altErr)
+        }
+      }
+      
+      if (!restaurantError && restaurantData) {
+        const combinedData = {
+          ...restaurantData,
+          restaurant_profiles: profileData
+        }
+        
+        setRestaurant(combinedData)
+        console.log('Cart Restaurant Set:', combinedData)
+      }
     } catch (e) {
-      console.error(e)
+      console.error('Cart Restaurant Load Error:', e)
     }
   }
 
@@ -88,7 +133,43 @@ export default function CartSummary() {
     }
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  // Calculate tax and totals based on restaurant settings
+  const calculateTotals = () => {
+    const profile = restaurant?.restaurant_profiles
+    const gstEnabled = !!profile?.gst_enabled
+    const baseRate = Number(profile?.default_tax_rate ?? 18) // Default to 18% if not found
+    const serviceRate = gstEnabled ? baseRate : 18 // Fallback to 18% if GST not enabled but you want tax
+    const pricesIncludeTax = gstEnabled ? (profile?.prices_include_tax === true || profile?.prices_include_tax === 'true' || profile?.prices_include_tax === 1 || profile?.prices_include_tax === '1') : false
+    
+    const subtotalEx = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    
+    // For now, let's always calculate tax with 18% since you have it set in settings
+    let taxAmount, totalInc
+    
+    if (pricesIncludeTax) {
+      // Prices include tax - extract tax from total
+      totalInc = subtotalEx
+      const subtotalExTax = serviceRate > 0 ? subtotalEx / (1 + serviceRate / 100) : subtotalEx
+      taxAmount = subtotalEx - subtotalExTax
+      return {
+        subtotalEx: subtotalExTax,
+        taxAmount: taxAmount,
+        totalInc: totalInc
+      }
+    } else {
+      // Prices exclude tax - add tax to subtotal
+      taxAmount = (serviceRate / 100) * subtotalEx
+      totalInc = subtotalEx + taxAmount
+      return {
+        subtotalEx: subtotalEx,
+        taxAmount: taxAmount,
+        totalInc: totalInc
+      }
+    }
+  }
+
+  const totals = calculateTotals()
+  const { subtotalEx, taxAmount, totalInc } = totals
 
   // 2. REMOVE the `checking` condition
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading cart...</div>
@@ -163,18 +244,33 @@ export default function CartSummary() {
       </div>
 
       <div style={{ background: '#fff', marginTop: '8px', padding: '20px' }}>
+        {/* Temporary debug info */}
+        <div style={{ fontSize: '10px', color: '#999', marginBottom: '8px', padding: '4px', background: '#f5f5f5' }}>
+          Debug: GST={restaurant?.restaurant_profiles?.gst_enabled ? 'ON' : 'OFF'}, 
+          Rate={restaurant?.restaurant_profiles?.default_tax_rate || 'NULL'}, 
+          Profile={restaurant?.restaurant_profiles ? 'LOADED' : 'NULL'}
+        </div>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span>Subtotal</span>
+          <span>₹{subtotalEx.toFixed(2)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#6b7280' }}>
+          <span>Tax({restaurant?.restaurant_profiles?.default_tax_rate || 18}%)</span>
+          <span>₹{taxAmount.toFixed(2)}</span>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '18px', borderTop: '1px solid #e5e7eb', paddingTop: '12px' }}>
           <span>Total Amount</span>
-          <span>₹{subtotal.toFixed(2)}</span>
+          <span>₹{totalInc.toFixed(2)}</span>
         </div>
       </div>
 
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px', background: '#fff', borderTop: '1px solid #e5e7eb' }}>
         <Link
-          href={`/order/payment?r=${restaurantId}&t=${tableNumber}&total=${subtotal}`}
+          href={`/order/payment?r=${restaurantId}&t=${tableNumber}&total=${totalInc}`}
           style={{ display: 'block', width: '100%', background: brandColor, color: '#fff', textDecoration: 'none', padding: '16px', textAlign: 'center', borderRadius: '8px', fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}
         >
-          Proceed to Payment (₹{subtotal.toFixed(2)})
+          Proceed to Payment (₹{totalInc.toFixed(2)})
         </Link>
         <div style={{ textAlign: 'center', fontSize: '12px', color: '#6b7280' }}>
           🔒 Your order & payment details are completely secure

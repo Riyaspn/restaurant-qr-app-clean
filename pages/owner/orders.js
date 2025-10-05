@@ -18,6 +18,18 @@ const PAGE_SIZE = 20;
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`;
 const prefix = (s) => (s ? s.slice(0, 24) : '');
 
+// Single source of truth for totals: order-level fields only
+function computeOrderTotalDisplay(order) {
+  const toNum = (v) => (v == null ? null : Number(v))
+  const a = toNum(order?.total_inc_tax)
+  if (Number.isFinite(a) && a > 0) return a
+  const b = toNum(order?.total_amount)
+  if (Number.isFinite(b) && b > 0) return b
+  const c = toNum(order?.total)
+  if (Number.isFinite(c) && c > 0) return c
+  return 0
+}
+
 function toDisplayItems(order) {
   if (Array.isArray(order.items)) return order.items;
   if (Array.isArray(order.order_items)) {
@@ -41,7 +53,7 @@ function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
       <div style={{ backgroundColor: 'white', padding: 20, borderRadius: 8, maxWidth: 400, margin: 16 }}>
         <h3 style={{ margin: '0 0 16px 0' }}>Payment Confirmation</h3>
         <p>Order #{order.id.slice(0, 8)} - Table {order.table_number}</p>
-        <p>Amount: ₹{Number(order.total_inc_tax ?? order.total_amount ?? 0).toFixed(2)}</p>
+        <p>Amount: {money(computeOrderTotalDisplay(order))}</p>
         <p><strong>Has the customer completed the payment?</strong></p>
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <Button onClick={onConfirm} variant="success">Yes, Payment Received</Button>
@@ -486,7 +498,7 @@ export default function OrdersPage() {
 function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
-  const total = Number(order.total_inc_tax ?? order.total_amount ?? 0);
+  const total = computeOrderTotalDisplay(order);
 
   return (
     <Card padding={12} style={{ border: '1px solid #eef2f7', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>

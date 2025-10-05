@@ -8,7 +8,7 @@ export default function OrderSuccess() {
   const router = useRouter()
   // 3. GET the singleton instance
   const supabase = getSupabase();
-  const { id: orderId, method } = router.query
+  const { id: orderId, method, amt: amtQuery } = router.query
   
   // 2. REMOVE the useRequireAuth hook
   // const { checking } = useRequireAuth(supabase)
@@ -145,7 +145,33 @@ export default function OrderSuccess() {
 
   const invoiceUrl = order.invoice?.pdf_url
   const isCompleted = order.status === 'completed'
-  const amount = Number(order.total_inc_tax ?? order.total_amount ?? 0)
+  // If amount was explicitly passed from payment flow, prefer it
+  const amtRaw = amtQuery
+  const amtStr = Array.isArray(amtRaw) ? amtRaw[0] : amtRaw
+  // Fallback read from sessionStorage (set in payment-success)
+  let amountFromSession = null
+  try {
+    const s = typeof window !== 'undefined' ? sessionStorage.getItem('last_paid_amount') : null
+    amountFromSession = s != null && s !== '' && !isNaN(Number(s)) ? Number(s) : null
+  } catch {}
+  const amountFromQuery = amtStr != null && amtStr !== '' && !isNaN(Number(amtStr)) ? Number(amtStr) : null
+  const derivedFromExAndTax = (
+    order.subtotal_ex_tax != null && order.total_tax != null
+  ) ? (Number(order.subtotal_ex_tax) + Number(order.total_tax)) : null
+
+  // Build candidates and pick the smallest positive to avoid duplicates/double-add
+  const rawCandidates = [
+    amountFromQuery,
+    amountFromSession,
+    order.total_inc_tax,
+    order.total_amount,
+    order.total,
+    derivedFromExAndTax
+  ]
+  const candidates = rawCandidates
+    .map(n => (n == null ? null : Number(n)))
+    .filter(n => Number.isFinite(n) && n > 0)
+  const amount = candidates.length ? Math.min(...candidates) : 0
 
   return (
     <div style={{ maxWidth: 600, margin: '3rem auto', padding: '0 1rem', textAlign: 'center' }}>

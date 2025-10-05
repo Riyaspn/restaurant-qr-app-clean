@@ -25,14 +25,45 @@ export default function PaymentPage() {
     use_own_gateway: false,
   });
 
+  // Calculate tax and totals based on restaurant settings
+  const calculateTotals = useMemo(() => {
+    const profile = restaurant?.restaurant_profiles
+    const gstEnabled = !!profile?.gst_enabled
+    const baseRate = Number(profile?.default_tax_rate ?? 18) // Default to 18% if not found
+    const serviceRate = gstEnabled ? baseRate : 18 // Fallback to 18% if GST not enabled
+    const pricesIncludeTax = gstEnabled ? (profile?.prices_include_tax === true || profile?.prices_include_tax === 'true' || profile?.prices_include_tax === 1 || profile?.prices_include_tax === '1') : false
+
+    const subtotalEx = cart.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0)
+
+    let taxAmount, totalInc
+
+    if (pricesIncludeTax) {
+      // Prices include tax - extract tax from total
+      totalInc = subtotalEx
+      const subtotalExTax = serviceRate > 0 ? subtotalEx / (1 + serviceRate / 100) : subtotalEx
+      taxAmount = subtotalEx - subtotalExTax
+      return {
+        subtotalEx: subtotalExTax,
+        taxAmount: taxAmount,
+        totalInc: totalInc
+      }
+    } else {
+      // Prices exclude tax - add tax to subtotal
+      taxAmount = (serviceRate / 100) * subtotalEx
+      totalInc = subtotalEx + taxAmount
+      return {
+        subtotalEx: subtotalEx,
+        taxAmount: taxAmount,
+        totalInc: totalInc
+      }
+    }
+  }, [cart, restaurant])
+
   const totalAmount = useMemo(() => {
     const q = Number(total);
     if (Number.isFinite(q) && q > 0) return q;
-    return cart.reduce(
-      (sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0),
-      0
-    );
-  }, [total, cart]);
+    return calculateTotals.totalInc;
+  }, [total, calculateTotals]);
 
   useEffect(() => {
     // 3. USE the singleton instance (already available)
@@ -61,33 +92,50 @@ export default function PaymentPage() {
 
   const loadRestaurantData = async () => {
     try {
-      // 3. USE the singleton instance
-      const { data, error } = await supabase
+      // Try to load all restaurant data including profile in one query
+      const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
         .select(`
           id, 
-          name, 
-          restaurant_profiles(
-            brand_color, 
-            online_payment_enabled, 
-            use_own_gateway
-          )
+          name,
+          brand_color,
+          online_payment_enabled,
+          use_own_gateway,
+          gst_enabled,
+          default_tax_rate,
+          prices_include_tax
         `)
         .eq('id', restaurantId)
         .single();
 
-      if (!error && data) {
-        setRestaurant(data);
-        const profile = data.restaurant_profiles;
-        if (profile) {
-          setPaymentSettings({
-            online_payment_enabled: profile.online_payment_enabled || false,
-            use_own_gateway: profile.use_own_gateway || false,
-          });
-        }
+      console.log('Payment Restaurant Data Load:', { restaurantData, restaurantError });
+
+      if (!restaurantError && restaurantData) {
+        // Create profile object from restaurant data
+        const profileData = {
+          brand_color: restaurantData.brand_color,
+          online_payment_enabled: restaurantData.online_payment_enabled,
+          use_own_gateway: restaurantData.use_own_gateway,
+          gst_enabled: restaurantData.gst_enabled,
+          default_tax_rate: restaurantData.default_tax_rate,
+          prices_include_tax: restaurantData.prices_include_tax
+        };
+        
+        const combinedData = {
+          id: restaurantData.id,
+          name: restaurantData.name,
+          restaurant_profiles: profileData
+        };
+        
+        setRestaurant(combinedData);
+        
+        setPaymentSettings({
+          online_payment_enabled: profileData.online_payment_enabled || false,
+          use_own_gateway: profileData.use_own_gateway || false,
+        });
       }
     } catch (e) {
-      console.error(e);
+      console.error('Payment Restaurant Load Error:', e);
     }
   };
 
@@ -134,9 +182,9 @@ export default function PaymentPage() {
             quantity: Number(i.quantity) || 1,
             veg: !!i.veg,
           })),
-          subtotal: totalAmount,
-          tax: 0,
-          total_amount: totalAmount,
+          subtotal: calculateTotals.subtotalEx,
+          tax: calculateTotals.taxAmount,
+          total_amount: calculateTotals.totalInc,
           payment_method: 'cash',
           special_instructions: specialInstructions.trim(),
           payment_status: 'pending',
@@ -157,10 +205,14 @@ export default function PaymentPage() {
           orderItems: orderData.items,
         });
 
+        // Persist amount for success page and pass via query
+        try { sessionStorage.setItem('last_paid_amount', String(calculateTotals.totalInc)) } catch {}
+        const amt = encodeURIComponent(String(calculateTotals.totalInc))
+
         localStorage.removeItem(`cart_${restaurantId}_${tableNumber}`);
         localStorage.setItem('restaurantId', restaurantId);
         localStorage.setItem('tableNumber', tableNumber);
-        window.location.href = `/order/success?id=${result.order_id || result.id}&method=cash`;
+        window.location.href = `/order/success?id=${result.order_id || result.id}&method=cash&amt=${amt}`;
         return;
       }
 
@@ -191,7 +243,9 @@ export default function PaymentPage() {
             quantity: Number(i.quantity) || 1,
             veg: !!i.veg,
           })),
-          subtotal: totalAmount,
+          subtotal: calculateTotals.subtotalEx,
+          tax: calculateTotals.taxAmount,
+          total_amount: calculateTotals.totalInc,
           special_instructions: specialInstructions.trim(),
           payment_method: 'byo',
         };
@@ -244,7 +298,9 @@ export default function PaymentPage() {
             quantity: Number(i.quantity) || 1,
             veg: !!i.veg,
           })),
-          subtotal: totalAmount,
+          subtotal: calculateTotals.subtotalEx,
+          tax: calculateTotals.taxAmount,
+          total_amount: calculateTotals.totalInc,
           special_instructions: specialInstructions.trim(),
           payment_method: 'route',
         };
@@ -348,6 +404,14 @@ export default function PaymentPage() {
           )}
         </div>
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span>Subtotal</span>
+            <span>₹{calculateTotals.subtotalEx.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: '#6b7280' }}>
+            <span>Tax({restaurant?.restaurant_profiles?.default_tax_rate || 18}%)</span>
+            <span>₹{calculateTotals.taxAmount.toFixed(2)}</span>
+          </div>
           <div
             style={{
               display: 'flex',

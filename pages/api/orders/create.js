@@ -72,61 +72,42 @@ export default async function handler(req, res) {
       const isPackaged = !!(menuItem?.is_packaged_good || it.is_packaged_good);
       const itemTaxRate = Number(menuItem?.tax_rate ?? it.tax_rate ?? 0);
 
-      let unitEx, unitInc, lineEx, tax, lineInc, effectiveRate;
+      // Choose effective tax rate: packaged uses its own rate; service items use restaurant base
+      let effectiveRate = isPackaged ? itemTaxRate : serviceRate;
+      // Fallback: if GST is enabled but no rate resolved, use restaurant base
+      if ((effectiveRate == null || effectiveRate <= 0) && gstEnabled) {
+        effectiveRate = baseRate;
+      }
 
-      if (isPackaged) {
-        effectiveRate = itemTaxRate;
+      let unitEx, unitInc, lineEx, tax, lineInc;
+
+      if (serviceInclude) {
+        // Prices are tax-inclusive for service items
         unitInc = unit;
         unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc;
         lineInc = unitInc * qty;
         lineEx = unitEx * qty;
         tax = lineInc - lineEx;
       } else {
-        effectiveRate = serviceRate;
-        if (serviceInclude) {
-          unitInc = unit;
-          unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc;
-          lineInc = unitInc * qty;
-          lineEx = unitEx * qty;
-          tax = lineInc - lineEx;
-        } else {
-          unitEx = unit;
-          lineEx = unitEx * qty;
-          tax = (effectiveRate / 100) * lineEx;
-          lineInc = lineEx + tax;
-          unitInc = effectiveRate > 0 ? unitEx * (1 + effectiveRate / 100) : unitEx;
-        }
+        // Prices are tax-exclusive for service items
+        unitEx = unit;
+        lineEx = unitEx * qty;
+        tax = (effectiveRate / 100) * lineEx;
+        lineInc = lineEx + tax;
+        unitInc = effectiveRate > 0 ? unitEx * (1 + effectiveRate / 100) : unitEx;
       }
 
-      subtotalEx += lineEx;
-      totalTax += tax;
-      totalInc += lineInc;
-      // Use item's own tax rate if packaged, otherwise restaurant base rate
-      effectiveRate = isPackaged ? itemTaxRate : serviceRate
-      if (serviceInclude) {
-        unitInc = unit
-        unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc
-        lineInc = unitInc * qty
-        lineEx = unitEx * qty
-        tax = lineInc - lineEx
-      } else {
-        unitEx = unit
-        lineEx = unitEx * qty
-        tax = (effectiveRate / 100) * lineEx
-        lineInc = lineEx + tax
-        unitInc = effectiveRate > 0 ? unitEx * (1 + effectiveRate / 100) : unitEx
-      }
+      // Round once at line level to avoid drift
+      const unitExR = Number(unitEx.toFixed(2));
+      const unitIncR = Number(unitInc.toFixed(2));
+      const lineExR = Number(lineEx.toFixed(2));
+      const taxR = Number(tax.toFixed(2));
+      const lineIncR = Number(lineInc.toFixed(2));
 
-      // Round at line level to avoid floating drift
-      const lineExR = Number(lineEx.toFixed(2))
-      const taxR = Number(tax.toFixed(2))
-      const lineIncR = Number(lineInc.toFixed(2))
-      const unitExR = Number(unitEx.toFixed(2))
-      const unitIncR = Number(unitInc.toFixed(2))
-
-      subtotalEx += lineExR
-      totalTax += taxR
-      totalInc += lineIncR
+      // Accumulate totals once
+      subtotalEx += lineExR;
+      totalTax += taxR;
+      totalInc += lineIncR;
 
       return {
         order_id: null,

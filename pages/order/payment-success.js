@@ -46,8 +46,13 @@ export default function PaymentSuccess() {
       localStorage.removeItem('pending_order')
       localStorage.removeItem(`cart_${pendingOrder.restaurant_id}_${pendingOrder.table_number}`)
 
-      // Redirect to success
-      await router.replace(`/order/success?id=${result.order_id}&method=online`)
+      // Persist paid amount for success page fallback
+      const paidAmount = String(pendingOrder.total_amount ?? pendingOrder.total ?? '')
+      try { sessionStorage.setItem('last_paid_amount', paidAmount) } catch {}
+
+      // Redirect to success with explicit amount to avoid mismatches
+      const amt = encodeURIComponent(paidAmount)
+      await router.replace(`/order/success?id=${result.order_id}&method=online&amt=${amt}`)
 
       // Open bill PDF via existing invoice endpoint
       const gen = await fetch('/api/invoices/generate', {
