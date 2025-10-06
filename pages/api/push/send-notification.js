@@ -7,10 +7,8 @@ function normalizePrivateKey(raw) {
   if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
     key = key.slice(1, -1);
   }
-  if (key.includes('\\n')) key = key.replace(/\\n/g, '\n');
   key = key.replace(/\r\n/g, '\n');
-  if (!key.endsWith('\n')) key = key + '\n';
-  return key;
+  return key.endsWith('\n') ? key : key + '\n';
 }
 
 if (!admin.apps.length) {
@@ -40,22 +38,17 @@ export async function sendOrderNotification(orderData, deviceTokens) {
     android: {
       priority: 'high',
       notification: {
-        channelId: 'orders_v3',
-        sound: 'beep'
+        channelId: 'orders_v2',
+        sound: 'beep',
       }
     },
     apns: {
       headers: { 'apns-priority': '10' },
-      payload: { aps: { 'content-available': 1, 'mutable-content': 1, sound: 'default' } }
+      payload: { aps: { sound: 'default' } }
     },
     tokens: deviceTokens
   };
 
   const resp = await admin.messaging().sendEachForMulticast(message);
-  return {
-    success: true,
-    successCount: resp.successCount,
-    failureCount: resp.failureCount,
-    responses: resp.responses
-  };
+  return { success: true, successCount: resp.successCount, failureCount: resp.failureCount, responses: resp.responses };
 }

@@ -5,13 +5,9 @@ import admin from 'firebase-admin';
 function normalizePrivateKey(raw) {
   if (!raw) return '';
   let key = raw.trim();
-  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
-    key = key.slice(1, -1);
-  }
-  if (key.includes('\\n')) key = key.replace(/\\n/g, '\n');
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) key = key.slice(1, -1);
   key = key.replace(/\r\n/g, '\n');
-  if (!key.endsWith('\n')) key = key + '\n';
-  return key;
+  return key.endsWith('\n') ? key : key + '\n';
 }
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -20,22 +16,8 @@ if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
-
-  console.log('[push:init:restaurant]', {
-    hasProjectId: !!projectId,
-    hasClientEmail: !!clientEmail,
-    pkHasNL: privateKey.includes('\n'),
-    begins: privateKey.startsWith('-----BEGIN PRIVATE KEY-----'),
-    ends: privateKey.trimEnd().endsWith('-----END PRIVATE KEY-----')
-  });
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error('Missing Firebase Admin envs (projectId/clientEmail/privateKey)');
-  }
-
-  admin.initializeApp({
-    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-  });
+  if (!projectId || !clientEmail || !privateKey) throw new Error('Missing Firebase Admin envs');
+  admin.initializeApp({ credential: admin.credential.cert({ projectId, clientEmail, privateKey }) });
 }
 
 export default async function handler(req, res) {
@@ -44,7 +26,6 @@ export default async function handler(req, res) {
     const { restaurantId, title = 'Test: All tokens', body = 'Expect tray banner + sound', url = '/owner/orders' } = req.body || {};
     if (!restaurantId) return res.status(400).json({ error: 'restaurantId required' });
 
-    // Fetch tokens for this restaurant
     const { data: rows, error } = await supabase
       .from('push_subscription_restaurants')
       .select('device_token')
@@ -53,28 +34,20 @@ export default async function handler(req, res) {
     if (error) return res.status(500).json({ error: error.message });
 
     const tokens = (rows || []).map(r => r.device_token).filter(Boolean);
-    if (!tokens.length) {
-      return res.status(200).json({ sent: 0, successCount: 0, failureCount: 0, errors: [], prefixes: [] });
-    }
+    if (!tokens.length) return res.status(200).json({ sent: 0, successCount: 0, failureCount: 0, errors: [], prefixes: [] });
 
     const message = {
       notification: { title, body },
       data: { url, kind: 'test-restaurant' },
       android: {
-        notification: { channelId: 'orders_v3', sound: 'beep', priority: 'high' },
+        notification: { channelId: 'orders_v2', sound: 'beep', priority: 'high' },
         priority: 'high',
       },
       tokens,
     };
 
-    // New API: sendEachForMulticast
     const resp = await admin.messaging().sendEachForMulticast(message);
-
-    // Collect up to 5 error messages
-    const errors = resp.responses
-      .map((r) => (r.success ? null : r.error?.message))
-      .filter(Boolean)
-      .slice(0, 5);
+    const errors = resp.responses.map((r) => (r.success ? null : r.error?.message)).filter(Boolean).slice(0, 5);
 
     return res.status(200).json({
       sent: tokens.length,

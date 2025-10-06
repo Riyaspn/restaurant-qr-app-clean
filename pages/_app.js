@@ -12,19 +12,18 @@ import { getFCMToken } from '../lib/firebase/messaging';
 const OWNER_PREFIX = '/owner';
 const CUSTOMER_PREFIX = '/order';
 
-// Base URL resolver used by both native and web
 const getApiBase = () => {
   if (typeof window === 'undefined') return '';
   const isProd = process.env.NODE_ENV === 'production';
-  if (!isProd && Capacitor?.isNativePlatform?.()) {
-    // Android emulator reaches host at 10.0.2.2
-    return 'http://10.0.2.2:3000';
+  const envBase = process.env.NEXT_PUBLIC_API_BASE || '';
+  if (Capacitor?.isNativePlatform?.()) {
+    // Prefer explicit base for physical devices in dev; fallback to emulator host
+    if (!isProd && envBase) return envBase;
+    if (!isProd) return 'http://10.0.2.2:3000';
   }
-  // Same-origin in web dev and production
   return '';
 };
 
-// Resolve restaurant id from URL, window memory, or localStorage
 const getActiveRestaurantId = () => {
   if (typeof window === 'undefined') return null;
   try {
@@ -41,17 +40,10 @@ const getActiveRestaurantId = () => {
   }
 };
 
-// Upsert subscription via subscribe-bridge (shared for web/native)
 const postSubscribe = async (token, platform) => {
-  if (!token) {
-    console.warn('[Subscribe] no token; skip');
-    return;
-  }
+  if (!token) return;
   const rid = getActiveRestaurantId();
-  if (!rid) {
-    console.warn('[Subscribe] no restaurantId; skip');
-    return;
-  }
+  if (!rid) return;
 
   const payload = { restaurantId: rid, platform, deviceToken: token };
   const url = `${getApiBase()}/api/push/subscribe-bridge`;
@@ -65,23 +57,17 @@ const postSubscribe = async (token, platform) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: ctrl.signal
+      signal: ctrl.signal,
     });
     clearTimeout(timer);
 
     const text = await res.text();
-    console.log('[Subscribe] response:', res.status, text.slice(0, 120));
-    if (res.ok && !text.startsWith('<!DOCTYPE')) {
-      console.log('[Subscribe] ✅ upsert ok');
-      return;
-    }
-    console.error('[Subscribe] ❌ HTML or error:', text.slice(0, 200));
+    console.log('[Subscribe] response:', res.status, text.slice(0, 160));
   } catch (e) {
-    console.error('[Subscribe] ❌ request failed:', e?.message || e);
+    console.error('[Subscribe] request failed:', e?.message || e);
   }
 };
 
-// Retry using last saved token
 const ensureSubscribed = async () => {
   if (typeof window === 'undefined') return;
   try {
@@ -136,14 +122,14 @@ function MyApp({ Component, pageProps }) {
 
       try {
         await PushNotifications.createChannel({
-          id: 'orders_v3',
+          id: 'orders_v2',
           name: 'Orders',
           description: 'Order alerts',
           importance: 5,
           sound: 'beep',
           lights: true,
           vibration: true,
-          visibility: 1
+          visibility: 1,
         });
       } catch {}
 
@@ -164,10 +150,8 @@ function MyApp({ Component, pageProps }) {
         return;
       }
 
-      // Attach BEFORE register
       PushNotifications.addListener('registration', async ({ value }) => {
-        console.log('[PushInit] 🔥 registration');
-        console.log('[PushInit] token:', value);
+        console.log('[PushInit] registration token:', value);
         try { localStorage.setItem('fcm_token', value); } catch {}
         await postSubscribe(value, 'android');
       });
@@ -189,8 +173,6 @@ function MyApp({ Component, pageProps }) {
         console.log('[WebPush] token', token?.slice(0, 24));
         try { localStorage.setItem('fcm_token', token); } catch {}
         await postSubscribe(token, 'web');
-      } else {
-        console.log('[WebPush] no token');
       }
     } catch (e) {
       console.log('Web push skipped:', e?.message || e);
