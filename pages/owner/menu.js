@@ -8,14 +8,8 @@ import Button from '../../components/ui/Button';
 import { getSupabase } from '../../services/supabase';
 
 export default function MenuPage() {
-  // --- FIXES APPLIED HERE ---
-  // 1. Get the single supabase client instance
   const supabase = getSupabase();
-  
-  // 2. Add useRequireAuth back to protect the page. 'checking' is now defined.
   const { checking } = useRequireAuth(supabase); 
-  // --- END OF FIXES ---
-
   const { restaurant, loading: loadingRestaurant } = useRestaurant();
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -32,7 +26,6 @@ export default function MenuPage() {
   const restaurantId = restaurant?.id || '';
 
   useEffect(() => {
-    // The dependency array now correctly uses the 'checking' variable
     if (checking || loadingRestaurant || !restaurantId || !supabase) return;
     
     const load = async () => {
@@ -48,7 +41,6 @@ export default function MenuPage() {
 
         const { data: its, error: itsErr } = await supabase
           .from('menu_items')
-          // --- FIX: Added 'code_number' back to the select query ---
           .select('id, name, category, price, code_number, hsn, tax_rate, status, veg, is_packaged_good, compensation_cess_rate')
           .eq('restaurant_id', restaurantId)
           .order('category', { ascending: true })
@@ -73,7 +65,6 @@ export default function MenuPage() {
       if (pkgOnly && !i.is_packaged_good) return false;
       if (filterCategory !== 'all' && i.category !== filterCategory) return false;
       if (!q) return true;
-      // --- FIX: Added 'code_number' back to the search logic ---
       return i.name.toLowerCase().includes(q) 
         || (i.category || '').toLowerCase().includes(q)
         || (i.code_number || '').toLowerCase().includes(q);
@@ -140,7 +131,6 @@ export default function MenuPage() {
     });
   }, []);
   
-  // 'checking' is now defined and will correctly show a loading state
   if (checking || loadingRestaurant || !restaurantId) return <p style={{ padding: 24 }}>Loading…</p>;
 
   return (
@@ -196,16 +186,15 @@ export default function MenuPage() {
                   <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
                 </th>
                 <th>Name</th>
-                {/* --- FIX: Added 'Code' column back to the table --- */}
                 <th className="hide-sm">Code</th>
                 <th className="hide-sm">Category</th>
                 <th>Price</th>
                 <th className="hide-sm">HSN</th>
-                <th className="hide-xs">Tax %</th>
+                <th className="hide-md">Tax %</th>
                 <th className="hide-sm">Cess %</th>
-                <th className="hide-xs">Type</th>
-                <th className="hide-xs">Status</th>
-                <th className="hide-sm" style={{ textAlign: 'right' }}>Actions</th>
+                <th className="hide-sm">Type</th>
+                <th>Status</th>
+                <th className="hide-mobile">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -222,7 +211,7 @@ export default function MenuPage() {
                     <td style={{ maxWidth: 220 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <span style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{item.name}</span>
-                        <span className="only-sm mobile-actions">
+                        <span className="only-mobile mobile-actions">
                           <Button size="sm" variant="outline" onClick={() => setEditorItem(item)}>Edit</Button>
                           <Button size="sm" variant="outline" onClick={() => toggleStatus(item.id, item.status)}>
                             {available ? 'Out' : 'Avail'}
@@ -241,22 +230,21 @@ export default function MenuPage() {
                         </span>
                       </div>
                     </td>
-                    {/* --- FIX: Added cell for 'code_number' --- */}
                     <td className="hide-sm" style={{ fontFamily: 'monospace', fontSize: 13 }}>
                       {item.code_number || '—'}
                     </td>
                     <td className="hide-sm">{item.category || '—'}</td>
                     <td style={{ fontWeight: 700 }}>₹{Number(item.price ?? 0).toFixed(2)}</td>
                     <td className="hide-sm">{item.hsn || '—'}</td>
-                    <td className="hide-xs">{item.tax_rate != null ? Number(item.tax_rate).toFixed(2) : '—'}</td>
+                    <td className="hide-md">{item.tax_rate != null ? Number(item.tax_rate).toFixed(2) : '—'}</td>
                     <td className="hide-sm">{item.is_packaged_good ? Number(item.compensation_cess_rate ?? 0).toFixed(2) : '—'}</td>
-                    <td className="hide-xs">
+                    <td className="hide-sm">
                       <span className={`pill ${item.is_packaged_good ? 'pill--pkg' : 'pill--menu'}`}>{typeBadge}</span>
                     </td>
-                    <td className="hide-xs">
+                    <td>
                       <span className={`chip ${available ? 'chip--avail' : 'chip--out'}`}>{available ? 'Available' : 'Out of Stock'}</span>
                     </td>
-                    <td className="hide-sm" style={{ textAlign: 'right' }}>
+                    <td className="hide-mobile">
                       <div className="row" style={{ justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                         <Button size="sm" variant="outline" onClick={() => toggleStatus(item.id, item.status)}>
                           {available ? 'Out' : 'Avail'}

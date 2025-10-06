@@ -33,6 +33,42 @@ html, body {
   .main-content {
     order: 2;
   }
+  
+  /* Hide specific table columns on tablets and below */
+  .hide-md {
+    display: none !important;
+  }
+}
+
+/* Mobile breakpoints for table columns */
+@media (max-width: 640px) {
+  .hide-sm {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hide-xs {
+    display: none !important;
+  }
+  
+  /* Show mobile actions, hide desktop actions */
+  .only-mobile {
+    display: block !important;
+  }
+  
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Default states */
+.only-mobile {
+  display: none;
+}
+
+.hide-mobile {
+  display: block;
 }
 
 /* KPI Grid */
@@ -136,13 +172,6 @@ html, body {
   .modal__card {
     width: calc(100% - 24px);
     margin: 0 12px;
-  }
-}
-
-/* Hide non-essential on small */
-@media (max-width: 768px) {
-  .hide-sm {
-    display: none !important;
   }
 }
 
