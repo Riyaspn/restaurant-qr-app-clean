@@ -1,20 +1,25 @@
+// components/ItemEditor.js
 import { useState, useEffect, useMemo } from 'react'
 
-export default function ItemEditor({ supabase, open, onClose, item, restaurantId, onSaved, onError }) {
+export default function ItemEditor({
+  supabase,
+  open,
+  onClose,
+  item,
+  restaurantId,
+  onSaved,
+  onError
+}) {
   const isEdit = !!item?.id
 
-  // Categories (global + restaurant)
-  const [cats, setCats] = useState([])           // [{id,name}]
+  const [cats, setCats] = useState([])
   const [loadingCats, setLoadingCats] = useState(false)
 
-  // Form state
   const [name, setName] = useState(item?.name || '')
   const [price, setPrice] = useState(item?.price ?? 0)
-  const [category, setCategory] = useState(item?.category || 'main') // store the name
+  const [category, setCategory] = useState(item?.category || 'main')
   const [status, setStatus] = useState(item?.status || 'available')
   const [veg, setVeg] = useState(item?.veg ?? true)
-
-  // Tax fields
   const [hsn, setHsn] = useState(item?.hsn || '')
   const [taxRate, setTaxRate] = useState(item?.tax_rate ?? 0)
   const [isPackaged, setIsPackaged] = useState(!!item?.is_packaged_good)
@@ -23,28 +28,18 @@ export default function ItemEditor({ supabase, open, onClose, item, restaurantId
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
-  // Load categories the same way as Menu/Library
   useEffect(() => {
-    if (!supabase) return
-    if (!open || !restaurantId) return
-    const loadCats = async () => {
-      setLoadingCats(true)
-      try {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('id,name')
-          .or(`is_global.eq.true,restaurant_id.eq.${restaurantId}`)
-          .order('sort_order', { ascending: true })
-          .order('name', { ascending: true })
-        if (error) throw error
-        setCats(data || [])
-      } catch (e) {
-        // silent; keep manual entry fallback
-      } finally {
+    if (!supabase || !open || !restaurantId) return
+    setLoadingCats(true)
+    supabase
+      .from('categories')
+      .select('id,name,is_global,restaurant_id')
+      .or(`is_global.eq.true,restaurant_id.eq.${restaurantId}`)
+      .order('name')
+      .then(({ data, error }) => {
         setLoadingCats(false)
-      }
-    }
-    loadCats()
+        if (!error) setCats(data || [])
+      })
   }, [open, restaurantId, supabase])
 
   useEffect(() => {
@@ -61,214 +56,153 @@ export default function ItemEditor({ supabase, open, onClose, item, restaurantId
   }, [item])
 
   const canSubmit = useMemo(() => {
-    if (!name?.trim()) return false
-    const p = Number(price)
-    if (Number.isNaN(p) || p < 0) return false
-    const tr = Number(taxRate)
-    const cr = Number(cessRate)
-    if (tr < 0 || cr < 0) return false
+    if (!name.trim()) return false
+    if (Number.isNaN(Number(price)) || price < 0) return false
+    if (taxRate < 0 || cessRate < 0) return false
     return true
   }, [name, price, taxRate, cessRate])
 
   if (!open) return null
 
-  // Create a new restaurant-scoped category quickly
-  const createCategory = async () => {
-    if (!supabase) return
-    const newName = prompt('New category name')
-    const cleaned = (newName || '').trim()
-    if (!cleaned) return
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .insert([{ name: cleaned, is_global: false, restaurant_id: restaurantId }])
-        .select('id,name')
-        .single()
-      if (error) throw error
-      setCats(prev => [...prev, data].sort((a,b) => a.name.localeCompare(b.name)))
-      setCategory(data.name) // select immediately
-    } catch (e) {
-      onError?.(e?.message || 'Failed to create category')
-    }
-  }
-
-  const save = async (e) => {
+  const save = async e => {
     e.preventDefault()
-    if (!supabase) return
+    if (!supabase || !canSubmit) {
+      onError?.('Please fill required fields.')
+      return
+    }
     setErr('')
-    if (!canSubmit) {
-      return onError?.('Please fill required fields with valid values.')
-    }
-    const numericPrice = Number(price)
-    const payload = {
-      name: name.trim(),
-      price: numericPrice,
-      category: String(category || 'main').trim(), // write the canonical name
-      status,
-      veg: !!veg,
-      hsn: hsn?.trim() || null,
-      tax_rate: Number(taxRate || 0),
-      is_packaged_good: !!isPackaged,
-      compensation_cess_rate: Number(cessRate || 0),
-    }
+    setSaving(true)
+
     try {
-      setSaving(true)
+      // ensure category
+      let catId = cats.find(c => c.name === category)?.id
+      if (!catId) {
+        const { data: newCat, error: catErr } = await supabase
+          .from('categories')
+          .insert([{ name: category.trim(), is_global: false, restaurant_id: restaurantId }])
+          .select('id,name')
+          .single()
+        if (catErr) throw catErr
+        catId = newCat.id
+        setCats(prev => [...prev, newCat])
+      }
+
+      const payload = {
+        restaurant_id: restaurantId,
+        name: name.trim(),
+        price: Number(price),
+        category: category.trim(),
+        status,
+        veg,
+        hsn: hsn.trim() || null,
+        tax_rate: Number(taxRate),
+        is_packaged_good: isPackaged,
+        compensation_cess_rate: Number(cessRate),
+      }
+
+      let newItem
       if (isEdit) {
-        const { error } = await supabase
+        const { error: updErr } = await supabase
           .from('menu_items')
           .update(payload)
           .eq('id', item.id)
           .eq('restaurant_id', restaurantId)
-        if (error) throw error
-        onSaved?.({ ...item, ...payload })
+        if (updErr) throw updErr
+        onSaved({ ...item, ...payload })
       } else {
-        const { data, error } = await supabase
+        const { data, error: insertErr } = await supabase
           .from('menu_items')
-          .insert([{ restaurant_id: restaurantId, ...payload }])
-          .select('id, name, price, category, status, veg, hsn, tax_rate, is_packaged_good, compensation_cess_rate')
+          .insert([payload])
+          .select('*')
           .single()
-        if (error) throw error
-        onSaved?.(data)
+        if (insertErr) throw insertErr
+        newItem = data
+        onSaved(newItem)
       }
-      onClose?.()
+
+      if (!isEdit && newItem) {
+        await supabase.rpc('upsert_library_item', {
+          _name: newItem.name,
+          _price: newItem.price,
+          _veg: newItem.veg,
+          _desc: newItem.description,
+          _img_url: newItem.image_url,
+          _cat_id: catId
+        })
+      }
+
+      onClose()
     } catch (ex) {
-      const msg = ex?.message || 'Failed to save item'
-      setErr(msg)
-      onError?.(msg)
+      setErr(ex.message || 'Failed to save')
+      onError?.(ex.message)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.35)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: 12
-      }}
-      onWheel={(e) => e.stopPropagation()}
-      onTouchMove={(e) => e.stopPropagation()}
-      aria-modal="true"
-      role="dialog"
-      aria-labelledby="menu-item-editor-title"
-    >
-      <form onSubmit={save} className="modal-card" style={{ background: '#fff', width: '100%', maxWidth: 420, padding: 16, borderRadius: 8 }}>
-        <h3 id="menu-item-editor-title" style={{ marginTop: 0 }}>{isEdit ? 'Edit Item' : 'Add Item'}</h3>
-        {err && (
-          <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#991b1b', padding: 8, borderRadius: 6, marginBottom: 10 }}>
-            {err}
-          </div>
-        )}
+    <div style={overlay}>
+      <form onSubmit={save} style={modal}>
+        <h3>{isEdit ? 'Edit Item' : 'Add Item'}</h3>
+        {err && <div style={errorStyle}>{err}</div>}
 
-        <label style={{ display: 'block', marginBottom: 8 }}>
-          <div style={label}>Name</div>
-          <input value={name} onChange={(e) => setName(e.target.value)} required style={input} placeholder="e.g., Classic Mojito" />
-        </label>
-
+        <label>Name<input value={name} onChange={e=>setName(e.target.value)} required style={input}/></label>
         <div style={row2}>
-          <label style={{ display: 'block' }}>
-            <div style={label}>Price</div>
-            <input type="number" step="0.01" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required style={input} />
-          </label>
-
-          <label style={{ display: 'block' }}>
-            <div style={label}>Category</div>
-            {cats.length ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6 }}>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  style={{ ...input, height: 36 }}
-                >
-                  {cats.map(c => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
-                <button type="button" onClick={createCategory} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4 }}>
-                  + New
-                </button>
-              </div>
-            ) : (
-              <input value={category} onChange={(e) => setCategory(e.target.value)} style={input} placeholder="e.g., beverages" />
-            )}
+          <label>Price<input type="number" step="0.01" value={price} onChange={e=>setPrice(e.target.value)} required style={input}/></label>
+          <label>Category
+            <div style={{ display:'flex', gap:4 }}>
+              <select value={category} onChange={e=>setCategory(e.target.value)} style={input}>
+                {cats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+              <button type="button" onClick={()=>{
+                const nm = prompt('New category')?.trim()
+                if (!nm) return
+                supabase.from('categories').insert([{name:nm,is_global:false,restaurant_id:restaurantId}])
+                  .select('id,name').single().then(({data})=>{
+                    setCats(prev=>[...prev,data])
+                    setCategory(data.name)
+                  })
+              }} style={smallBtn}>+ New</button>
+            </div>
           </label>
         </div>
 
         <div style={row2}>
-          <label style={{ display: 'block' }}>
-            <div style={label}>Status</div>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...input, height: 36 }}>
+          <label>Status
+            <select value={status} onChange={e=>setStatus(e.target.value)} style={input}>
               <option value="available">available</option>
               <option value="out_of_stock">out_of_stock</option>
               <option value="paused">paused</option>
             </select>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 }}>
-            <input type="checkbox" checked={veg} onChange={(e) => setVeg(e.target.checked)} />
-            <span style={{ ...label, margin: 0 }}>Veg</span>
-          </label>
+          <label style={checkboxLabel}><input type="checkbox" checked={veg} onChange={e=>setVeg(e.target.checked)}/>Veg</label>
         </div>
 
-        <div style={{ height: 1, background: '#eee', margin: '8px 0 10px' }} />
+        <hr/>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <input type="checkbox" checked={isPackaged} onChange={(e) => setIsPackaged(e.target.checked)} />
-          <span style={label}>Packaged goods</span>
-        </label>
-
-        <label style={{ display: 'block', marginBottom: 8 }}>
-          <div style={label}>HSN</div>
-          <input
-            value={hsn ?? ''}
-            onChange={(e) => setHsn(e.target.value)}
-            style={input}
-            placeholder={isPackaged ? 'e.g., 2202 for aerated drinks' : 'optional'}
-          />
-        </label>
-
+        <label style={checkboxLabel}><input type="checkbox" checked={isPackaged} onChange={e=>setIsPackaged(e.target.checked)}/>Packaged goods</label>
+        <label>HSN<input value={hsn} onChange={e=>setHsn(e.target.value)} style={input} placeholder="optional"/></label>
         <div style={row2}>
-          <label style={{ display: 'block' }}>
-            <div style={label}>Tax %</div>
-            <input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              value={taxRate}
-              onChange={(e) => setTaxRate(e.target.value)}
-              style={input}
-              placeholder={isPackaged ? 'e.g., 28' : 'e.g., 5 or 18'}
-            />
-          </label>
-          <label style={{ display: 'block' }}>
-            <div style={label}>Cess %</div>
-            <input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              value={cessRate}
-              onChange={(e) => setCessRate(e.target.value)}
-              style={input}
-              disabled={!isPackaged}
-              placeholder={isPackaged ? 'e.g., 12' : '—'}
-            />
-          </label>
+          <label>Tax %<input type="number" step="0.01" value={taxRate} onChange={e=>setTaxRate(e.target.value)} style={input} placeholder="0"/></label>
+          <label>Cess %<input type="number" step="0.01" value={cessRate} onChange={e=>setCessRate(e.target.value)} disabled={!isPackaged} style={input} placeholder="0"/></label>
         </div>
 
-        <div style={{ textAlign: 'right', marginTop: 10 }}>
-          <button type="button" onClick={onClose} style={{ marginRight: 8 }} disabled={saving}>Cancel</button>
-          <button type="submit" disabled={saving || !canSubmit}>{saving ? 'Saving…' : isEdit ? 'Save' : 'Add'}</button>
+        <div style={actions}>
+          <button type="button" onClick={onClose} disabled={saving} style={secondaryBtn}>Cancel</button>
+          <button type="submit" disabled={saving||!canSubmit} style={primaryBtn}>{saving?'Saving…':isEdit?'Save':'Add'}</button>
         </div>
       </form>
     </div>
   )
 }
 
-const input = { width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 4, height: 36 }
-const label = { fontSize: 12, color: '#555', marginBottom: 4 }
-const row2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }
+const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', display:'flex', alignItems:'center', justifyContent:'center', padding:12, zIndex:1000 }
+const modal = { background:'#fff', padding:16, borderRadius:8, width:'100%', maxWidth:420 }
+const input = { width:'100%', padding:8, border:'1px solid #ddd', borderRadius:4, marginTop:4 }
+const row2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:12 }
+const checkboxLabel = { display:'flex', alignItems:'center', gap:4, marginTop:12 }
+const actions = { display:'flex', justifyContent:'flex-end', gap:8, marginTop:16 }
+const smallBtn = { padding:'8px', background:'#f97316', color:'#fff', border:'none', borderRadius:4, cursor:'pointer' }
+const primaryBtn = { padding:'10px 16px', background:'#f97316', color:'#fff', border:'none', borderRadius:6, cursor:'pointer' }
+const secondaryBtn = { padding:'10px 16px', background:'#fff', color:'#f97316', border:'1px solid #f97316', borderRadius:6, cursor:'pointer' }
+const errorStyle = { background:'#fee2e2', color:'#991b1b', padding:8, borderRadius:4, marginBottom:12 }
