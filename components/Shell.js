@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import {
+  FaHome,
+  FaBars,
+  FaList,
+  FaUtensils,
+  FaCashRegister,
+  FaBoxes,
+  FaClock,
+  FaTags,
+  FaChartBar,
+  FaCreditCard,
+  FaCog,
+  FaFileInvoice,
+  FaSignOutAlt,
+} from 'react-icons/fa'
 
 export default function Shell({ children, showSidebar = false }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -30,15 +45,26 @@ export default function Shell({ children, showSidebar = false }) {
   return (
     <>
       <div className="shell-container">
+        {/* Header */}
         <header className="shell-header">
           <div className="header-content">
             {isMobile && showSidebar && (
-              <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Menu">
+              <button
+                className="menu-toggle"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-label="Menu"
+              >
                 ☰
               </button>
             )}
             <div className="logo">
-              <Image src="/cafeqr-logo.svg" alt="Cafe QR" width={32} height={32} priority />
+              <Image
+                src="/cafeqr-logo.svg"
+                alt="Cafe QR"
+                width={32}
+                height={32}
+                priority
+              />
               <span>Cafe QR</span>
             </div>
             <nav className="header-nav">
@@ -48,9 +74,13 @@ export default function Shell({ children, showSidebar = false }) {
           </div>
         </header>
 
+        {/* Body */}
         <div className="main-layout">
           {isMobile && showSidebar && sidebarOpen && (
-            <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+            <div
+              className="sidebar-overlay"
+              onClick={() => setSidebarOpen(false)}
+            />
           )}
 
           {showSidebar && (
@@ -74,50 +104,64 @@ export default function Shell({ children, showSidebar = false }) {
                     </button>
                   )}
                   {isMobile && (
-                    <button className="close-btn" onClick={() => setSidebarOpen(false)} aria-label="Close">
+                    <button
+                      className="close-btn"
+                      onClick={() => setSidebarOpen(false)}
+                      aria-label="Close"
+                    >
                       ×
                     </button>
                   )}
                 </div>
                 <nav className="sidebar-nav">
                   <Link href="/dashboard" className="nav-item">
-                    <span className="nav-icon">📊</span><span className="nav-text">Overview</span>
+                    <FaHome className="nav-icon" />
+                    <span className="nav-text">Overview</span>
                   </Link>
                   <Link href="/menu" className="nav-item">
-                    <span className="nav-icon">🍽️</span><span className="nav-text">Menu</span>
+                    <FaBars className="nav-icon" />
+                    <span className="nav-text">Menu</span>
                   </Link>
                   <Link href="/orders" className="nav-item">
-                    <span className="nav-icon">📋</span><span className="nav-text">Orders</span>
+                    <FaUtensils className="nav-icon" />
+                    <span className="nav-text">Orders</span>
                   </Link>
                   <Link href="/counter" className="nav-item">
-                    <span className="nav-icon">📋</span><span className="nav-text">Counter Sale</span>
+                    <FaCashRegister className="nav-icon" />
+                    <span className="nav-text">Counter Sale</span>
                   </Link>
                   <Link href="/inventory" className="nav-item">
-                    <span className="nav-icon">📦</span><span className="nav-text">Inventory</span>
+                    <FaBoxes className="nav-icon" />
+                    <span className="nav-text">Inventory</span>
                   </Link>
                   <Link href="/availability" className="nav-item">
-                    <span className="nav-icon">⏰</span><span className="nav-text">Availability</span>
+                    <FaClock className="nav-icon" />
+                    <span className="nav-text">Availability</span>
                   </Link>
                   <Link href="/promotions" className="nav-item">
-                    <span className="nav-icon">🏷️</span><span className="nav-text">Promotions</span>
+                    <FaTags className="nav-icon" />
+                    <span className="nav-text">Promotions</span>
                   </Link>
                   <Link href="/analytics" className="nav-item">
-                    <span className="nav-icon">📈</span><span className="nav-text">Analytics</span>
+                    <FaChartBar className="nav-icon" />
+                    <span className="nav-text">Analytics</span>
                   </Link>
                   <Link href="/sales" className="nav-item">
-                    <span className="nav-icon">💰</span><span className="nav-text">Sales</span>
+                    <FaCreditCard className="nav-icon" />
+                    <span className="nav-text">Sales</span>
                   </Link>
                   <Link href="/settings" className="nav-item">
-                    <span className="nav-icon">⚙️</span><span className="nav-text">Settings</span>
+                    <FaCog className="nav-icon" />
+                    <span className="nav-text">Settings</span>
                   </Link>
                   <Link href="/billing" className="nav-item">
-                    <span className="nav-icon">🧾</span><span className="nav-text">Billing</span>
+                    <FaFileInvoice className="nav-icon" />
+                    <span className="nav-text">Billing</span>
                   </Link>
-
                   <div className="nav-divider" />
-
                   <Link href="/logout" className="nav-item logout">
-                    <span className="nav-icon">🚪</span><span className="nav-text">Sign Out</span>
+                    <FaSignOutAlt className="nav-icon" />
+                    <span className="nav-text">Sign Out</span>
                   </Link>
                 </nav>
               </div>
@@ -129,6 +173,7 @@ export default function Shell({ children, showSidebar = false }) {
           </main>
         </div>
 
+        {/* Footer */}
         <footer className="shell-footer">
           <div className="footer-content">
             🔒 Powered by The Online Wala • Secure payments by Cashfree •{' '}
@@ -139,7 +184,7 @@ export default function Shell({ children, showSidebar = false }) {
         </footer>
       </div>
 
-      {/* Keep existing CSS in your globals/responsive files */}
+      {/* CSS stays in your global/responsive files */}
     </>
   )
 }
