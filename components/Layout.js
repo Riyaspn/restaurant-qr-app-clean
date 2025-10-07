@@ -1,8 +1,7 @@
-// components/Layout.js
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { useRestaurant } from '../context/RestaurantContext';
+import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/router'
+import { useRestaurant } from '../context/RestaurantContext'
 import {
   FaBars,
   FaHome,
@@ -14,10 +13,10 @@ import {
   FaFileInvoice,
   FaUtensils,
   FaSignOutAlt,
-} from 'react-icons/fa';
-import { signOutAndRedirect } from '../lib/authActions';
-import { getSupabase } from '../services/supabase'; // import the supabase client getter
-
+  FaCreditCard,
+} from 'react-icons/fa'
+import { signOutAndRedirect } from '../lib/authActions'
+import { getSupabase } from '../services/supabase'
 
 export default function Layout({
   children,
@@ -26,36 +25,31 @@ export default function Layout({
   hideChrome = false,
   showCustomerHeader = false,
 }) {
-  if (hideChrome) return <main style={{ padding: 20 }}>{children}</main>;
+  if (hideChrome) return <main style={{ padding: 20 }}>{children}</main>
 
-  const [collapsed, setCollapsed] = useState(false);   // desktop collapse
-  const [mobileOpen, setMobileOpen] = useState(false); // mobile drawer
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
-    const onResize = () => setCollapsed(window.innerWidth < 1160);
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+    const onResize = () => setCollapsed(window.innerWidth < 1160)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const handleHamburger = () => {
     if (typeof window !== 'undefined' && window.innerWidth <= 768) {
-      setMobileOpen(true);
+      setMobileOpen(true)
     } else {
-      setCollapsed((v) => !v);
+      setCollapsed((v) => !v)
     }
-  };
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', minHeight: '100svh' }}>
-      <Header
-        isCustomer={showCustomerHeader}
-        showSidebar={showSidebar}
-        onHamburger={handleHamburger}
-      />
+      <Header showSidebar={showSidebar} onHamburger={handleHamburger} isCustomer={showCustomerHeader} />
 
       <div className="main-wrapper">
-        {/* Desktop/tablet sidebar only */}
         {showSidebar && (
           <div className="desktop-sidebar">
             <Sidebar collapsed={collapsed} />
@@ -68,14 +62,9 @@ export default function Layout({
         </main>
       </div>
 
-      {/* Mobile-only overlay drawer */}
       {showSidebar && (
         <>
-          <div
-            className="drawer-backdrop"
-            style={{ display: mobileOpen ? 'block' : 'none' }}
-            onClick={() => setMobileOpen(false)}
-          />
+          <div className="drawer-backdrop" style={{ display: mobileOpen ? 'block' : 'none' }} onClick={() => setMobileOpen(false)} />
           <aside className={`drawer ${mobileOpen ? 'drawer--open' : ''}`}>
             <MobileSidebar onNavigate={() => setMobileOpen(false)} />
           </aside>
@@ -88,45 +77,56 @@ export default function Layout({
         .main-wrapper {
           display: grid;
           grid-template-columns: ${showSidebar ? (collapsed ? '64px 1fr' : '240px 1fr') : '1fr'};
-          transition: grid-template-columns .18s ease;
+          transition: grid-template-columns 0.18s ease;
           background: var(--bg, #f7f8fa);
         }
-
-        /* Hide desktop sidebar on phones; use overlay drawer there */
-        .desktop-sidebar { display: block; }
-        @media (max-width: 768px) {
-          .main-wrapper { grid-template-columns: 1fr !important; }
-          .desktop-sidebar { display: none; }
+        .desktop-sidebar {
+          display: block;
         }
-
-        /* Drawer (mobile only) */
+        @media (max-width: 768px) {
+          .main-wrapper {
+            grid-template-columns: 1fr !important;
+          }
+          .desktop-sidebar {
+            display: none;
+          }
+        }
         .drawer-backdrop {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.35);
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.35);
           z-index: 999;
         }
         .drawer {
-          position: fixed; top: 0; left: 0; bottom: 0;
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
           width: min(80vw, 300px);
           background: #f9fafb;
           border-right: 1px solid #e5e7eb;
           transform: translateX(-100%);
-          transition: transform .28s ease-out;
+          transition: transform 0.28s ease-out;
           z-index: 1000;
           padding: 12px;
           padding-top: calc(12px + env(safe-area-inset-top));
           overflow-y: auto;
         }
-        .drawer--open { transform: translateX(0); }
+        .drawer--open {
+          transform: translateX(0);
+        }
         @media (min-width: 769px) {
-          .drawer, .drawer-backdrop { display: none; }
+          .drawer,
+          .drawer-backdrop {
+            display: none;
+          }
         }
       `}</style>
     </div>
-  );
+  )
 }
 
-function Header({ isCustomer, onHamburger, showSidebar }) {
+function Header({ showSidebar, onHamburger, isCustomer }) {
   return (
     <header
       className="shell-header"
@@ -164,15 +164,8 @@ function Header({ isCustomer, onHamburger, showSidebar }) {
             <FaBars color="#111827" />
           </button>
         )}
-        {/* Non-clickable logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img
-            src="/cafeqr-logo.svg"
-            alt="Cafe QR"
-            width={28}
-            height={28}
-            style={{ objectFit: 'contain', borderRadius: 4 }}
-          />
+          <img src="/cafeqr-logo.svg" alt="Cafe QR" width={28} height={28} />
           <strong style={{ color: '#111827', fontSize: 20 }}>Cafe QR</strong>
         </div>
       </div>
@@ -185,18 +178,35 @@ function Header({ isCustomer, onHamburger, showSidebar }) {
         </nav>
       )}
     </header>
-  );
+  )
 }
 
 function Sidebar({ collapsed }) {
-  const supabase = getSupabase(); // get the supabase client instance
-  const router = useRouter();
-  const { restaurant } = useRestaurant();
+  const router = useRouter()
+  const supabase = getSupabase()
+  const { restaurant } = useRestaurant()
+  const hasAggregatorIntegration = Boolean(restaurant?.swiggy_api_key || restaurant?.zomato_api_key)
 
-  const hasAggregatorIntegration =
-    Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
-
-  const items = getNavItems(hasAggregatorIntegration);
+  const items = [
+    { href: '/owner', label: 'Overview', icon: <FaHome /> },
+    { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
+    { href: '/owner/orders', label: 'Orders', icon: <FaUtensils /> },
+    { href: '/owner/counter', label: 'Counter Sale', icon: <FaList /> },
+    { href: '/owner/inventory', label: 'Inventory', icon: <FaList /> },
+    { href: '/owner/availability', label: 'Availability', icon: <FaClock /> },
+    { href: '/owner/promotions', label: 'Promotions', icon: <FaTags /> },
+    { href: '/owner/analytics', label: 'Analytics', icon: <FaChartBar /> },
+    { href: '/owner/sales', label: 'Sales', icon: <FaCreditCard /> },
+    { href: '/owner/settings', label: 'Settings', icon: <FaCog /> },
+    { href: '/owner/billing', label: 'Billing', icon: <FaFileInvoice /> },
+  ]
+  if (hasAggregatorIntegration) {
+    items.push({
+      href: '/owner/aggregator-poller',
+      label: 'Aggregator Orders',
+      icon: <FaUtensils />,
+    })
+  }
 
   const itemStyle = (active) => ({
     display: 'flex',
@@ -209,14 +219,9 @@ function Sidebar({ collapsed }) {
     textDecoration: 'none',
     justifyContent: collapsed ? 'center' : 'flex-start',
     transition: 'all .15s ease',
-  });
+  })
 
-  async function handleSignOut() {
-    const supabase = getSupabase()
-    if (!supabase) {
-      alert('Supabase client not initialized')
-      return
-    }
+  const handleSignOut = async () => {
     try {
       await signOutAndRedirect(supabase, router.replace)
     } catch (err) {
@@ -238,22 +243,21 @@ function Sidebar({ collapsed }) {
       }}
     >
       {!collapsed && (
-        <div style={{ fontWeight: 700, margin: '6px 6px 12px 6px', color: '#111827' }}>
+        <div style={{ fontWeight: 700, margin: '6px 6px 12px', color: '#111827' }}>
           Owner Panel
         </div>
       )}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((it) => {
-          const active = router.pathname === it.href || router.pathname.startsWith(it.href + '/');
+          const active = router.pathname === it.href || router.pathname.startsWith(it.href + '/')
           return (
-            <Link key={it.href} href={it.href} style={itemStyle(active)} title={it.label}>
-              <span style={{ display: 'grid', placeItems: 'center', width: 18 }}>{it.icon}</span>
+            <Link key={it.href} href={it.href} style={itemStyle(active)}>
+              <span style={{ width: 18, textAlign: 'center' }}>{it.icon}</span>
               {!collapsed && <span>{it.label}</span>}
             </Link>
-          );
+          )
         })}
       </nav>
-
       <button
         onClick={handleSignOut}
         title="Sign Out"
@@ -276,43 +280,13 @@ function Sidebar({ collapsed }) {
         {!collapsed && <span>Sign Out</span>}
       </button>
     </aside>
-  );
+  )
 }
 
 function MobileSidebar({ onNavigate }) {
-  const { restaurant } = useRestaurant();
-  const hasAggregatorIntegration =
-    Boolean(restaurant?.swiggy_api_key) || Boolean(restaurant?.zomato_api_key);
+  const { restaurant } = useRestaurant()
+  const hasAggregatorIntegration = Boolean(restaurant?.swiggy_api_key || restaurant?.zomato_api_key)
 
-  const items = getNavItems(hasAggregatorIntegration);
-
-  return (
-    <nav style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ fontWeight: 700, margin: '6px 6px 12px 6px', color: '#111827' }}>Owner Panel</div>
-      {items.map((it) => (
-        <Link
-          key={it.href}
-          href={it.href}
-          onClick={onNavigate}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 12px',
-            borderRadius: 8,
-            color: '#374151',
-            textDecoration: 'none',
-          }}
-        >
-          <span style={{ display: 'grid', placeItems: 'center', width: 18 }}>{it.icon}</span>
-          <span>{it.label}</span>
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
-function getNavItems(hasAggregatorIntegration) {
   const items = [
     { href: '/owner', label: 'Overview', icon: <FaHome /> },
     { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
@@ -322,13 +296,61 @@ function getNavItems(hasAggregatorIntegration) {
     { href: '/owner/availability', label: 'Availability', icon: <FaClock /> },
     { href: '/owner/promotions', label: 'Promotions', icon: <FaTags /> },
     { href: '/owner/analytics', label: 'Analytics', icon: <FaChartBar /> },
+    { href: '/owner/sales', label: 'Sales', icon: <FaCreditCard /> },
     { href: '/owner/settings', label: 'Settings', icon: <FaCog /> },
     { href: '/owner/billing', label: 'Billing', icon: <FaFileInvoice /> },
-  ];
+  ]
   if (hasAggregatorIntegration) {
-    items.push({ href: '/owner/aggregator-poller', label: 'Aggregator Orders', icon: <FaUtensils /> });
+    items.push({
+      href: '/owner/aggregator-poller',
+      label: 'Aggregator Orders',
+      icon: <FaUtensils />,
+    })
   }
-  return items;
+
+  return (
+    <nav style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontWeight: 700, margin: '6px 6px 12px', color: '#111827' }}>
+        Owner Panel
+      </div>
+      {items.map((it) => (
+        <Link
+          key={it.href}
+          href={it.href}
+          onClick={onNavigate}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px',
+            borderRadius: 8,
+            color: '#374151',
+            textDecoration: 'none',
+          }}
+        >
+          <span style={{ width: 18, textAlign: 'center' }}>{it.icon}</span>
+          <span>{it.label}</span>
+        </Link>
+      ))}
+      <div style={{ borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />
+      <Link
+        href="/logout"
+        onClick={onNavigate}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px',
+          borderRadius: 8,
+          color: '#dc2626',
+          textDecoration: 'none',
+        }}
+      >
+        <FaSignOutAlt />
+        <span>Sign Out</span>
+      </Link>
+    </nav>
+  )
 }
 
 function Footer() {
@@ -353,5 +375,5 @@ function Footer() {
         Privacy Policy
       </Link>
     </footer>
-  );
+  )
 }
