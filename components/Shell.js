@@ -4,7 +4,6 @@ import Image from 'next/image'
 import {
   FaHome,
   FaBars,
-  FaList,
   FaUtensils,
   FaCashRegister,
   FaBoxes,
@@ -45,26 +44,15 @@ export default function Shell({ children, showSidebar = false }) {
   return (
     <>
       <div className="shell-container">
-        {/* Header */}
         <header className="shell-header">
           <div className="header-content">
             {isMobile && showSidebar && (
-              <button
-                className="menu-toggle"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                aria-label="Menu"
-              >
+              <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Menu">
                 ☰
               </button>
             )}
             <div className="logo">
-              <Image
-                src="/cafeqr-logo.svg"
-                alt="Cafe QR"
-                width={32}
-                height={32}
-                priority
-              />
+              <Image src="/cafeqr-logo.svg" alt="Cafe QR" width={32} height={32} priority />
               <span>Cafe QR</span>
             </div>
             <nav className="header-nav">
@@ -74,13 +62,9 @@ export default function Shell({ children, showSidebar = false }) {
           </div>
         </header>
 
-        {/* Body */}
         <div className="main-layout">
           {isMobile && showSidebar && sidebarOpen && (
-            <div
-              className="sidebar-overlay"
-              onClick={() => setSidebarOpen(false)}
-            />
+            <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
           )}
 
           {showSidebar && (
@@ -104,11 +88,7 @@ export default function Shell({ children, showSidebar = false }) {
                     </button>
                   )}
                   {isMobile && (
-                    <button
-                      className="close-btn"
-                      onClick={() => setSidebarOpen(false)}
-                      aria-label="Close"
-                    >
+                    <button className="close-btn" onClick={() => setSidebarOpen(false)} aria-label="Close">
                       ×
                     </button>
                   )}
@@ -158,7 +138,9 @@ export default function Shell({ children, showSidebar = false }) {
                     <FaFileInvoice className="nav-icon" />
                     <span className="nav-text">Billing</span>
                   </Link>
+
                   <div className="nav-divider" />
+
                   <Link href="/logout" className="nav-item logout">
                     <FaSignOutAlt className="nav-icon" />
                     <span className="nav-text">Sign Out</span>
@@ -173,7 +155,6 @@ export default function Shell({ children, showSidebar = false }) {
           </main>
         </div>
 
-        {/* Footer */}
         <footer className="shell-footer">
           <div className="footer-content">
             🔒 Powered by The Online Wala • Secure payments by Cashfree •{' '}
@@ -183,8 +164,7 @@ export default function Shell({ children, showSidebar = false }) {
           </div>
         </footer>
       </div>
-
-      {/* CSS stays in your global/responsive files */}
+      {/* Keep existing CSS in your globals/responsive files */}
     </>
   )
 }

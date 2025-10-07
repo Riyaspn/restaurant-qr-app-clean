@@ -291,10 +291,10 @@ function MobileSidebar({ onNavigate }) {
 
   const items = [
     { href: '/owner', label: 'Overview', icon: <FaHome /> },
-    { href: '/owner/menu', label: 'Menu', icon: <FaList /> },
+    { href: '/owner/menu', label: 'Menu', icon: <FaBars /> },
     { href: '/owner/orders', label: 'Orders', icon: <FaUtensils /> },
-    { href: '/owner/counter', label: 'Counter Sale', icon: <FaList /> },
-    { href: '/owner/inventory', label: 'Inventory', icon: <FaList /> },
+    { href: '/owner/counter', label: 'Counter Sale', icon: <FaCashRegister /> },
+    { href: '/owner/inventory', label: 'Inventory', icon: <FaBoxes /> },
     { href: '/owner/availability', label: 'Availability', icon: <FaClock /> },
     { href: '/owner/promotions', label: 'Promotions', icon: <FaTags /> },
     { href: '/owner/analytics', label: 'Analytics', icon: <FaChartBar /> },
