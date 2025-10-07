@@ -1,3 +1,5 @@
+//pages/owner/counter.js
+
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRequireAuth } from '../../lib/useRequireAuth';

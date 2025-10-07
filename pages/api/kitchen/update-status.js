@@ -1,3 +1,5 @@
+//pages/api/kitchen/update-status.js
+
 import { getSupabase } from '../../../services/supabase';
 
 export default async function handler(req, res) {

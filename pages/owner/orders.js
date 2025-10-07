@@ -7,12 +7,16 @@ import { useRestaurant } from '../../context/RestaurantContext';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { subscribeOwnerDevice } from '../../helpers/subscribePush';
+import KotPrint from '../../components/KotPrint';
+
 
 // Constants
 const STATUSES = ['new', 'in_progress', 'ready', 'completed'];
 const LABELS = { new: 'New', in_progress: 'Cooking', ready: 'Ready', completed: 'Done' };
 const COLORS = { new: '#3b82f6', in_progress: '#f59e0b', ready: '#10b981', completed: '#6b7280' };
 const PAGE_SIZE = 20;
+
+
 
 // Helpers
 const money = (v) => `₹${Number(v ?? 0).toFixed(2)}`;
@@ -69,6 +73,8 @@ export default function OrdersPage() {
   const { user, checking } = useRequireAuth(supabase);
   const { restaurant, loading: restLoading } = useRestaurant();
   const restaurantId = restaurant?.id;
+  const [showKotPrint, setShowKotPrint] = useState(null);
+
 
   const [ordersByStatus, setOrdersByStatus] = useState({
     new: [], in_progress: [], ready: [], completed: [], mobileFilter: 'new'
@@ -284,6 +290,10 @@ export default function OrdersPage() {
 
           if (payload.eventType === 'INSERT' && order.status === 'new') {
             playNotificationSound();
+ 	    console.log('Triggering KOT print modal');
+	    setShowKotPrint(order);
+	    console.log('KOT modal state updated');
+
           }
         }
       )
@@ -370,6 +380,10 @@ export default function OrdersPage() {
 
   if (checking || restLoading) return <div style={{ padding: 16 }}>Loading…</div>;
   if (!restaurantId) return <div style={{ padding: 16 }}>No restaurant found.</div>;
+  if (showKotPrint) {
+  console.log('Rendering KOT print modal', showKotPrint);
+  return <KotPrint order={showKotPrint} onClose={() => setShowKotPrint(null)} />;
+  }
 
   return (
     <div className="orders-wrap">
