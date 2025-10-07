@@ -1,45 +1,43 @@
 // components/KotPrint.js
 import React from 'react';
 
+// Helper (copy from orders page for consistency)
+function toDisplayItems(order) {
+  if (Array.isArray(order.items) && order.items.length) return order.items;
+  if (Array.isArray(order.order_items) && order.order_items.length) {
+    return order.order_items.map((oi) => ({
+      name: oi.menu_items?.name || oi.item_name || 'Item',
+      quantity: oi.quantity,
+      price: oi.price,
+    }));
+  }
+  return [];
+}
+
 export default function KotPrint({ order, onClose }) {
   const handlePrint = () => {
     window.print();
     onClose?.();
   };
 
-  const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString('en-IN', {
+  const formatTime = (dateString) =>
+    new Date(dateString).toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
-  };
 
-  const formatItems = (items) => {
-    if (Array.isArray(items)) return items;
-    if (Array.isArray(order.order_items)) {
-      return order.order_items.map(oi => ({
-        name: oi.menu_items?.name || oi.item_name || 'Item',
-        quantity: oi.quantity,
-        price: oi.price
-      }));
-    }
-    return [];
-  };
-
-  const items = formatItems(order.items);
+  const items = toDisplayItems(order);
 
   return (
     <>
       <div className="kot-print-overlay" onClick={onClose}>
-        <div className="kot-print-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="kot-print-modal" onClick={e => e.stopPropagation()}>
           <div className="kot-print-content">
             <div className="kot-header">
               <h2>Kitchen Order Ticket</h2>
               <button className="close-btn" onClick={onClose}>×</button>
             </div>
-            
-            {/* KOT Content */}
             <div className="kot-ticket" id="kot-printable">
               <div className="kot-info">
                 <div className="kot-row">
@@ -48,17 +46,18 @@ export default function KotPrint({ order, onClose }) {
                 </div>
                 <div className="kot-row">
                   <span className="label">Order ID:</span>
-                  <span className="value">#{order.id.slice(0, 8).toUpperCase()}</span>
+                  <span className="value">#{order.id?.slice(0, 8)?.toUpperCase()}</span>
                 </div>
                 <div className="kot-row">
                   <span className="label">Time:</span>
                   <span className="value">{formatTime(order.created_at)}</span>
                 </div>
               </div>
-
               <div className="kot-divider">----------------------------</div>
-
               <div className="kot-items">
+                {items.length === 0 && (
+                  <div style={{ fontStyle: 'italic', color: '#888' }}>No items</div>
+                )}
                 {items.map((item, idx) => (
                   <div key={idx} className="kot-item">
                     <div className="item-qty">{item.quantity}x</div>
@@ -66,23 +65,19 @@ export default function KotPrint({ order, onClose }) {
                   </div>
                 ))}
               </div>
-
               <div className="kot-divider">----------------------------</div>
-
               {order.special_instructions && (
                 <div className="kot-notes">
                   <div className="label">Special Instructions:</div>
                   <div className="notes-text">{order.special_instructions}</div>
                 </div>
               )}
-
               <div className="kot-footer">
                 <div className="timestamp">
                   Printed: {new Date().toLocaleString('en-IN')}
                 </div>
               </div>
             </div>
-
             <div className="kot-actions">
               <button className="print-btn" onClick={handlePrint}>
                 🖨️ Print KOT

@@ -289,12 +289,12 @@ export default function OrdersPage() {
           });
 
           if (payload.eventType === 'INSERT' && order.status === 'new') {
-            playNotificationSound();
- 	    console.log('Triggering KOT print modal');
-	    setShowKotPrint(order);
-	    console.log('KOT modal state updated');
-
-          }
+  	  playNotificationSound();
+  	  // Find the loaded order (with items) in state
+	  const fullOrder = ordersByStatus.new.find(o => o.id === order.id);
+ 	  console.log('Triggering KOT print modal', fullOrder);
+  	  setShowKotPrint(fullOrder || order);
+	  }
         }
       )
       .subscribe();
