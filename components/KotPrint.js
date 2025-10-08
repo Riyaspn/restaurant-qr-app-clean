@@ -1,22 +1,55 @@
 // components/KotPrint.js
+
 import React from 'react';
 
-// Helper (copy from orders page for consistency)
 function toDisplayItems(order) {
-  if (Array.isArray(order.items) && order.items.length) return order.items;
+  console.log('toDisplayItems called with order:', order);
+  
+  if (Array.isArray(order.items) && order.items.length) {
+    console.log('Found order.items:', order.items);
+    return order.items;
+  }
+  
   if (Array.isArray(order.order_items) && order.order_items.length) {
-    return order.order_items.map((oi) => ({
+    console.log('Found order.order_items:', order.order_items);
+    const mapped = order.order_items.map((oi) => ({
       name: oi.menu_items?.name || oi.item_name || 'Item',
       quantity: oi.quantity,
       price: oi.price,
     }));
+    console.log('Mapped items:', mapped);
+    return mapped;
   }
+  
+  console.log('No items found, returning empty array');
   return [];
 }
 
-export default function KotPrint({ order, onClose }) {
+export default function KotPrint({ 
+  order, 
+  onClose, 
+  onPrint, 
+  isPersistent = false, 
+  queueInfo = null 
+}) {
+  console.log('KotPrint rendered with order:', order);
+  
   const handlePrint = () => {
     window.print();
+    if (onPrint) {
+      onPrint();
+    } else {
+      onClose?.();
+    }
+  };
+
+  const handleClose = () => {
+    if (isPersistent) {
+      const confirmed = confirm(
+        'This KOT needs to be printed for the kitchen. Are you sure you want to close it?'
+      );
+      if (!confirmed) return;
+    }
     onClose?.();
   };
 
@@ -28,15 +61,25 @@ export default function KotPrint({ order, onClose }) {
     });
 
   const items = toDisplayItems(order);
+  console.log('Items to display in KOT:', items);
 
   return (
     <>
-      <div className="kot-print-overlay" onClick={onClose}>
+      <div className="kot-print-overlay" onClick={isPersistent ? null : onClose}>
         <div className="kot-print-modal" onClick={e => e.stopPropagation()}>
           <div className="kot-print-content">
             <div className="kot-header">
-              <h2>Kitchen Order Ticket</h2>
-              <button className="close-btn" onClick={onClose}>×</button>
+              <div>
+                <h2>Kitchen Order Ticket</h2>
+                {queueInfo && (
+                  <div className="queue-info">
+                    Order {queueInfo.current} of {queueInfo.total}
+                  </div>
+                )}
+              </div>
+              {!isPersistent && (
+                <button className="close-btn" onClick={handleClose}>×</button>
+              )}
             </div>
             <div className="kot-ticket" id="kot-printable">
               <div className="kot-info">
@@ -56,7 +99,7 @@ export default function KotPrint({ order, onClose }) {
               <div className="kot-divider">----------------------------</div>
               <div className="kot-items">
                 {items.length === 0 && (
-                  <div style={{ fontStyle: 'italic', color: '#888' }}>No items</div>
+                  <div style={{ fontStyle: 'italic', color: '#888' }}>No items found</div>
                 )}
                 {items.map((item, idx) => (
                   <div key={idx} className="kot-item">
@@ -80,8 +123,13 @@ export default function KotPrint({ order, onClose }) {
             </div>
             <div className="kot-actions">
               <button className="print-btn" onClick={handlePrint}>
-                🖨️ Print KOT
+                🖨️ Print KOT {queueInfo ? `(${queueInfo.current}/${queueInfo.total})` : ''}
               </button>
+              {isPersistent && queueInfo && queueInfo.current < queueInfo.total && (
+                <button className="skip-btn" onClick={onPrint}>
+                  Skip to Next →
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -94,11 +142,12 @@ export default function KotPrint({ order, onClose }) {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0, 0, 0, 0.8);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 10000;
+          pointer-events: auto;
         }
         .kot-print-modal {
           background: white;
@@ -107,6 +156,7 @@ export default function KotPrint({ order, onClose }) {
           max-width: 400px;
           max-height: 90vh;
           overflow: auto;
+          border: 3px solid #10b981;
         }
         .kot-print-content {
           padding: 20px;
@@ -114,12 +164,17 @@ export default function KotPrint({ order, onClose }) {
         .kot-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          align-items: flex-start;
           margin-bottom: 20px;
         }
         .kot-header h2 {
           margin: 0;
           color: #333;
+        }
+        .queue-info {
+          font-size: 12px;
+          color: #666;
+          margin-top: 4px;
         }
         .close-btn {
           background: none;
@@ -190,6 +245,9 @@ export default function KotPrint({ order, onClose }) {
         }
         .kot-actions {
           text-align: center;
+          display: flex;
+          gap: 10px;
+          justify-content: center;
         }
         .print-btn {
           background: #10b981;
@@ -199,27 +257,48 @@ export default function KotPrint({ order, onClose }) {
           border-radius: 6px;
           cursor: pointer;
           font-size: 16px;
+          flex: 1;
         }
         .print-btn:hover {
           background: #059669;
         }
+        .skip-btn {
+          background: #6b7280;
+          color: white;
+          border: none;
+          padding: 12px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        .skip-btn:hover {
+          background: #4b5563;
+        }
 
-        /* Print styles */
+        /* Enhanced print styles for thermal paper */
         @media print {
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
+            box-shadow: none !important;
+            background: #fff !important;
           }
           .kot-ticket, .kot-ticket * {
-            visibility: visible;
+            visibility: visible !important;
+            font-size: 11px !important;
+            box-shadow: none !important;
+            color: #111 !important;
           }
           .kot-ticket {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100% !important;
-            border: none !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
             padding: 0 !important;
             margin: 0 !important;
+            border: none !important;
+            background: #fff !important;
           }
           .kot-print-overlay,
           .kot-print-modal,

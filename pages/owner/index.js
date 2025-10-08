@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRequireAuth } from '../../lib/useRequireAuth';
 import { useRestaurant } from '../../context/RestaurantContext';
 import { getSupabase } from '../../services/supabase'; // 1. IMPORT ADDED
+import { useGlobalKot } from '../../hooks/useGlobalKot';
+
 
 function formatCurrency(n) {
   const num = Number(n || 0);
@@ -19,6 +21,7 @@ function startOfTodayISO() {
 export default function OwnerOverview() {
   // 2. & 3. APPLY SINGLETON PATTERN
   const supabase = getSupabase();
+  useGlobalKot();
   const { checking } = useRequireAuth(supabase);
   
   const { restaurant, loading: restLoading, error: restError } = useRestaurant();

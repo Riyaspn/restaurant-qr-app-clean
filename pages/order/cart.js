@@ -45,62 +45,59 @@ export default function CartSummary() {
   }, [restaurantId, tableNumber])
 
   const loadRestaurantData = async () => {
+    if (!restaurantId) {
+      console.error('loadRestaurantData called with no restaurantId');
+      return;
+    }
+  
+    const id = restaurantId.trim();
+    console.log('Loading restaurant data for ID:', id);
+  
     try {
-      // First try to load basic restaurant data
+      // Load basic restaurant info from 'restaurants' table
       const { data: restaurantData, error: restaurantError } = await supabase
         .from('restaurants')
-        .select('id, name, brand_color')
-        .eq('id', restaurantId)
-        .single()
-      
-      console.log('Cart Restaurant Data Load:', { restaurantData, restaurantError })
-      
-      // Try to load profile data using a different approach - maybe the table name is different
-      let profileData = null
-      try {
-        const { data: profile, error: profileError } = await supabase
-          .from('restaurant_profiles')
-          .select('*')
-          .eq('restaurant_id', restaurantId)
-          .maybeSingle()
-        
-        console.log('Profile query result:', { profile, profileError })
-        profileData = profile
-      } catch (profileErr) {
-        console.log('Profile query failed:', profileErr)
+        .select('id, name')
+        .eq('id', id)
+        .single();
+  
+      if (restaurantError) {
+        console.error('Error fetching restaurant data:', restaurantError);
+        return;
       }
-      
-      // If profile query fails, try alternative table names
-      if (!profileData) {
-        try {
-          const { data: altProfile, error: altError } = await supabase
-            .from('restaurants')
-            .select('*')
-            .eq('id', restaurantId)
-            .single()
-          
-          console.log('Alternative restaurant query:', { altProfile, altError })
-          if (altProfile) {
-            profileData = altProfile
-          }
-        } catch (altErr) {
-          console.log('Alternative query failed:', altErr)
-        }
+  
+      // Load restaurant profile info from 'restaurant_profiles' table by restaurant_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('restaurant_profiles')
+        .select(`
+          brand_color,
+          online_payment_enabled,
+          use_own_gateway,
+          gst_enabled,
+          default_tax_rate,
+          prices_include_tax
+        `)
+        .eq('restaurant_id', id)
+        .maybeSingle();
+  
+      if (profileError) {
+        console.error('Error fetching restaurant profile data:', profileError);
       }
-      
-      if (!restaurantError && restaurantData) {
-        const combinedData = {
-          ...restaurantData,
-          restaurant_profiles: profileData
-        }
-        
-        setRestaurant(combinedData)
-        console.log('Cart Restaurant Set:', combinedData)
-      }
+  
+      // Combine both data objects
+      const combinedData = {
+        ...restaurantData,
+        restaurant_profiles: profileData || {},
+      };
+  
+      setRestaurant(combinedData);
+      console.log('Cart Restaurant Set:', combinedData);
+  
     } catch (e) {
-      console.error('Cart Restaurant Load Error:', e)
+      console.error('Cart Restaurant Load Error:', e);
     }
-  }
+  };
+  
 
   const persistCart = (nextCart) => {
     if (typeof window !== 'undefined' && restaurantId && tableNumber) {

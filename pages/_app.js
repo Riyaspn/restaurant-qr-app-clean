@@ -8,6 +8,8 @@ import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getFCMToken } from '../lib/firebase/messaging';
+import { KotProvider } from '../context/KotContext';
+import GlobalKotDisplay from '../components/GlobalKotDisplay';
 
 const OWNER_PREFIX = '/owner';
 const CUSTOMER_PREFIX = '/order';
@@ -184,6 +186,7 @@ function MyApp({ Component, pageProps }) {
   const isCustomerRoute = path.startsWith(CUSTOMER_PREFIX);
 
   return (
+    <KotProvider>
     <RestaurantProvider>
       <Layout
         title={pageProps?.title}
@@ -192,8 +195,11 @@ function MyApp({ Component, pageProps }) {
         showHeader={isCustomerRoute}
       >
         <Component {...pageProps} />
-      </Layout>
+        </Layout>
+       <GlobalKotDisplay />
     </RestaurantProvider>
+    </KotProvider>
+
   );
 }
 

@@ -68,6 +68,17 @@ function PaymentConfirmDialog({ order, onConfirm, onCancel }) {
   );
 }
 
+async function fetchFullOrder(supabase, orderId) {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items(*, menu_items(name))')
+    .eq('id', orderId)
+    .single();
+  if (!error && data) return data;
+  return null;
+}
+
+
 export default function OrdersPage() {
   const supabase = getSupabase();
   const { user, checking } = useRequireAuth(supabase);
@@ -266,70 +277,82 @@ export default function OrdersPage() {
 
   // Realtime subscription & reconnection logic
   useEffect(() => {
-    if (!supabase || !restaurantId) return;
+  if (!supabase || !restaurantId) return;
 
-    const channel = supabase
-      .channel(`orders:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
-        (payload) => {
-          const order = payload.new;
-          if (!order) return;
+  const channel = supabase
+    .channel(`orders:${restaurantId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+      (payload) => {
+        const order = payload.new;
+        if (!order) return;
 
-          setOrdersByStatus((prev) => {
-            const updated = { ...prev };
-            for (const status of STATUSES) {
-              updated[status] = prev[status].filter((o) => o.id !== order.id);
-            }
-            if (order.status && updated[order.status]) {
-              updated[order.status] = [order, ...updated[order.status]];
-            }
-            return updated;
-          });
-
-          if (payload.eventType === 'INSERT' && order.status === 'new') {
-  	  playNotificationSound();
-  	  // Find the loaded order (with items) in state
-	  const fullOrder = ordersByStatus.new.find(o => o.id === order.id);
- 	  console.log('Triggering KOT print modal', fullOrder);
-  	  setShowKotPrint(fullOrder || order);
-	  }
-        }
-      )
-      .subscribe();
-
-    function onVisible() {
-      if (document.visibilityState === 'visible') {
-        setTimeout(async () => {
-          try {
-            if (!supabase) return;
-            const { data } = await supabase
-              .from('orders')
-              .select('*, order_items(*, menu_items(name))')
-              .eq('restaurant_id', restaurantId)
-              .eq('status', 'new')
-              .gte('created_at', new Date(Date.now() - 120000).toISOString())
-              .order('created_at', { ascending: true });
-            if (data) {
-              setOrdersByStatus((prev) => ({
-                ...prev,
-                new: [...data, ...prev.new].filter((o, i, arr) => arr.findIndex((x) => x.id === o.id) === i),
-              }));
-            }
-          } catch (e) {
-            console.warn('Visibility catch-up error:', e);
+        setOrdersByStatus((prev) => {
+          const updated = { ...prev };
+          for (const status of STATUSES) {
+            updated[status] = prev[status].filter((o) => o.id !== order.id);
           }
-        }, 500);
-      }
-    }
+          if (order.status && updated[order.status]) {
+            updated[order.status] = [order, ...updated[order.status]];
+          }
+          return updated;
+        });
 
-    window.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('visibilitychange', onVisible);
-      if (supabase) supabase.removeChannel(channel);
-    };
-  }, [supabase, restaurantId, playNotificationSound]);
+        // --- Fix: Always fetch order with items before show KOT ---
+        if (payload.eventType === 'INSERT' && order.status === 'new') {
+          playNotificationSound();
+
+          // Always fetch from backend for correct nested items
+          supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(name))')
+            .eq('id', order.id)
+            .single()
+            .then(({ data, error }) => {
+              if (!error && data) {
+                setShowKotPrint(data);
+              } else {
+                setShowKotPrint(order); // fallback (minimal info)
+              }
+            });
+        }
+      }
+    )
+    .subscribe();
+
+  function onVisible() {
+    if (document.visibilityState === 'visible') {
+      setTimeout(async () => {
+        try {
+          if (!supabase) return;
+          const { data } = await supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(name))')
+            .eq('restaurant_id', restaurantId)
+            .eq('status', 'new')
+            .gte('created_at', new Date(Date.now() - 120000).toISOString())
+            .order('created_at', { ascending: true });
+          if (data) {
+            setOrdersByStatus((prev) => ({
+              ...prev,
+              new: [...data, ...prev.new].filter((o, i, arr) => arr.findIndex((x) => x.id === o.id) === i),
+            }));
+          }
+        } catch (e) {
+          console.warn('Visibility catch-up error:', e);
+        }
+      }, 500);
+    }
+  }
+
+  window.addEventListener('visibilitychange', onVisible);
+  return () => {
+    window.removeEventListener('visibilitychange', onVisible);
+    if (supabase) supabase.removeChannel(channel);
+  };
+}, [supabase, restaurantId, playNotificationSound]);
+
 
   // All remaining functions and JSX unchanged
 
