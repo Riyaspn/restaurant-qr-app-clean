@@ -1,4 +1,5 @@
 // pages/owner/orders.js
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getSupabase } from '../../services/supabase';
@@ -8,6 +9,7 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { subscribeOwnerDevice } from '../../helpers/subscribePush';
 import KotPrint from '../../components/KotPrint';
+
 
 
 // Constants
@@ -532,31 +534,73 @@ export default function OrdersPage() {
 }
 
 // OrderCard component
-function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice }) {
+  function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice }) {
   const items = toDisplayItems(order);
   const hasInvoice = Boolean(order?.invoice?.pdf_url);
   const total = computeOrderTotalDisplay(order);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
+  const handlePrintClick = () => {
+    console.log('Print KOT clicked for order:', order.id);
+    setShowPrintModal(true);
+  };
+
+  const handlePrintConfirm = () => {
+    console.log('Print confirmed, calling window.print()');
+    setShowPrintModal(false);
+  };
+
+  const handlePrintClose = () => {
+    console.log('Print modal closed');
+    setShowPrintModal(false);
+  };
 
   return (
-    <Card padding={12} style={{ border: '1px solid #eef2f7', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <strong>#{order.id.slice(0, 8)}</strong>
-        <span style={{ marginLeft: 8 }}><small>Table {order.table_number || 'N/A'}</small></span>
-        <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
-      </div>
-      <div style={{ margin: '8px 0', fontSize: 14 }}>
-        {items.map((it, i) => (<div key={i}>{it.quantity}× {it.name}</div>))}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>{money(total)}</span>
-        <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-          {order.status === 'new' && (<Button size="sm" onClick={() => onChangeStatus(order.id, 'in_progress')}>Start</Button>)}
-          {order.status === 'in_progress' && (<Button size="sm" variant="success" onClick={() => onChangeStatus(order.id, 'ready')}>Ready</Button>)}
-          {order.status === 'ready' && !hasInvoice && (<Button size="sm" onClick={() => onComplete(order)} disabled={generatingInvoice === order.id}>{generatingInvoice === order.id ? 'Processing…' : 'Done'}</Button>)}
-          {hasInvoice && (<Button size="sm" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>Bill</Button>)}
+    <>
+      <Card padding={12} style={{ border: '1px solid #eef2f7', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <strong>#{order.id.slice(0, 8)}</strong>
+          <span style={{ marginLeft: 8 }}><small>Table {order.table_number || 'N/A'}</small></span>
+          <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
         </div>
-      </div>
-      <div style={{ height: 2, marginTop: 10, background: statusColor, opacity: 0.2, borderRadius: 2 }} />
-    </Card>
+        <div style={{ margin: '8px 0', fontSize: 14 }}>
+          {items.map((it, i) => (<div key={i}>{it.quantity}× {it.name}</div>))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>{money(total)}</span>
+          <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+            {order.status === 'new' && (<Button size="sm" onClick={() => onChangeStatus(order.id, 'in_progress')}>Start</Button>)}
+            {order.status === 'in_progress' && (<Button size="sm" variant="success" onClick={() => onChangeStatus(order.id, 'ready')}>Ready</Button>)}
+            {order.status === 'ready' && !hasInvoice && (<Button size="sm" onClick={() => onComplete(order)} disabled={generatingInvoice === order.id}>{generatingInvoice === order.id ? 'Processing…' : 'Done'}</Button>)}
+            {hasInvoice && (<Button size="sm" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>Bill</Button>)}
+            {order.status === 'new' && (
+              <button 
+                onClick={handlePrintClick} 
+                style={{ 
+                  background: '#10b981', 
+                  color: '#fff', 
+                  border: 'none', 
+                  padding: '6px 12px', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                Print KOT
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ height: 2, marginTop: 10, background: statusColor, opacity: 0.2, borderRadius: 2 }} />
+      </Card>
+
+      {showPrintModal && (
+        <KotPrint
+          order={order}
+          onClose={handlePrintClose}
+          onPrint={handlePrintConfirm}
+        />
+      )}
+    </>
   );
 }

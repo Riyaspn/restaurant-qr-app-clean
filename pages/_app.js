@@ -8,8 +8,7 @@ import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getFCMToken } from '../lib/firebase/messaging';
-import { KotProvider } from '../context/KotContext';
-import GlobalKotDisplay from '../components/GlobalKotDisplay';
+
 
 const OWNER_PREFIX = '/owner';
 const CUSTOMER_PREFIX = '/order';
@@ -85,6 +84,9 @@ const ensureSubscribed = async () => {
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
+  const path = router.pathname || '';
+  const isOwnerRoute = path.startsWith(OWNER_PREFIX);
+  const isCustomerRoute = path.startsWith(CUSTOMER_PREFIX);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -181,26 +183,25 @@ function MyApp({ Component, pageProps }) {
     }
   };
 
-  const path = router.pathname || '';
-  const showSidebar = path.startsWith(OWNER_PREFIX);
-  const isCustomerRoute = path.startsWith(CUSTOMER_PREFIX);
 
-  return (
-    <KotProvider>
-    <RestaurantProvider>
-      <Layout
-        title={pageProps?.title}
-        showSidebar={showSidebar}
-        hideChrome={isCustomerRoute}
-        showHeader={isCustomerRoute}
-      >
-        <Component {...pageProps} />
+return (
+      <RestaurantProvider>
+        <Layout
+          title={pageProps?.title}
+          showSidebar={isOwnerRoute}
+          hideChrome={isCustomerRoute}
+          showHeader={isCustomerRoute}
+        >
+          <Component {...pageProps} />
         </Layout>
-       <GlobalKotDisplay />
-    </RestaurantProvider>
-    </KotProvider>
-
+        {/* KOT pop ONLY on owner pages */}
+      </RestaurantProvider>
   );
+}
+
+function InnerGlobalKotSubscriber() {
+  useGlobalKot();
+  return null;
 }
 
 export default MyApp;
