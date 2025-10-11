@@ -48,7 +48,7 @@ export class InvoiceService {
 
       // Effective flags for restaurant service items
       const gstEnabled = (order.gst_enabled ?? profile?.gst_enabled) ?? false
-      const baseRate = Number(profile?.default_tax_rate ?? 5)
+      const baseRate = gstEnabled ? Number(profile?.default_tax_rate ?? 0) : 0;
       // Use restaurant profile as the single source of truth for inclusion
       const includeFlag = profile?.prices_include_tax
       const servicePricesIncludeTax = gstEnabled
@@ -71,7 +71,9 @@ export class InvoiceService {
         return {
           name: oi.item_name || oi.name || 'Item',
           qty,
-          taxRate: isPackaged ? taxRate : Number(isFinite(baseRate) ? baseRate : 0),
+          taxRate: gstEnabled
+          ? (isPackaged ? taxRate : Number(isFinite(baseRate) ? baseRate : 0))
+          : 0,
           unitResolved: Number(unitResolved),
           hsn: oi.hsn || '',
           isPackaged

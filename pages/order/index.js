@@ -71,7 +71,7 @@ export default function OrderPage() {
         // 3. USE the singleton instance
         const { data: menu, error: menuErr } = await supabase
           .from('menu_items')
-          .select('id, name, price, description, category, veg, status')
+          .select('id, name, price, description, category, veg, status,  is_packaged_good')
           .eq('restaurant_id', restaurantId)
           .order('category', { ascending: true })
           .order('name', { ascending: true })

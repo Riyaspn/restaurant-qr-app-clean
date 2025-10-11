@@ -73,7 +73,7 @@ export default async function handler(req, res) {
       const itemTaxRate = Number(menuItem?.tax_rate ?? it.tax_rate ?? 0);
 
       // Choose effective tax rate: packaged uses its own rate; service items use restaurant base
-      let effectiveRate = isPackaged ? itemTaxRate : serviceRate;
+      let effectiveRate = isPackaged && gstEnabled ? itemTaxRate : serviceRate;
       // Fallback: if GST is enabled but no rate resolved, use restaurant base
       if ((effectiveRate == null || effectiveRate <= 0) && gstEnabled) {
         effectiveRate = baseRate;
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
 
       let unitEx, unitInc, lineEx, tax, lineInc;
 
-      if (serviceInclude) {
+      if (isPackaged  || serviceInclude) {
         // Prices are tax-inclusive for service items
         unitInc = unit;
         unitEx = effectiveRate > 0 ? unitInc / (1 + effectiveRate / 100) : unitInc;
