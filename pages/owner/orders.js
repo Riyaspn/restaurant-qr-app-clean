@@ -515,55 +515,6 @@ export default function OrdersPage() {
 .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .muted { color: #6b7280; font-size: 14px; }
 
-/* Status chips: always single row with fixed sizing */
-.mobile-filters {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 8px;
-  padding: 0 12px 12px;
-  overflow-x: hidden;
-  max-width: 100%;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  background: #fff;
-  cursor: pointer;
-  /* Fixed dimensions that fit 4 chips at 360px */
-  min-width: 78px;
-  max-width: 92px;
-  padding: 6px 8px;
-  line-height: 1.1;
-  height: 32px;
-  box-sizing: border-box;
-}
-
-.chip--active { background: #eef2ff; border-color: #c7d2fe; }
-
-.chip-label {
-  font-weight: 600;
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1 1 auto;
-}
-
-.chip-count {
-  background: #111827;
-  color: #fff;
-  border-radius: 9999px;
-  padding: 0 6px;
-  font-size: 11px;
-  flex: 0 0 auto;
-}
-
 /* Default: hide mobile list on desktop */
 .mobile-list { display: none; }
 .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 12px 16px; }
@@ -581,19 +532,7 @@ export default function OrdersPage() {
   .kanban { display: none !important; }
 }
 
-/* Mobile breakpoints: smallest first, progressively larger */
-@media (max-width: 375px) {
-  .orders-header { flex-wrap: wrap; }
-  .header-actions { width: 100%; justify-content: flex-start; }
-  .orders-header h1 { font-size: 20px; }
-  .mobile-filters { gap: 6px; padding: 0 10px 10px; }
-  .chip { min-width: 74px; max-width: 88px; height: 30px; padding: 5px 7px; }
-  .chip-label { font-size: 11.5px; }
-  .chip-count { font-size: 10.5px; padding: 0 5px; }
-  .mobile-list { padding: 0 6px; gap: 8px; }
-}
-
-@media (min-width: 376px) and (max-width: 414px) {
+@media (max-width: 414px) {
   .orders-header { flex-wrap: wrap; }
   .header-actions { width: 100%; justify-content: flex-start; }
   .orders-header h1 { font-size: 20px; }
