@@ -4,7 +4,9 @@ import Card from './ui/Card';
 import Button from './ui/Button';
 import Chip from './ui/Chip';
 
-export default function OrderCard({ order, status, onStatusChange, onClick }) {
+export default function OrderCard({ order, statusColor, onChangeStatus, onComplete, generatingInvoice, onKotPrinted }) {
+  return (
+    <div className="order-card-wrapper">
   // Items is a JSONB array of { name, quantity, price, notes? }
   const items = Array.isArray(order.items) ? order.items : [];
 
@@ -13,7 +15,6 @@ export default function OrderCard({ order, status, onStatusChange, onClick }) {
   const tax = Number(order.tax_amount ?? order.tax ?? 0);
   const itemCount = items.reduce((sum, it) => sum + (it.quantity || 1), 0);
 
-  return (
     <Card
       className="order-card"
       onClick={onClick}
@@ -89,5 +90,6 @@ export default function OrderCard({ order, status, onStatusChange, onClick }) {
         }
       `}</style>
     </Card>
+    </div>
   );
 }

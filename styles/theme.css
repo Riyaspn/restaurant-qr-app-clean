@@ -39,7 +39,11 @@ html, body, #__next {
   margin: 0 auto;
   padding: 0 var(--pad-3);
 }
-
+@media (max-width: 600px) {
+  .container {
+    padding: 0 var(--pad-sm);
+  }
+}
 .h1 {
   font-size: clamp(22px, 2.3vw, 32px);
   font-weight: 800;
@@ -224,4 +228,18 @@ html, body, #__next {
 
 .main-content {
   padding-bottom: calc(var(--pad-4) + var(--safe-bottom));
+}
+
+.shell-header {
+  padding-top: env(safe-area-inset-top);
+}
+.main-content {
+  padding-bottom: calc(var(--pad-4) + env(safe-area-inset-bottom));
+}
+
+/* Force container padding override on mobile */
+@media (max-width: 600px) {
+  .container {
+    padding: 0 12px !important;
+  }
 }

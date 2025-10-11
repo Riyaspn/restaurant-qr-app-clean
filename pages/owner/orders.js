@@ -440,26 +440,27 @@ export default function OrdersPage() {
           </button>
         ))}
       </div>
+{/* Mobile list (phones) */}
+<div className="mobile-list orders-list">
+  {ordersByStatus[ordersByStatus.mobileFilter || 'new'].length === 0 ? (
+    <Card className="muted" padding={12} style={{ textAlign: 'center' }}>
+      No {LABELS[ordersByStatus.mobileFilter || 'new'].toLowerCase()} orders
+    </Card>
+  ) : (
+    ordersByStatus[ordersByStatus.mobileFilter || 'new'].map((order) => (
+      <OrderCard
+        key={order.id}
+        order={order}
+        statusColor={COLORS[order.status]}
+        onChangeStatus={updateStatus}
+        onComplete={finalize}
+        generatingInvoice={generatingInvoice}
+      />
+    ))
+  )}
+</div>
 
-      <div className="mobile-list">
-        {ordersByStatus[ordersByStatus.mobileFilter || 'new'].length === 0 ? (
-          <Card className="muted" padding={12} style={{ textAlign: 'center' }}>
-            No {LABELS[ordersByStatus.mobileFilter || 'new'].toLowerCase()} orders
-          </Card>
-        ) : (
-          ordersByStatus[ordersByStatus.mobileFilter || 'new'].map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              statusColor={COLORS[order.status]}
-              onChangeStatus={updateStatus}
-              onComplete={finalize}
-              generatingInvoice={generatingInvoice}
-            />
-          ))
-        )}
-      </div>
-
+      
       <div className="kanban">
         {STATUSES.map((status) => (
           <Card key={status} padding={12}>
@@ -508,27 +509,98 @@ export default function OrdersPage() {
       )}
 
       <style jsx>{`
-        .orders-wrap { padding: 12px 0 32px; }
-        .orders-header { display: flex; justify-content: space-between; align-items: center; padding: 0 12px 12px; }
-        .orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
-        .header-actions { display: flex; align-items: center; gap: 10px; }
-        .muted { color: #6b7280; font-size: 14px; }
-        .mobile-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 12px 12px; }
-        .chip { border: 1px solid #e5e7eb; border-radius: 14px; padding: 8px; display: flex; justify-content: space-between; background: #fff; cursor: pointer; }
-        .chip--active { background: #eef2ff; border-color: #c7d2fe; }
-        .chip-label { font-weight: 600; font-size: 13px; }
-        .chip-count { background: #111827; color: #fff; border-radius: 9999px; padding: 0 6px; font-size: 12px; }
-        .mobile-list { display: grid; gap: 10px; padding: 0 12px; }
-        .kanban { display: none; }
-        @media (min-width: 1024px) {
-          .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 12px 16px; }
-          .mobile-filters, .mobile-list { display: none; }
-        }
-        .kanban-col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .pill { background: #f3f4f6; padding: 4px 10px; border-radius: 9999px; font-size: 12px; }
-        .kanban-col-body { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
-        .empty-col { text-align: center; color: #9ca3af; padding: 20px; border: 1px dashed #e5e7eb; border-radius: 8px; }
-      `}</style>
+.orders-wrap { padding: 12px 0 32px; }
+.orders-header { display: flex; justify-content: space-between; align-items: center; padding: 0 12px 12px; gap: 10px; }
+.orders-header h1 { margin: 0; font-size: clamp(20px, 2.6vw, 28px); }
+.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.muted { color: #6b7280; font-size: 14px; }
+
+/* Status chips: always single row with fixed sizing */
+.mobile-filters {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  padding: 0 12px 12px;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  /* Fixed dimensions that fit 4 chips at 360px */
+  min-width: 78px;
+  max-width: 92px;
+  padding: 6px 8px;
+  line-height: 1.1;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.chip--active { background: #eef2ff; border-color: #c7d2fe; }
+
+.chip-label {
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.chip-count {
+  background: #111827;
+  color: #fff;
+  border-radius: 9999px;
+  padding: 0 6px;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+/* Default: hide mobile list on desktop */
+.mobile-list { display: none; }
+.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 12px 16px; }
+
+.kanban-col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pill { background: #f3f4f6; padding: 4px 10px; border-radius: 9999px; font-size: 12px; }
+.kanban-col-body { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
+.empty-col { text-align: center; color: #9ca3af; padding: 20px; border: 1px dashed #e5e7eb; border-radius: 8px; }
+
+/* Tablets and below: show mobile list, hide kanban */
+@media (max-width: 1023px) {
+  .orders-wrap { padding: 8px 0 24px; }
+  .header-actions { justify-content: flex-start; }
+  .mobile-list { display: flex; flex-direction: column; gap: 10px; padding: 0 8px; }
+  .kanban { display: none !important; }
+}
+
+/* Mobile breakpoints: smallest first, progressively larger */
+@media (max-width: 375px) {
+  .orders-header { flex-wrap: wrap; }
+  .header-actions { width: 100%; justify-content: flex-start; }
+  .orders-header h1 { font-size: 20px; }
+  .mobile-filters { gap: 6px; padding: 0 10px 10px; }
+  .chip { min-width: 74px; max-width: 88px; height: 30px; padding: 5px 7px; }
+  .chip-label { font-size: 11.5px; }
+  .chip-count { font-size: 10.5px; padding: 0 5px; }
+  .mobile-list { padding: 0 6px; gap: 8px; }
+}
+
+@media (min-width: 376px) and (max-width: 414px) {
+  .orders-header { flex-wrap: wrap; }
+  .header-actions { width: 100%; justify-content: flex-start; }
+  .orders-header h1 { font-size: 20px; }
+  .mobile-list { padding: 0 6px; gap: 8px; }
+}
+`}</style>
+
     </div>
   );
 }
@@ -555,35 +627,103 @@ export default function OrdersPage() {
     setShowPrintModal(false);
   };
 
-  return (
-    <>
-      <Card padding={12} style={{ border: '1px solid #eef2f7', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+return (
+  <>
+    <div className="order-card-wrapper">
+      <Card
+        padding={12}
+        className="order-card"
+        style={{
+          border: '1px solid #eef2f7',
+          borderRadius: 12,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          width: '100%',
+          maxWidth: '100%',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           <strong>#{order.id.slice(0, 8)}</strong>
-          <span style={{ marginLeft: 8 }}><small>Table {order.table_number || 'N/A'}</small></span>
-          <span style={{ color: '#6b7280', fontSize: 12 }}>{new Date(order.created_at).toLocaleTimeString()}</span>
+          <span style={{ marginLeft: 8 }}>
+            <small>Table {order.table_number || 'N/A'}</small>
+          </span>
+          <span style={{ color: '#6b7280', fontSize: 12 }}>
+            {new Date(order.created_at).toLocaleTimeString()}
+          </span>
         </div>
+
         <div style={{ margin: '8px 0', fontSize: 14 }}>
-          {items.map((it, i) => (<div key={i}>{it.quantity}× {it.name}</div>))}
+          {items.map((it, i) => (
+            <div key={i}>
+              {it.quantity}× {it.name}
+            </div>
+          ))}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           <span style={{ fontSize: 16, fontWeight: 700 }}>{money(total)}</span>
-          <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-            {order.status === 'new' && (<Button size="sm" onClick={() => onChangeStatus(order.id, 'in_progress')}>Start</Button>)}
-            {order.status === 'in_progress' && (<Button size="sm" variant="success" onClick={() => onChangeStatus(order.id, 'ready')}>Ready</Button>)}
-            {order.status === 'ready' && !hasInvoice && (<Button size="sm" onClick={() => onComplete(order)} disabled={generatingInvoice === order.id}>{generatingInvoice === order.id ? 'Processing…' : 'Done'}</Button>)}
-            {hasInvoice && (<Button size="sm" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>Bill</Button>)}
+
+          <div
+            className="order-actions"
+            style={{
+              display: 'flex',
+              gap: 6,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              width: '100%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {order.status === 'new' && (
-              <button 
-                onClick={handlePrintClick} 
-                style={{ 
-                  background: '#10b981', 
-                  color: '#fff', 
-                  border: 'none', 
-                  padding: '6px 12px', 
-                  borderRadius: '4px', 
+              <Button size="sm" onClick={() => onChangeStatus(order.id, 'in_progress')}>
+                Start
+              </Button>
+            )}
+            {order.status === 'in_progress' && (
+              <Button size="sm" variant="success" onClick={() => onChangeStatus(order.id, 'ready')}>
+                Ready
+              </Button>
+            )}
+            {order.status === 'ready' && !hasInvoice && (
+              <Button
+                size="sm"
+                onClick={() => onComplete(order)}
+                disabled={generatingInvoice === order.id}
+              >
+                {generatingInvoice === order.id ? 'Processing…' : 'Done'}
+              </Button>
+            )}
+            {hasInvoice && (
+              <Button size="sm" onClick={() => window.open(order.invoice.pdf_url, '_blank')}>
+                Bill
+              </Button>
+            )}
+            {order.status === 'new' && (
+              <button
+                onClick={handlePrintClick}
+                style={{
+                  background: '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '12px'
+                  fontSize: '12px',
                 }}
               >
                 Print KOT
@@ -591,16 +731,34 @@ export default function OrdersPage() {
             )}
           </div>
         </div>
-        <div style={{ height: 2, marginTop: 10, background: statusColor, opacity: 0.2, borderRadius: 2 }} />
-      </Card>
 
-      {showPrintModal && (
-        <KotPrint
-          order={order}
-          onClose={handlePrintClose}
-          onPrint={handlePrintConfirm}
+        <div
+          style={{
+            height: 2,
+            marginTop: 10,
+            background: statusColor,
+            opacity: 0.2,
+            borderRadius: 2,
+          }}
         />
-      )}
-    </>
-  );
+      </Card>
+    </div>
+
+    {showPrintModal && (
+      <KotPrint order={order} onClose={handlePrintClose} onPrint={handlePrintConfirm} />
+    )}
+
+    <style jsx>{`
+  /* Card width handling */
+  .order-card-wrapper { width: 100%; padding: 6px 0; }
+  .order-card { width: 100%; max-width: 100%; }
+
+  /* Make header and action row wrap safely on small screens */
+  @media (max-width: 480px) {
+    .order-actions { justify-content: flex-start !important; }
+  }
+`}</style>
+  </>
+);
+
 }

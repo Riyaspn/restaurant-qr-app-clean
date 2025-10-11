@@ -20,58 +20,61 @@ export default function KotPrint({ order, onClose, onPrint }) {
   const isPersistent = false;
 
   const handlePrint = () => {
-    const kotContent = document.getElementById('kot-printable');
-    if (!kotContent) return;
+  const kotContent = document.getElementById('kot-printable');
+  if (!kotContent) return;
 
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Kitchen Order Ticket</title>
-          <style>
-            @media print {
-              @page { size: 58mm auto; margin: 2mm; }
-              body { margin: 0; padding: 0; font-family: 'Courier New', monospace; }
-            }
-            body {
-              font-family: 'Courier New', monospace;
-              font-size: 12px;
-              line-height: 1.4;
-              color: #000;
-              background: #fff;
-              padding: 8px;
-              width: 58mm;
-              max-width: 58mm;
-            }
-            .kot-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-            .label { font-weight: bold; }
-            .kot-divider { text-align: center; margin: 8px 0; font-weight: bold; }
-            .kot-item { display: flex; margin-bottom: 6px; gap: 8px; }
-            .item-qty { font-weight: bold; min-width: 30px; }
-            .item-name { flex: 1; word-wrap: break-word; }
-            .kot-notes { margin-top: 12px; }
-            .notes-text { font-style: italic; padding-left: 8px; }
-            .kot-footer { margin-top: 12px; text-align: center; }
-            .timestamp { font-size: 10px; color: #666; }
-          </style>
-        </head>
-        <body>
-          ${kotContent.innerHTML}
-        </body>
-      </html>
-    `);
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Kitchen Order Ticket</title>
+        <style>
+          @media print {
+            @page { size: 58mm auto; margin: 2mm; }
+            body { margin: 0; padding: 0; font-family: 'Courier New', monospace; }
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+            background: #fff;
+            padding: 8px;
+            width: 58mm;
+            max-width: 58mm;
+          }
+          .kot-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+          .label { font-weight: bold; }
+          .kot-divider { text-align: center; margin: 8px 0; font-weight: bold; }
+          .kot-item { display: flex; margin-bottom: 6px; gap: 8px; }
+          .item-qty { font-weight: bold; min-width: 30px; }
+          .item-name { flex: 1; word-wrap: break-word; }
+          .kot-notes { margin-top: 12px; }
+          .notes-text { font-style: italic; padding-left: 8px; }
+          .kot-footer { margin-top: 12px; text-align: center; }
+          .timestamp { font-size: 10px; color: #666; }
+        </style>
+      </head>
+      <body>
+        ${kotContent.innerHTML}
+      </body>
+    </html>
+  `);
 
-    printWindow.document.close();
-    printWindow.focus();
+  printWindow.document.close();
+  printWindow.focus();
 
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-      if (onPrint) onPrint();
-      else onClose?.();
-    }, 250);
-  };
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+    
+    // Mark as printed after successful print
+    if (onPrint) onPrint();
+    else onClose?.();
+  }, 250);
+};
+
 
   const handleClose = () => {
     if (!isPersistent) {
